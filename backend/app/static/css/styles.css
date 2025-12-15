@@ -179,3 +179,96 @@ h1,h2,h3,h4,h5,h6{
     margin-top: 0.5rem;
     
 }
+
+/*Témoignages Section */
+
+.testimonial-card{
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    padding: 2rem;
+    margin: 1rem 0;
+}
+.testimonial-card:hover{
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    transform: translateY(-10px);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.testimonial-text{
+    font-style: italic;
+    color: var(--gray);
+    margin-bottom: 1rem;
+}
+.testimonial-author {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.testimonial-img {
+    width: 60px !important;
+    height: 60px !important;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0; /* important pour éviter l'étirement */
+}
+
+.newsletter-section{
+    background-color: var(--primary-dark);
+    color: white !important;
+    padding: 2rem 0;
+    text-align: center;
+    border-radius: 2%; 
+}
+
+.newsletter-input{
+    max-width: 400px;
+    margin: 1rem auto;
+}
+
+
+.footer {
+    background-color: var(--dark);
+    color: white;
+    padding: 2rem 0;
+    text-align: center;
+    margin-top: 2rem;
+}
+
+/* Règles spécifiques pour forcer le texte en blanc */
+.footer,
+.footer *:not(.btn):not(input):not(textarea):not(select) {
+    color: white !important;
+}
+
+/* Pour les liens spécifiquement */
+.footer a,
+.footer h5,
+.footer p {
+    color: white !important;
+}
+
+.footer h5 {
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.footer-links {
+    list-style: none;
+    padding: 0;
+}
+
+.footer-links li {
+    margin: 0.5rem 0;
+}
+
+.footer-links a { 
+    color: white !important;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.footer-links a:hover {
+    color: #cfd8dc !important;
+}
