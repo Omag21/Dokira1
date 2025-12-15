@@ -12,7 +12,9 @@
      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <!--<link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}"> -->
     <link rel="stylesheet" href="/static/css/styles.css">
+
     <link rel="icon" type="image/png" href="/static/images/favicon.png">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
 </head>
@@ -38,10 +40,10 @@
                         <a class="nav-link" href="#stats">Statistiques</a>
                     </li>
                     <li class="nav-item ms-lg-3 ">
-                        <a class="nav-link" href="#">Connexion</a>
+                        <a class="nav-link" href="/connexion">Connexion</a>
                     </li>
                     <li class="nav-item ms-lg-2">
-                        <a class="nav-link" href="#">Inscription</a>
+                        <a class="nav-link" href="/connexion">Inscription</a>
                     </li>
                 </ul>
             </div>
@@ -259,49 +261,140 @@
 </section>
 
     <!-- Footer -->
-    <footer class="footer">
-        <div class="container text-center">
-            <div class="row">
-                <div class="col-lg-4 mb-4 mb-lg-0">
-                    <h5>Dokira</h5>
-                    <p>La solution de téléconsultation pour les professionnels de santé.</p>
-                    <div class="social-icons">
-                        <a href="#"><i class="bi bi-facebook"></i></a>
-                        <a href="#"><i class="bi bi-twitter"></i></a>
-                        <a href="#"><i class="bi bi-linkedin"></i></a>
-                        <a href="#"><i class="bi bi-instagram"></i></a>
+<footer class="footer bg-dokira-dark">
+    <div class="container">
+        <div class="row g-4">
+            <!-- Colonne 1 : Logo et description -->
+            <div class="col-lg-4">
+                <div class="footer-brand mb-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="fas fa-heartbeat fs-3 text-dokira-primary me-2"></i>
+                        <span class="h4 mb-0 fw-bold text-white">Dokira</span>
+                    </div>
+                    <p class="text-dokira-light">
+                        Plateforme eSanté professionnelle pour la gestion médicale, 
+                        la téléconsultation sécurisée et le suivi des patients.
+                    </p>
+                </div>
+                
+                <div class="footer-social">
+                    <h6 class="text-white mb-3">Suivez-nous</h6>
+                    <div class="d-flex gap-3">
+                        <a href="#" class="social-link dokira-social">
+                            <i class="fab fa-facebook-f"></i>
+                        </a>
+                        <a href="#" class="social-link dokira-social">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="social-link dokira-social">
+                            <i class="fab fa-linkedin-in"></i>
+                        </a>
+                        <a href="#" class="social-link dokira-social">
+                            <i class="fab fa-instagram"></i>
+                        </a>
                     </div>
                 </div>
-                <div class="col-lg-4 mb-4 mb-lg-0">
-                    <h5>Liens Utiles</h5>
-                    <ul class="list-unstyled">
-                        <li><a href="#">Accueil</a></li>
-                        <li><a href="#">Fonctionnalités</a></li>
-                        <li><a href="#">Tarifs</a></li>
-                        <li><a href="#">Témoignages</a></li>
-                        <li><a href="#">Contact</a></li>
-                    </ul>
-                </div>
-                <div class="col-lg-2 col-md-6 mb-4 mb-md-0">
-                    <h5> Notre Plateforme </h5>
-                    <ul class="footer-links">
-                        <li><a href="#">Conditions d'Utilisation</a></li>
-                        <li><a href="#">Politique de Confidentialité</a></li>
-                        <li><a href="#">FAQ</a></li>
-                    </ul>
-                </div>
-                <div class="col-lg-2 col-md-6 mb-4 mb-md-0">
-                    <h5> Contactez-Nous </h5>
-                    <ul class="footer-links">
-                        <li><a href="mailto:contact@dokira.fr">contact@dokira.fr</a></li>
-                        <li><a href="tel:+24176362541">+241 76 36 25 41</a></li>
-                    </ul>
+            </div>
+
+            <!-- Colonne 2 : Liens rapides -->
+            <div class="col-lg-2 col-md-6">
+                <h5 class="text-white mb-4">Navigation</h5>
+                <ul class="footer-nav list-unstyled">
+                    <li class="mb-2">
+                        <a href="/" class="footer-link dokira-link">Accueil</a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="#services" class="footer-link dokira-link">Fonctionnalités</a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="#stats" class="footer-link dokira-link">Statistiques</a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="#" class="footer-link dokira-link">Tarifs</a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="#" class="footer-link dokira-link">Témoignages</a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Colonne 3 : Plateforme -->
+            <div class="col-lg-3 col-md-6">
+                <h5 class="text-white mb-4">Plateforme</h5>
+                <ul class="footer-nav list-unstyled">
+                    <li class="mb-2">
+                        <a href="#" class="footer-link dokira-link">Conditions d'utilisation</a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="#" class="footer-link dokira-link">Politique de confidentialité</a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="#" class="footer-link dokira-link">FAQ & Support</a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="#" class="footer-link dokira-link">Centre d'aide</a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="#" class="footer-link dokira-link">Blog médical</a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Colonne 4 : Contact -->
+            <div class="col-lg-3 col-md-6">
+                <h5 class="text-white mb-4">Contact</h5>
+                <ul class="footer-contact list-unstyled">
+                    <li class="mb-3 d-flex align-items-start">
+                        <i class="fas fa-envelope text-dokira-primary me-2 mt-1"></i>
+                        <div>
+                            <span class="d-block text-dokira-light small">Email</span>
+                            <a href="mailto:contact@dokira.fr" class="footer-link dokira-link">contact@dokira.fr</a>
+                        </div>
+                    </li>
+                    <li class="mb-3 d-flex align-items-start">
+                        <i class="fas fa-phone text-dokira-primary me-2 mt-1"></i>
+                        <div>
+                            <span class="d-block text-dokira-light small">Téléphone</span>
+                            <a href="tel:+24176362541" class="footer-link dokira-link">+241 76 36 25 41</a>
+                        </div>
+                    </li>
+                    <li class="mb-3 d-flex align-items-start">
+                        <i class="fas fa-map-marker-alt text-dokira-primary me-2 mt-1"></i>
+                        <div>
+                            <span class="d-block text-dokira-light small">Adresse</span>
+                            <span class="text-dokira-light">Centre Médical Dokira, Libreville</span>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Séparateur -->
+        <hr class="my-4 dokira-separator">
+
+        <!-- Bas de footer : Copyright et certifications -->
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <p class="mb-0 text-dokira-light small">
+                    &copy; 2024 Dokira. Tous droits réservés.
+                </p>
+            </div>
+            <div class="col-md-6 text-md-end">
+                <div class="footer-certifications">
+                    <span class="badge dokira-badge me-2 mb-2">
+                        <i class="fas fa-shield-alt me-1"></i> RGPD
+                    </span>
+                    <span class="badge dokira-badge me-2 mb-2">
+                        <i class="fas fa-certificate me-1"></i> HDS
+                    </span>
+                    <span class="badge dokira-badge mb-2">
+                        <i class="fas fa-lock me-1"></i> SSL Sécurisé
+                    </span>
                 </div>
             </div>
-            <p class="mb-0">&copy; 2024 Dokira. Tous droits réservés.</p>
         </div>
-    </footer>
-
+    </div>
+</footer>
     <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-ENjdO4Dr2bkBIFxQpeoTz1HIcje39Wm4jDKdf19U8gI4ddQ3GYNS7NTKfAdVQSZe" crossorigin="anonymous"></script>
     <script src="/static/js/main.js"></script>

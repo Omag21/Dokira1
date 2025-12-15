@@ -7,6 +7,7 @@
     --dark: #343A40;
     --gray: #6C757D;
     --light-blue: #E8F4FD;
+    
 }
 
 body{
@@ -214,6 +215,7 @@ h1,h2,h3,h4,h5,h6{
     flex-shrink: 0; /* important pour éviter l'étirement */
 }
 
+/* Newsletter Section */
 .newsletter-section{
     background-color: var(--primary-dark);
     color: white !important;
@@ -228,47 +230,241 @@ h1,h2,h3,h4,h5,h6{
 }
 
 
+/* ===== FOOTER DOKIRA ===== */
+
+.bg-dokira-dark {
+    background-color: var(--dokira-dark) !important;
+    background: linear-gradient(135deg, #2c3e50 0%, var(--dokira-dark) 100%);
+}
+
+/* Texte avec couleurs Dokira */
+.text-dokira-primary {
+    color: var(--lig) !important;
+}
+
+.text-dokira-light {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Footer général */
 .footer {
-    background-color: var(--dark);
-    color: white;
-    padding: 2rem 0;
-    text-align: center;
-    margin-top: 2rem;
+    color: #fff;
+    padding: 4rem 0 2rem;
+    margin-top: 4rem;
+    position: relative;
+    overflow: hidden;
+    border-top: 4px solid var(--dokira-primary);
 }
 
-/* Règles spécifiques pour forcer le texte en blanc */
-.footer,
-.footer *:not(.btn):not(input):not(textarea):not(select) {
-    color: white !important;
+/* Barre d'accent en haut */
+.footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--light), var(--dokira-secondary));
+    z-index: 1;
 }
 
-/* Pour les liens spécifiquement */
-.footer a,
-.footer h5,
-.footer p {
-    color: white !important;
-}
-
-.footer h5 {
-    margin-bottom: 1rem;
-    font-weight: 600;
-}
-
-.footer-links {
-    list-style: none;
-    padding: 0;
-}
-
-.footer-links li {
-    margin: 0.5rem 0;
-}
-
-.footer-links a { 
-    color: white !important;
+/* Liens Dokira */
+.dokira-link {
+    color: var(--light-blue) !important;
     text-decoration: none;
-    transition: color 0.3s ease;
+    transition: all 0.3s ease;
+    font-size: 0.95rem;
+    position: relative;
+    padding: 2px 0;
+    display: inline-block;
 }
 
-.footer-links a:hover {
-    color: #cfd8dc !important;
+.dokira-link:hover {
+    color: white !important;
+    transform: translateX(5px);
+}
+
+.dokira-link::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: var(--dokira-primary);
+    transition: width 0.3s ease;
+}
+
+.dokira-link:hover::after {
+    width: 100%;
+}
+
+/* Icônes sociales Dokira */
+.dokira-social {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    background: rgba(42, 125, 225, 0.1);
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(42, 125, 225, 0.2);
+}
+
+.dokira-social:hover {
+    background: var(--dokira-primary);
+    color: white;
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 8px 20px rgba(42, 125, 225, 0.25);
+    border-color: var(--dokira-primary);
+}
+
+.dokira-social i {
+    font-size: 1.1rem;
+}
+
+/* Badges certifications Dokira */
+.dokira-badge {
+    background-color: rgba(42, 125, 225, 0.15) !important;
+    color: var(--dokira-primary) !important;
+    border: 1px solid rgba(42, 125, 225, 0.3);
+    font-weight: 500;
+    padding: 0.5rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+.dokira-badge:hover {
+    background-color:white !important;
+    border-color: var(--dokira-primary);
+    transform: translateY(-2px);
+}
+
+/* Titres */
+.footer h5,
+.footer h6 {
+    color: white !important;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    position: relative;
+    padding-bottom: 0.75rem;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.footer h5::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 40px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--dokira-primary), var(--dokira-secondary));
+    border-radius: 2px;
+}
+
+/* Contact items */
+.footer-contact .dokira-link {
+    font-weight: 500;
+    color: white !important;
+    font-size: 1rem;
+    display: block;
+    margin-top: 2px;
+}
+
+.footer-contact i {
+    color: var(--dokira-primary);
+    font-size: 1.1rem;
+    margin-top: 3px;
+}
+
+/* Séparateur */
+.dokira-separator {
+    border-color: rgba(42, 125, 225, 0.2);
+    margin: 2.5rem 0;
+    opacity: 0.5;
+}
+
+/* Responsive avec couleurs Dokira */
+@media (max-width: 768px) {
+    .footer {
+        padding: 3rem 0 1.5rem;
+        text-align: center;
+    }
+    
+    .footer h5::after {
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    
+    .footer-contact li,
+    .footer-nav li {
+        justify-content: center;
+        text-align: center;
+    }
+    
+    .footer-contact .d-flex {
+        justify-content: center;
+    }
+    
+    .dokira-social {
+        margin: 0 6px;
+    }
+    
+    .footer-certifications {
+        justify-content: center;
+        margin-top: 1.5rem;
+    }
+    
+    .dokira-link:hover {
+        transform: translateX(0);
+    }
+}
+
+/* Copyright */
+.footer .small {
+    color: rgba(255, 255, 255, 0.6) !important;
+    font-size: 0.875rem;
+}
+
+/* Animation d'apparition */
+@keyframes dokiraFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.footer .col-lg-4,
+.footer .col-lg-3,
+.footer .col-lg-2,
+.footer .col-md-6 {
+    animation: dokiraFadeIn 0.5s ease forwards;
+    opacity: 0;
+}
+
+.footer .col-lg-4 { animation-delay: 0.1s; }
+.footer .col-lg-2 { animation-delay: 0.2s; }
+.footer .col-lg-3:nth-of-type(1) { animation-delay: 0.3s; }
+.footer .col-lg-3:nth-of-type(2) { animation-delay: 0.4s; }
+
+/* Effet de brillance sur les icônes */
+.dokira-social:hover i {
+    animation: dokiraPulse 1s ease infinite;
+}
+
+@keyframes dokiraPulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
 }

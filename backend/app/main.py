@@ -3,10 +3,9 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from fastapi.staticfiles import StaticFiles
-#from app.urls import router as api_router
-#from backend.app.database import Base, engine, get_db
 from database import Base, engine, get_db
-#from models import Patient
+from views import router as views_router
+from urls import router as api_router
 
 # Crée toutes les tables dans la base de données
 Base.metadata.create_all(bind=engine)
@@ -16,7 +15,11 @@ app = FastAPI()
 
 # Configure les templates
 templates = Jinja2Templates(directory="templates")
-#app.include_router(api_router, prefix="/api")
+
+# Inclut les routeurs
+app.include_router(views_router)  # Pour les pages HTML
+app.include_router(api_router, prefix="/api")  
+
 # Monte le dossier static pour servir CSS, JS, images
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
