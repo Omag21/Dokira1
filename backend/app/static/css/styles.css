@@ -138,6 +138,51 @@ h1,h2,h3,h4,h5,h6{
     color: var(--primary);
 }
 
+.specialists-section {
+    background: linear-gradient(180deg, #1e5fa7, #0d4c8a);
+}
+
+
+.specialist-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    transition: transform 0.3s ease;
+    height: 100%;
+}
+
+.specialist-card:hover {
+    transform: translateY(-8px);
+}
+
+/* Image uniforme */
+.specialist-photo {
+    width: 100%;
+    height: 220px;
+    overflow: hidden;
+}
+
+.specialist-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Contenu texte */
+.specialist-card h5 {
+    margin-top: 1.2rem;
+    color: #1e5fa7;
+    font-weight: 600;
+}
+
+.specialist-card p {
+    color: #6c757d;
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+}
+
 /* Statistics Section */
 .stats-section{
     background-color: transparent;

@@ -1,0 +1,13 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\backend",
+    "\\backend\\app",
+    "\\backend\\app\\static",
+    "\\backend\\app\\static\\css",
+    "\\backend\\app\\templates",
+    "\\nginx"
+  ],
+  "SelectedNode": "\\backend\\app\\templates\\EspaceClient.html",
+  "PreviewInSolutionExplorer": false
+}
