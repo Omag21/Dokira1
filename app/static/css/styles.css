@@ -1,0 +1,515 @@
+:root{
+    --primary: #2A7DE1;
+    --primary-dark: #1E5FA8;
+    --secondary: #4CAF50;
+    --accent: #FF6B6B;
+    --light: #F8F9FA;
+    --dark: #343A40;
+    --gray: #6C757D;
+    --light-blue: #E8F4FD;
+    
+}
+
+body{
+    font-family: 'Times New Roman', serif;
+    color: var(--dark);
+    line-height: 1.6;
+    background-color: var(--light);
+}
+
+.body1{
+    background-color: var(--primary-dark)
+}
+h1,h2,h3,h4,h5,h6{
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+}
+
+.navbar{
+    background-color: white;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    padding: 1rem 0;
+}
+
+.navbar-brand{
+    font-weight: 700;
+    color: var(--dark);
+    margin: 0 0.5rem;
+    font-size: 1.5rem;
+    
+}
+
+.navbar-collapse{
+    
+    background-color: var(--primary-dark);
+}
+.nav-link{
+    font-weight: 500;
+    color: white;
+    margin: 0 0.5rem;
+    transition: color 0.3s ease;
+}
+
+.nav-link:hover{
+    color: var(--primary);
+}
+
+.btn-primary{
+    background-color: var(--primary);
+    border-color: var(--primary);
+    padding: 0.5rem 1rem;
+    transition: background-color 0.3s ease;
+    font-weight: 600;
+}
+
+.btn-primary:hover{
+    background-color: var(--primary-dark);
+    border-color: var(--primary-dark);
+}
+
+.btn-outline-primary{
+    color: var(--primary);
+    border-color: var(--primary);
+    padding: 0.5rem 1rem;
+}
+
+.btn-outline-primary:hover{
+    background-color: var(--primary);
+    color: white;
+}
+
+.img-fluid{
+    max-width: 400px;
+    height: 250px;
+    object-fit: cover;
+    margin-top: 20px;
+
+}
+
+.text-muted{
+    color: white !important;
+}
+.hero-section{
+    background: linear-gradient(135deg, var(--light-blue), 0%, var(--primary),  100%);
+    color: white;
+    padding: 6rem 0;
+    text-align: center;
+}
+
+.services-section{
+    background: linear-gradient(135deg, var(--primary), 0%, var(--primary-dark),  100%);
+    color: white;
+    padding: 4rem 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.feature-card{
+    background-color: white;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    padding: 2rem;
+    margin: 1rem 0;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.feature{
+    color: var(--primary);
+    overflow: hidden;
+}
+.feature-text{
+    color: var(--primary);
+    font-weight: 600;}
+.feature-card:hover{
+    transform: translateY(-10px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+}
+.feature-icon{
+    width: 70px;
+    height: 70px;
+    background-color: var(--light-blue);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    color: var(--primary);
+}
+
+.specialists-section {
+    background: linear-gradient(180deg, #1e5fa7, #0d4c8a);
+}
+
+
+.specialist-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    transition: transform 0.3s ease;
+    height: 100%;
+}
+
+.specialist-card:hover {
+    transform: translateY(-8px);
+}
+
+/* Image uniforme */
+.specialist-photo {
+    width: 100%;
+    height: 220px;
+    overflow: hidden;
+}
+
+.specialist-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Contenu texte */
+.specialist-card h5 {
+    margin-top: 1.2rem;
+    color: #1e5fa7;
+    font-weight: 600;
+}
+
+.specialist-card p {
+    color: #6c757d;
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Statistics Section */
+.stats-section{
+    background-color: transparent;
+    padding: 4rem 0;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    
+   
+}
+.stats-box{
+    background-color: var(--light-blue);
+    padding: 3rem 2rem;
+    border-radius: 40px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    max-width: 1500px;
+    margin: 0 auto;
+}
+.stats-box:hover{
+    box-shadow: 0 15px 25px rgba(0,0,0,0.2);
+    transform: translateY(-15px);
+    transition: transform 0.3s ease, box-shadow 0.3s ease
+}
+.stats-item{
+    text-align: center;
+    margin: 1rem 0;
+    flex: 1;
+    
+    
+}
+.stat-number{
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 0.5rem;
+}
+.stat-label{
+    font-size: 1.2rem;
+    color: var(--primary);
+    margin-top: 0.5rem;
+    
+}
+
+/*Témoignages Section */
+
+.testimonial-card{
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    padding: 2rem;
+    margin: 1rem 0;
+}
+.testimonial-card:hover{
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    transform: translateY(-10px);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.testimonial-text{
+    font-style: italic;
+    color: var(--gray);
+    margin-bottom: 1rem;
+}
+.testimonial-author {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.testimonial-img {
+    width: 60px !important;
+    height: 60px !important;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0; /* important pour éviter l'étirement */
+}
+
+/* Newsletter Section */
+.newsletter-section{
+    background-color: var(--primary-dark);
+    color: white !important;
+    padding: 2rem 0;
+    text-align: center;
+    border-radius: 2%; 
+}
+
+.newsletter-input{
+    max-width: 400px;
+    margin: 1rem auto;
+}
+
+
+/* ===== FOOTER DOKIRA ===== */
+
+.bg-dokira-dark {
+    background-color: var(--dokira-dark) !important;
+    background: linear-gradient(135deg, #2c3e50 0%, var(--dokira-dark) 100%);
+}
+
+/* Texte avec couleurs Dokira */
+.text-dokira-primary {
+    color: var(--lig) !important;
+}
+
+.text-dokira-light {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Footer général */
+.footer {
+    color: #fff;
+    padding: 4rem 0 2rem;
+    margin-top: 4rem;
+    position: relative;
+    overflow: hidden;
+    border-top: 4px solid var(--dokira-primary);
+}
+
+/* Barre d'accent en haut */
+.footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--light), var(--dokira-secondary));
+    z-index: 1;
+}
+
+/* Liens Dokira */
+.dokira-link {
+    color: var(--light-blue) !important;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    font-size: 0.95rem;
+    position: relative;
+    padding: 2px 0;
+    display: inline-block;
+}
+
+.dokira-link:hover {
+    color: white !important;
+    transform: translateX(5px);
+}
+
+.dokira-link::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: var(--dokira-primary);
+    transition: width 0.3s ease;
+}
+
+.dokira-link:hover::after {
+    width: 100%;
+}
+
+/* Icônes sociales Dokira */
+.dokira-social {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    background: rgba(42, 125, 225, 0.1);
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(42, 125, 225, 0.2);
+}
+
+.dokira-social:hover {
+    background: var(--dokira-primary);
+    color: white;
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 8px 20px rgba(42, 125, 225, 0.25);
+    border-color: var(--dokira-primary);
+}
+
+.dokira-social i {
+    font-size: 1.1rem;
+}
+
+/* Badges certifications Dokira */
+.dokira-badge {
+    background-color: rgba(42, 125, 225, 0.15) !important;
+    color: var(--dokira-primary) !important;
+    border: 1px solid rgba(42, 125, 225, 0.3);
+    font-weight: 500;
+    padding: 0.5rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+.dokira-badge:hover {
+    background-color:white !important;
+    border-color: var(--dokira-primary);
+    transform: translateY(-2px);
+}
+
+/* Titres */
+.footer h5,
+.footer h6 {
+    color: white !important;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    position: relative;
+    padding-bottom: 0.75rem;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.footer h5::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 40px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--dokira-primary), var(--dokira-secondary));
+    border-radius: 2px;
+}
+
+/* Contact items */
+.footer-contact .dokira-link {
+    font-weight: 500;
+    color: white !important;
+    font-size: 1rem;
+    display: block;
+    margin-top: 2px;
+}
+
+.footer-contact i {
+    color: var(--dokira-primary);
+    font-size: 1.1rem;
+    margin-top: 3px;
+}
+
+/* Séparateur */
+.dokira-separator {
+    border-color: rgba(42, 125, 225, 0.2);
+    margin: 2.5rem 0;
+    opacity: 0.5;
+}
+
+/* Responsive avec couleurs Dokira */
+@media (max-width: 768px) {
+    .footer {
+        padding: 3rem 0 1.5rem;
+        text-align: center;
+    }
+    
+    .footer h5::after {
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    
+    .footer-contact li,
+    .footer-nav li {
+        justify-content: center;
+        text-align: center;
+    }
+    
+    .footer-contact .d-flex {
+        justify-content: center;
+    }
+    
+    .dokira-social {
+        margin: 0 6px;
+    }
+    
+    .footer-certifications {
+        justify-content: center;
+        margin-top: 1.5rem;
+    }
+    
+    .dokira-link:hover {
+        transform: translateX(0);
+    }
+}
+
+/* Copyright */
+.footer .small {
+    color: rgba(255, 255, 255, 0.6) !important;
+    font-size: 0.875rem;
+}
+
+/* Animation d'apparition */
+@keyframes dokiraFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.footer .col-lg-4,
+.footer .col-lg-3,
+.footer .col-lg-2,
+.footer .col-md-6 {
+    animation: dokiraFadeIn 0.5s ease forwards;
+    opacity: 0;
+}
+
+.footer .col-lg-4 { animation-delay: 0.1s; }
+.footer .col-lg-2 { animation-delay: 0.2s; }
+.footer .col-lg-3:nth-of-type(1) { animation-delay: 0.3s; }
+.footer .col-lg-3:nth-of-type(2) { animation-delay: 0.4s; }
+
+/* Effet de brillance sur les icônes */
+.dokira-social:hover i {
+    animation: dokiraPulse 1s ease infinite;
+}
+
+@keyframes dokiraPulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}

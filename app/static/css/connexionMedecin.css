@@ -1,0 +1,510 @@
+/* ==================== VARIABLES ET RESET ==================== */
+:root {
+    --primary: #2A7DE1;
+    --primary-dark: #1E5FA8;
+    --primary-light: #E8F4FD;
+    --secondary: #4CAF50;
+    --accent: #FF6B6B;
+    --light: #F8F9FA;
+    --dark: #343A40;
+    --gray: #6C757D;
+    --success: #28a745;
+    --border: #e0e0e0;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    width: 100%;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background: linear-gradient(135deg, var(--primary-light) 0%, #ffffff 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+/* ==================== LAYOUT PRINCIPAL ==================== */
+.login-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.card-wrapper {
+    display: flex;
+    min-height: 700px;
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+    border-radius: 20px;
+    overflow: hidden;
+    background: white;
+}
+
+/* ==================== SECTION WELCOME ==================== */
+.welcome-section {
+    flex: 1;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    padding: 50px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.welcome-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.1" d="M0,96L48,112C96,128,192,160,288,186.7C384,213,480,235,576,213.3C672,192,768,128,864,128C960,128,1056,192,1152,192C1248,192,1344,128,1392,96L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>');
+    background-size: cover;
+    background-position: center;
+}
+
+.welcome-content {
+    position: relative;
+    z-index: 2;
+}
+
+.logo {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 30px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.logo i {
+    font-size: 2.8rem;
+}
+
+.welcome-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.welcome-text {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 30px;
+    opacity: 0.9;
+}
+
+.features-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 40px;
+}
+
+.features-list li {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 0.95rem;
+}
+
+.features-list i {
+    background: rgba(255, 255, 255, 0.2);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.security-info {
+    margin-top: 50px;
+    padding-top: 30px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.security-info p {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    margin: 0;
+}
+
+.security-info i {
+    margin-right: 8px;
+}
+
+/* ==================== SECTION FORM ==================== */
+.form-section {
+    flex: 1;
+    padding: 50px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.form-container {
+    width: 100%;
+    max-width: 450px;
+    margin: 0 auto;
+}
+
+.form-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 10px;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.form-subtitle {
+    color: var(--gray);
+    margin-bottom: 40px;
+    font-size: 0.95rem;
+}
+
+.form-card {
+    background: white;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border);
+}
+
+/* ==================== FORMULAIRE ÉLÉMENTS ==================== */
+.form-group {
+    margin-bottom: 25px;
+    position: relative;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--dark);
+    font-size: 0.95rem;
+}
+
+.form-control {
+    padding: 14px 16px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    width: 100%;
+    font-family: 'Roboto', sans-serif;
+}
+
+.form-control:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.2rem rgba(42, 125, 225, 0.25);
+    outline: none;
+    background-color: white;
+}
+
+.form-control::placeholder {
+    color: #999;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 15px;
+    top: 42px;
+    background: none;
+    border: none;
+    color: var(--gray);
+    cursor: pointer;
+    transition: color 0.3s;
+    font-size: 16px;
+    padding: 5px;
+}
+
+.password-toggle:hover {
+    color: var(--primary);
+}
+
+.form-check {
+    margin: 0;
+}
+
+.form-check-input {
+    border-color: var(--border);
+    cursor: pointer;
+}
+
+.form-check-input:checked {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+
+.form-check-label {
+    cursor: pointer;
+    margin-left: 8px;
+    color: var(--dark);
+}
+
+/* ==================== BOUTON PRIMAIRE ==================== */
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border: none;
+    padding: 15px;
+    font-weight: 600;
+    border-radius: 10px;
+    font-size: 16px;
+    width: 100%;
+    transition: all 0.3s ease;
+    margin-top: 10px;
+    color: white;
+    cursor: pointer;
+    font-family: 'Roboto', sans-serif;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 14px rgba(42, 125, 225, 0.3);
+    background: linear-gradient(135deg, #3385e8 0%, #2563c9 100%);
+    color: white;
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ==================== SÉPARATEUR ==================== */
+.separator {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 30px 0;
+    color: var(--gray);
+    font-size: 0.9rem;
+}
+
+.separator::before,
+.separator::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--border);
+}
+
+.separator span {
+    padding: 0 15px;
+}
+
+/* ==================== TOGGLE FORM ==================== */
+.toggle-form {
+    text-align: center;
+    margin-top: 30px;
+    color: var(--gray);
+    font-size: 0.95rem;
+}
+
+.toggle-form a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.toggle-form a:hover {
+    text-decoration: underline;
+    color: var(--primary-dark);
+}
+
+/* ==================== ALERTE ERREUR ==================== */
+.alert {
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 25px;
+    border: none;
+    font-size: 0.95rem;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.alert i {
+    margin-right: 8px;
+}
+
+/* ==================== SPINNER ANIMATION ==================== */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.25em;
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 992px) {
+    .card-wrapper {
+        flex-direction: column;
+        min-height: auto;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .welcome-section {
+        padding: 30px;
+        min-height: 300px;
+    }
+
+    .welcome-title {
+        font-size: 2rem;
+    }
+
+    .form-section {
+        padding: 30px;
+    }
+
+    .form-card {
+        padding: 30px;
+    }
+}
+
+@media (max-width: 768px) {
+    .login-container {
+        margin: 0 auto;
+    }
+
+    .welcome-section {
+        padding: 25px;
+    }
+
+    .logo {
+        font-size: 2rem;
+    }
+
+    .logo i {
+        font-size: 2.2rem;
+    }
+
+    .welcome-title {
+        font-size: 1.5rem;
+        margin-bottom: 15px;
+    }
+
+    .welcome-text {
+        font-size: 0.95rem;
+        margin-bottom: 20px;
+    }
+
+    .features-list {
+        margin-top: 20px;
+    }
+
+    .features-list li {
+        margin-bottom: 10px;
+        font-size: 0.85rem;
+    }
+
+    .features-list i {
+        width: 35px;
+        height: 35px;
+    }
+
+    .security-info {
+        margin-top: 30px;
+        padding-top: 20px;
+    }
+
+    .form-section {
+        padding: 20px;
+    }
+
+    .form-container {
+        max-width: 100%;
+    }
+
+    .form-title {
+        font-size: 1.5rem;
+        margin-bottom: 8px;
+    }
+
+    .form-subtitle {
+        margin-bottom: 25px;
+    }
+
+    .form-card {
+        padding: 20px;
+    }
+
+    .form-control {
+        padding: 12px 14px;
+        font-size: 16px;
+    }
+
+    .form-label {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 576px) {
+    body {
+        padding: 10px;
+    }
+
+    .card-wrapper {
+        border-radius: 15px;
+    }
+
+    .welcome-section {
+        padding: 20px;
+        min-height: 250px;
+    }
+
+    .logo {
+        font-size: 1.5rem;
+        margin-bottom: 20px;
+    }
+
+    .logo i {
+        font-size: 1.8rem;
+    }
+
+    .welcome-title {
+        font-size: 1.3rem;
+    }
+
+    .form-section {
+        padding: 15px;
+    }
+
+    .form-card {
+        padding: 15px;
+    }
+
+    .form-title {
+        font-size: 1.3rem;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .btn-primary {
+        padding: 12px;
+        font-size: 14px;
+    }
+}

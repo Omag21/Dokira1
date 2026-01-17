@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+    <title>Dokira - Espace Médecin</title>
+
+    <!-- Styles -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/static/css/medecin.css" rel="stylesheet" />
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="top-navbar">
+        <button class="menu-toggle">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <div class="navbar-search">
+            <i class="fas fa-search"></i>
+            <input type="text" placeholder="Rechercher un patient, un dossier..." />
+        </div>
+
+        <div class="navbar-actions">
+            <select class="language-selector">
+                <option value="fr">FR</option>
+                <option value="en">EN</option>
+            </select>
+
+            <button class="notification-btn">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge">3</span>
+            </button>
+
+            <div class="profile-dropdown">
+                <img id="profileAvatar"
+                    src="https://ui-avatars.com/api/?name=Dr+Medecin&background=0D8ABC&color=fff&size=45" alt="Avatar"
+                    class="profile-avatar">
+                <div class="profile-info">
+                    <div class="profile-name">Dr. Médecin</div>
+                    <div class="profile-role">Cardiologue</div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="logo-text">
+                <i class="fas fa-user-md"></i>
+                Dokira Pro
+            </div>
+        </div>
+
+        <ul class="sidebar-menu">
+            <li class="menu-item">
+                <a href="#" class="menu-link active" data-section="dashboard">
+                    <i class="fas fa-th-large"></i>
+                    <span>Tableau de Bord</span>
+                </a>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" data-section="rdv">
+                    <i class="fas fa-calendar-check"></i>
+                    <span>Mes Rendez-vous</span>
+                    <span class="menu-badge">8</span>
+                </a>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" data-section="patients">
+                    <i class="fas fa-users"></i>
+                    <span>Mes Patients</span>
+                </a>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" data-section="dossiers">
+                    <i class="fas fa-folder-medical"></i>
+                    <span>Dossiers Médicaux</span>
+                </a>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" data-section="messagerie">
+                    <i class="fas fa-comments"></i>
+                    <span>Messagerie</span>
+                    <span class="menu-badge">3</span>
+                </a>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" data-section="visio">
+                    <i class="fas fa-video"></i>
+                    <span>Visioconférences</span>
+                </a>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" data-section="historique">
+                    <i class="fas fa-history"></i>
+                    <span>Historique</span>
+                </a>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" data-section="parametres">
+                    <i class="fas fa-cog"></i>
+                    <span>Paramètres</span>
+                </a>
+            </li>
+        </ul>
+
+        <div style="padding: 20px 30px; margin-top: auto;">
+            <a href="/medecin/deconnexionMedecin" class="menu-link" style="color: #fda4af;">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Déconnexion</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div id="mainContent">
+            <!-- Le contenu sera injecté ici par medecin.js -->
+        </div>
+    </main>
+
+    <!-- Script JS -->
+    <script src="/static/js/medecin.js"></script>
+</body>
+
+</html>

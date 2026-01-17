@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dokira - Connexion</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #2A7DE1;
+            --primary-dark: #1E5FA8;
+            --primary-light: #E8F4FD;
+            --secondary: #4CAF50;
+            --accent: #FF6B6B;
+            --light: #F8F9FA;
+            --dark: #343A40;
+            --gray: #6C757D;
+            --success: #28a745;
+        }
+        
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, var(--primary-light) 0%, #ffffff 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .login-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .card-wrapper {
+            display: flex;
+            min-height: 700px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
+            overflow: hidden;
+            background: white;
+        }
+        
+        .welcome-section {
+            flex: 1;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 50px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .welcome-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.1" d="M0,96L48,112C96,128,192,160,288,186.7C384,213,480,235,576,213.3C672,192,768,128,864,128C960,128,1056,192,1152,192C1248,192,1344,128,1392,96L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>');
+            background-size: cover;
+            background-position: center;
+        }
+        
+        .welcome-content {
+            position: relative;
+            z-index: 2;
+        }
+        
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo i {
+            font-size: 2.8rem;
+        }
+        
+        .welcome-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            font-family: 'Montserrat', sans-serif;
+        }
+        
+        .welcome-text {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        
+        .features-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 40px;
+        }
+        
+        .features-list li {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .features-list i {
+            background: rgba(255, 255, 255, 0.2);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .form-section {
+            flex: 1;
+            padding: 50px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .form-container {
+            width: 100%;
+            max-width: 450px;
+            margin: 0 auto;
+        }
+        
+        .form-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 10px;
+            font-family: 'Montserrat', sans-serif;
+        }
+        
+        .form-subtitle {
+            color: var(--gray);
+            margin-bottom: 40px;
+        }
+        
+        .form-card {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid #eee;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+            position: relative;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--dark);
+        }
+        
+        .form-control {
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+            width: 100%;
+        }
+        
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 0.2rem rgba(42, 125, 225, 0.25);
+            outline: none;
+        }
+        
+        .password-toggle {
+            position: absolute;
+            right: 15px;
+            top: 42px;
+            background: none;
+            border: none;
+            color: var(--gray);
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            border: none;
+            padding: 15px;
+            font-weight: 600;
+            border-radius: 10px;
+            font-size: 16px;
+            width: 100%;
+            transition: all 0.3s;
+            margin-top: 10px;
+            color: white;
+            cursor: pointer;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(42, 125, 225, 0.3);
+        }
+        
+        .role-selector {
+            margin-bottom: 25px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+        
+        .role-option {
+            flex: 1;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .role-option:hover {
+            border-color: var(--primary);
+        }
+        
+        .role-option.active {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+        
+        .role-option i {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--primary);
+        }
+        
+        .role-option label {
+            font-weight: 600;
+            cursor: pointer;
+            margin: 0;
+        }
+        
+        .separator {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 30px 0;
+            color: var(--gray);
+        }
+        
+        .separator::before,
+        .separator::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .separator span {
+            padding: 0 15px;
+        }
+        
+        .toggle-form {
+            text-align: center;
+            margin-top: 30px;
+            color: var(--gray);
+        }
+        
+        .toggle-form a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .toggle-form a:hover {
+            text-decoration: underline;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+        }
+        
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        @media (max-width: 992px) {
+            .card-wrapper {
+                flex-direction: column;
+                max-width: 600px;
+            }
+            
+            .welcome-section {
+                padding: 30px;
+            }
+            
+            .form-section {
+                padding: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="card-wrapper">
+            <div class="welcome-section">
+                <div class="welcome-content">
+                    <div class="logo">
+                        <i class="fas fa-heartbeat"></i>
+                        <span>Dokira</span>
+                    </div>
+                    
+                    <h1 class="welcome-title">Bienvenue sur Dokira</h1>
+                    <p class="welcome-text">
+                        La plateforme eSanté dédiée aux patients et aux professionnels de santé. 
+                        Gestion des dossiers médicaux, téléconsultations et outils cliniques 
+                        dans une interface unique et sécurisée.
+                    </p>
+                    
+                    <ul class="features-list">
+                        <li>
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Conforme RGPD et certifications santé</span>
+                        </li>
+                        <li>
+                            <i class="fas fa-video"></i>
+                            <span>Téléconsultation HD sécurisée</span>
+                        </li>
+                        <li>
+                            <i class="fas fa-file-medical"></i>
+                            <span>Dossiers patients complets</span>
+                        </li>
+                        <li>
+                            <i class="fas fa-clock"></i>
+                            <span>Gain de temps administratif</span>
+                        </li>
+                    </ul>
+                    
+                    <div style="margin-top: 50px; padding-top: 30px; border-top: 1px solid rgba(255,255,255,0.2);">
+                        <p style="font-size: 0.9rem; opacity: 0.8;">
+                            <i class="fas fa-lock me-2"></i>
+                            Toutes les données sont chiffrées et hébergées au Gabon
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <!-- Affichage de l'erreur si elle existe -->
+                <div id="errorAlert" class="alert alert-danger" style="display: none;">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <span id="errorMessage"></span>
+                </div>
+                
+                <div class="form-container">
+                    <div class="form-card">
+                        <h2 class="form-title">Connexion</h2>
+                        <p class="form-subtitle">Accédez à votre espace personnel</p>
+                        
+                        <!-- Sélecteur de rôle -->
+                        <div class="role-selector">
+                            <div class="role-option active" data-role="patient">
+                                <i class="fas fa-user"></i>
+                                <div>
+                                    <label>Patient</label>
+                                </div>
+                            </div>
+                            <div class="role-option" data-role="medecin">
+                                <i class="fas fa-user-md"></i>
+                                <div>
+                                    <label>Médecin</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <form id="loginForm" method="POST" action="/connexion">
+                            <input type="hidden" id="roleInput" name="role" value="patient">
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="email">
+                                    <i class="fas fa-envelope me-2"></i>Email
+                                </label>
+                                <input 
+                                    type="email" 
+                                    class="form-control" 
+                                    id="email" 
+                                    name="email"
+                                    placeholder="votre.email@exemple.com" 
+                                    required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="password">
+                                    <i class="fas fa-lock me-2"></i>Mot de passe
+                                </label>
+                                <input 
+                                    type="password" 
+                                    class="form-control" 
+                                    id="password" 
+                                    name="password"
+                                    placeholder="Votre mot de passe" 
+                                    style="padding-right: 45px;"
+                                    required>
+                                <button type="button" class="password-toggle" id="togglePassword">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="rememberMe">
+                                    <label class="form-check-label" for="rememberMe">
+                                        Se souvenir de moi
+                                    </label>
+                                </div>
+                                <a href="#" style="font-size: 0.9rem; color: var(--primary);">Mot de passe oublié ?</a>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <span>Se connecter</span>
+                            </button>
+                        </form>
+                        
+                        <div class="separator">
+                            <span>Ou</span>
+                        </div>
+                        
+                        <div class="toggle-form">
+                            Nouveau sur Dokira ? 
+                            <a href="/inscription">Créer un compte</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+
+    // ========== GESTION DES RÔLES ==========
+    const roleOptions = document.querySelectorAll('.role-option');
+    const roleInput = document.getElementById('roleInput');
+    const loginForm = document.getElementById('loginForm');
+    const createAccountLink = document.querySelector('.toggle-form a');
+
+    // Fonction pour mettre à jour le formulaire dynamiquement
+  function updateFormAction(role) {
+
+    if (role === 'medecin') {
+        loginForm.action = "/medecin/connexion";
+        createAccountLink.style.display = "block";
+        createAccountLink.href = "/medecin/inscriptionMedecin";
+    } else {
+        loginForm.action = "/connexion";
+        createAccountLink.style.display = "block";
+        createAccountLink.href = "/inscription";
+    }
+
+    console.log("🔄 Formulaire mis à jour pour :", role);
+}
+
+
+    roleOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            roleOptions.forEach(opt => opt.classList.remove('active'));
+            this.classList.add('active');
+
+            const role = this.getAttribute('data-role');
+            roleInput.value = role;
+
+            updateFormAction(role);
+        });
+    });
+
+    // ========== CRÉER UN COMPTE DYNAMIQUE ==========
+    if (createAccountLink) {
+        createAccountLink.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            if (roleInput.value === 'medecin') {
+                // redirection dynamique médecin
+                window.location.href = '/medecin/inscriptionMedecin';
+            } else {
+                // patient ou autre rôle
+                window.location.href = '/inscription';
+            }
+        });
+    }
+
+    // ========== TOGGLE MOT DE PASSE ==========
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('password');
+
+    if (togglePassword && passwordInput) {
+        togglePassword.addEventListener('click', function() {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+
+            const icon = this.querySelector('i');
+            icon.classList.toggle('fa-eye');
+            icon.classList.toggle('fa-eye-slash');
+        });
+    }
+
+    // ========== GESTION DES ERREURS ==========
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get('error');
+    if (error) showError(decodeURIComponent(error));
+
+    function showError(message) {
+        const errorAlert = document.getElementById('errorAlert');
+        const errorMessage = document.getElementById('errorMessage');
+        if (errorAlert && errorMessage) {
+            errorMessage.textContent = message;
+            errorAlert.style.display = 'block';
+            setTimeout(() => { errorAlert.style.display = 'none'; }, 5000);
+        }
+    }
+
+    // ========== VALIDATION DU FORMULAIRE ==========
+    loginForm.addEventListener('submit', function(e) {
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+
+        if (!email || !password) {
+            e.preventDefault();
+            showError('Veuillez remplir tous les champs');
+            return false;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            e.preventDefault();
+            showError('Veuillez entrer une adresse email valide');
+            return false;
+        }
+
+        const submitBtn = this.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Connexion...';
+        }
+
+        return true;
+    });
+
+    // ========== ANIMATION DES CHAMPS ==========
+    const inputs = document.querySelectorAll('.form-control');
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() { this.parentElement.classList.add('focused'); });
+        input.addEventListener('blur', function() { if (!this.value) this.parentElement.classList.remove('focused'); });
+    });
+
+    console.log('✅ Page de connexion chargée');
+    console.log('📍 URL actuelle:', window.location.href);
+    console.log('🔐 Rôle sélectionné:', roleInput.value);
+
+});
+</script>
+
+</body>
+</html>

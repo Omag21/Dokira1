@@ -1,0 +1,36 @@
+# requirements.txt
+# Dépendances pour le projet Dokira
+
+# Framework Web
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Base de données
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.12.1
+
+# Authentification et sécurité
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.1
+python-dotenv==1.0.0
+
+# Templates
+jinja2==3.1.2
+
+# Validation
+pydantic==2.5.0
+email-validator==2.1.0
+
+# Utilitaires
+python-dateutil==2.8.2
+pytz==2023.3
+
+# Upload de fichiers
+aiofiles==23.2.1
+Pillow==12.1.0
+
+# CORS
+starlette==0.27.0
