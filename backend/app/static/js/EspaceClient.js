@@ -1,4 +1,5 @@
-// Données structurées pour chaque section
+ 
+        // Données structurées pour chaque section
         const sectionsData = {
             dashboard: {
                 stats: [
@@ -330,7 +331,7 @@
                     }
                 ]
             },
-            vaccinations: {
+            injections: {
                 cards: [
                     {
                         icon: 'fa-syringe',
@@ -543,7 +544,7 @@
                 'ordonnances': 'Mes Ordonnances',
                 'documents': 'Mes Documents',
                 'analyses': 'Analyses & Résultats',
-                'vaccinations': 'Carnet de Vaccination',
+                'injections': 'Injections',
                 'parametres': 'Paramètres'
             };
             return titles[sectionName] || sectionName;
@@ -579,5 +580,43 @@
             }
         });
 
+        // Fonction pour changer la langue
+        function changelanguage(lang) {
+            console.log('Changement de langue vers:', lang);
+            // Ici vous pouvez ajouter la logique pour changer la langue
+        }
+
         // Afficher le dashboard au chargement
         displaySection('dashboard');
+
+
+// ============= GESTION DE LA DÉCONNEXION =============
+    
+    // Trouver le lien de déconnexion
+    const logoutLink = document.querySelector('a[href="/deconnexion"]');
+    
+    if (logoutLink) {
+        logoutLink.addEventListener('click', function(e) {
+            e.preventDefault(); // Empêcher la navigation immédiate
+            
+            // Demander confirmation
+            const confirmed = confirm(
+                'Êtes-vous sûr de vouloir vous déconnecter ?\n\n' +
+                'Votre session sera fermée et vous serez redirigé vers la page de connexion.'
+            );
+            
+            if (confirmed) {
+                // Animation simple
+                const originalHTML = logoutLink.innerHTML;
+                logoutLink.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Déconnexion...';
+                logoutLink.style.pointerEvents = 'none';
+                
+                // Rediriger après un court délai pour l'animation
+                setTimeout(() => {
+                    window.location.href = '/deconnexion';
+                }, 1000);
+            }
+        });
+    }
+
+    

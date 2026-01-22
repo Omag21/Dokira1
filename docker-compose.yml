@@ -1,7 +1,6 @@
-#version: "3.9"
+version: "3.9"
 
 services:
-
   db:
     image: postgres:17
     container_name: dokira-db
@@ -14,21 +13,34 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: ./backend
     container_name: dokira-backend
     restart: unless-stopped
-    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: >
+      sh -c "sleep 5 && 
+      python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - ./backend:/app
     working_dir: /app
     env_file:
       - ./backend/.env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   nginx:
     image: nginx:latest
@@ -40,7 +52,8 @@ services:
       - "80:80"
       - "443:443"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   adminer:
     image: adminer

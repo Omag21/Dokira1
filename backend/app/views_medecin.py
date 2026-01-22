@@ -11,6 +11,7 @@ import secrets
 import os
 from dotenv import load_dotenv
 
+
 # Imports locaux
 from app.database import get_db
 from app.models import Medecin, Patient, RendezVous, DossierMedical, Message
@@ -20,9 +21,9 @@ load_dotenv()
 
 # Configuration
 BASE_DIR = Path(__file__).resolve().parent
-SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440))
+SECRET_KEY = os.environ["SECRET_KEY"]
+ALGORITHM = os.environ["JWT_ALGO"]
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"])
 
 # Configuration du router et templates
 router = APIRouter(prefix="/medecin", tags=["medecin"])
@@ -124,7 +125,11 @@ def get_current_medecin_from_cookie(request: Request, db: Session):
 
 # ============= ROUTES HTML =============
 
-@router.get("/connexion", response_class=HTMLResponse)
+@router.get("/inscriptionMedecin", response_class=HTMLResponse)
+def page_inscription_medecin(request: Request):
+    return templates.TemplateResponse("inscriptionMedecin.html", {"request": request})
+
+@router.get("/connexionMedecin", response_class=HTMLResponse)
 def page_connexion_medecin(request: Request, db: Session = Depends(get_db)):
     """Page de connexion médecin"""
     current_medecin = get_current_medecin_from_cookie(request, db)
@@ -132,7 +137,7 @@ def page_connexion_medecin(request: Request, db: Session = Depends(get_db)):
     if current_medecin:
         return RedirectResponse(url="/medecin/dashboard", status_code=303)
     
-    return templates.TemplateResponse("connexion_medecin.html", {"request": request})
+    return templates.TemplateResponse("connexionMedecin.html", {"request": request})
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -142,7 +147,7 @@ def dashboard_medecin(request: Request, db: Session = Depends(get_db)):
     current_medecin = get_current_medecin_from_cookie(request, db)
     
     if not current_medecin:
-        return RedirectResponse(url="/medecin/connexion", status_code=303)
+        return RedirectResponse(url="/connexionMedecin", status_code=303)
     
     # Mettre à jour la dernière connexion
     try:
@@ -178,7 +183,7 @@ async def login_medecin(
     
     if not medecin:
         return templates.TemplateResponse(
-            "connexion_medecin.html",
+            "connexionMedecin.html",
             {
                 "request": request,
                 "error": "Email ou mot de passe incorrect",
@@ -189,7 +194,7 @@ async def login_medecin(
     
     if not medecin.est_actif:
         return templates.TemplateResponse(
-            "connexion_medecin.html",
+            "connexionMedecin.html",
             {
                 "request": request,
                 "error": "Votre compte a été désactivé. Contactez le support.",
@@ -234,11 +239,126 @@ async def login_medecin(
     
     return response
 
+@router.post("/inscription")
+async def register_medecin(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    nom: str = Form(...),
+    prenom: str = Form(...),
+    specialite: str = Form(...),
+    telephone: str = Form(...),
+    numero_ordre: str = Form(default=None),
+    adresse: str = Form(default=None),
+    ville: str = Form(default=None),
+    code_postal: str = Form(default=None),
+    langues: str = Form(default=None),
+    acceptConditions: str = Form(default=None),
+    db: Session = Depends(get_db)
+):
+    """Inscription d'un nouveau médecin"""
 
-@router.get("/deconnexion")
-async def deconnexion_medecin():
-    """Déconnexion médecin"""
-    response = RedirectResponse(url="/medecin/connexion", status_code=303)
+    email = email.strip().lower()
+
+    # ✅ Validation conditions
+    if acceptConditions != "on":
+        return templates.TemplateResponse(
+            "inscriptionMedecin.html",
+            {
+                "request": request,
+                "error": "Vous devez accepter les conditions d'utilisation",
+                "email": email
+            },
+            status_code=400
+        )
+
+    # ✅ Validation longueur mot de passe (bcrypt max = 72 bytes)
+    if len(password.encode("utf-8")) > 72:
+        return templates.TemplateResponse(
+            "inscriptionMedecin.html",
+            {
+                "request": request,
+                "error": "Le mot de passe est trop long (72 caractères max)",
+                "email": email
+            },
+            status_code=400
+        )
+
+    # ✅ Vérifier email existant
+    existing = get_medecin_by_email(db, email)
+    if existing:
+        return templates.TemplateResponse(
+            "inscriptionMedecin.html",
+            {
+                "request": request,
+                "error": "Cet email est déjà utilisé",
+                "email": email
+            },
+            status_code=400
+        )
+
+    try:
+        nouveau_medecin = Medecin(
+            email=email,
+            mot_de_passe_hash=get_password_hash(password),
+            nom=nom.strip().capitalize(),
+            prenom=prenom.strip().capitalize(),
+            specialite=specialite,
+            telephone=telephone.strip(),
+            numero_ordre=numero_ordre.strip() if numero_ordre else None,
+            adresse=adresse.strip() if adresse else None,
+            ville=ville.strip().capitalize() if ville else None,
+            code_postal=code_postal.strip() if code_postal else None,
+            langues=langues.strip() if langues else None,
+            est_actif=True,
+            date_creation=datetime.utcnow()
+        )
+
+        db.add(nouveau_medecin)
+        db.commit()
+        db.refresh(nouveau_medecin)
+
+        # ✅ Création du token
+        access_token = create_access_token(
+            data={
+                "sub": nouveau_medecin.email,
+                "medecin_id": nouveau_medecin.id,
+                "nom": nouveau_medecin.nom,
+                "prenom": nouveau_medecin.prenom,
+                "specialite": nouveau_medecin.specialite.value if nouveau_medecin.specialite else None
+            },
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+
+        response = RedirectResponse(url="/medecin/dashboard", status_code=303)
+        response.set_cookie(
+            key="medecin_access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            samesite="lax",
+            secure=False
+        )
+
+        return response
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Erreur création médecin: {e}")
+        return templates.TemplateResponse(
+            "inscriptionMedecin.html",
+            {
+                "request": request,
+                "error": "Erreur lors de la création du compte",
+                "email": email
+            },
+            status_code=500
+        )
+
+@router.get("/deconnexionMedecin")
+async def deconnexion_medecin_legacy():
+    """Route legacy pour compatibilité"""
+    response = RedirectResponse(url="/medecin/connexionMedecin", status_code=303)
     response.delete_cookie(key="medecin_access_token")
     return response
 
@@ -469,3 +589,7 @@ async def get_stats(request: Request, db: Session = Depends(get_db)):
         "en_traitement": en_traitement,
         "messages_non_lus": messages_non_lus
     }
+    
+
+# Charger les variables d'environnement
+load_dotenv()

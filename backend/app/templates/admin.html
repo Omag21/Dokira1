@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Plateforme Santé</title>
+    <link rel="stylesheet" href="/static/css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-user-md"></i>
+                    <span>Dokira Pro</span>
+                </div>
+                <button class="toggle-sidebar" id="toggleSidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <ul>
+                    <li><a href="#tableau-bord" class="nav-link active" data-section="tableau-bord">
+                        <i class="fas fa-th-large"></i>
+                        <span>Tableau de Bord</span>
+                    </a></li>
+                    <li><a href="#medecins-attente" class="nav-link" data-section="medecins-attente">
+                        <i class="fas fa-hourglass-half"></i>
+                        <span>Inscriptions Méd.</span>
+                        <span class="badge" id="badge-attente">0</span>
+                    </a></li>
+                    <li><a href="#medecins-actifs" class="nav-link" data-section="medecins-actifs">
+                        <i class="fas fa-user-md"></i>
+                        <span>Médecins Actifs</span>
+                    </a></li>
+                    <li><a href="#tous-medecins" class="nav-link" data-section="tous-medecins">
+                        <i class="fas fa-list"></i>
+                        <span>Tous Médecins</span>
+                    </a></li>
+                    <li><a href="#patients" class="nav-link" data-section="patients">
+                        <i class="fas fa-users"></i>
+                        <span>Patients</span>
+                    </a></li>
+                    <li><a href="#ajouter-medecin" class="nav-link" data-section="ajouter-medecin">
+                        <i class="fas fa-plus-circle"></i>
+                        <span>Ajouter Médecin</span>
+                    </a></li>
+                    <li><a href="#annonces" class="nav-link" data-section="annonces">
+                        <i class="fas fa-bullhorn"></i>
+                        <span>Annonces</span>
+                    </a></li>
+                    <li><a href="#statistiques" class="nav-link" data-section="statistiques">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Statistiques</span>
+                    </a></li>
+                    <li><a href="#messagerie" class="nav-link" data-section="messagerie">
+                        <i class="fas fa-envelope"></i>
+                        <span>Messagerie</span>
+                    </a></li>
+                    <li><a href="#chat-ia" class="nav-link" data-section="chat-ia">
+                        <i class="fas fa-robot"></i>
+                        <span>Chat IA</span>
+                    </a></li>
+                    <li><a href="#parametres" class="nav-link" data-section="parametres">
+                        <i class="fas fa-cog"></i>
+                        <span>Paramètres</span>
+                    </a></li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="logout-btn" id="logoutBtn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Déconnexion</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <div class="search-bar">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Rechercher..." id="searchInput">
+                </div>
+                <div class="top-bar-right">
+                    <button class="notification-btn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-count">3</span>
+                    </button>
+                    <div class="admin-profile">
+                        <img id="adminPhoto" src="https://via.placeholder.com/40" alt="Admin" class="profile-photo">
+                        <span id="adminName">Admin</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <section class="content-area">
+                <!-- Tableau de Bord -->
+                <div id="tableau-bord" class="section active">
+                    <h2>Tableau de Bord</h2>
+                    <div class="dashboard-cards">
+                        <div class="card">
+                            <div class="card-icon" style="background: #3498db;">
+                                <i class="fas fa-user-md"></i>
+                            </div>
+                            <div class="card-content">
+                                <h3>Médecins Actifs</h3>
+                                <p class="card-number" id="cardActiveMedecins">0</p>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-icon" style="background: #2ecc71;">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="card-content">
+                                <h3>Patients</h3>
+                                <p class="card-number" id="cardPatients">0</p>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-icon" style="background: #f39c12;">
+                                <i class="fas fa-hourglass-half"></i>
+                            </div>
+                            <div class="card-content">
+                                <h3>En Attente</h3>
+                                <p class="card-number" id="cardPending">0</p>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-icon" style="background: #e74c3c;">
+                                <i class="fas fa-euro-sign"></i>
+                            </div>
+                            <div class="card-content">
+                                <h3>Revenus (Mois)</h3>
+                                <p class="card-number" id="cardRevenue">0€</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-grid">
+                        <div class="widget">
+                            <h3>Activité Récente</h3>
+                            <div class="activity-list" id="activityList">
+                                <p class="empty-state">Aucune activité pour le moment</p>
+                            </div>
+                        </div>
+                        <div class="widget">
+                            <h3>Inscriptions en Attente</h3>
+                            <div class="pending-list" id="pendingList">
+                                <p class="empty-state">Aucune inscription en attente</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inscriptions Médecin en Attente -->
+                <div id="medecins-attente" class="section">
+                    <h2>Approuver les Inscriptions Médecin</h2>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Photo</th>
+                                    <th>Nom</th>
+                                    <th>Email</th>
+                                    <th>Spécialité</th>
+                                    <th>Téléphone</th>
+                                    <th>Date Inscription</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pendingMedecinTable">
+                                <tr><td colspan="7" class="empty-state">Aucun médecin en attente</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Médecins Actifs -->
+                <div id="medecins-actifs" class="section">
+                    <h2>Médecins Actifs (En Service)</h2>
+                    <div class="filters">
+                        <select id="filterSpeciality" class="filter-select">
+                            <option value="">Toutes les spécialités</option>
+                        </select>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Photo</th>
+                                    <th>Nom</th>
+                                    <th>Email</th>
+                                    <th>Spécialité</th>
+                                    <th>Prix/Consultation</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activeMedecinTable">
+                                <tr><td colspan="7" class="empty-state">Aucun médecin actif</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tous les Médecins -->
+                <div id="tous-medecins" class="section">
+                    <h2>Tous les Médecins (Par Catégorie)</h2>
+                    <div class="filters">
+                        <select id="filterCategory" class="filter-select">
+                            <option value="">Toutes les catégories</option>
+                        </select>
+                    </div>
+                    <div id="medecinsByCategory">
+                        <p class="empty-state">Aucun médecin trouvé</p>
+                    </div>
+                </div>
+
+                <!-- Patients -->
+                <div id="patients" class="section">
+                    <h2>Liste des Patients</h2>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Photo</th>
+                                    <th>Nom</th>
+                                    <th>Email</th>
+                                    <th>Téléphone</th>
+                                    <th>Date Inscription</th>
+                                    <th>Consultations</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="patientTable">
+                                <tr><td colspan="7" class="empty-state">Aucun patient</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Ajouter Médecin -->
+                <div id="ajouter-medecin" class="section">
+                    <h2>Ajouter un Médecin sur la Page d'Accueil</h2>
+                    <form class="form-container" id="addMedecinForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Nom Complet *</label>
+                                <input type="text" name="nom" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Email *</label>
+                                <input type="email" name="email" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Téléphone *</label>
+                                <input type="tel" name="telephone" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Spécialité *</label>
+                                <select name="specialite" required>
+                                    <option value="">Sélectionner une spécialité</option>
+                                    <option value="Cardiologie">Cardiologie</option>
+                                    <option value="Pédiatrie">Pédiatrie</option>
+                                    <option value="Dermatologie">Dermatologie</option>
+                                    <option value="Neurologie">Neurologie</option>
+                                    <option value="Orthopédie">Orthopédie</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Prix Consultation (€) *</label>
+                                <input type="number" name="prix" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Photo de Profil</label>
+                                <input type="file" name="photo" accept="image/*">
+                            </div>
+                            <div class="form-group full-width">
+                                <label>Bio</label>
+                                <textarea name="bio" rows="4"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Afficher sur Page d'Accueil</label>
+                                <input type="checkbox" name="featured" class="checkbox">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Ajouter Médecin</button>
+                    </form>
+                </div>
+
+                <!-- Annonces -->
+                <div id="annonces" class="section">
+                    <h2>Gérer les Annonces Page d'Accueil</h2>
+                    <form class="form-container" id="addAnnonceForm">
+                        <div class="form-group">
+                            <label>Titre *</label>
+                            <input type="text" name="titre" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Contenu *</label>
+                            <textarea name="contenu" rows="5" required></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Image</label>
+                            <input type="file" name="image" accept="image/*">
+                        </div>
+                        <div class="form-group">
+                            <label>Date d'Expiration</label>
+                            <input type="date" name="date_expiration">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Ajouter Annonce</button>
+                    </form>
+
+                    <h3 style="margin-top: 40px;">Annonces Actives</h3>
+                    <div class="announcements-list" id="announcesList">
+                        <p class="empty-state">Aucune annonce</p>
+                    </div>
+                </div>
+
+                <!-- Statistiques -->
+                <div id="statistiques" class="section">
+                    <h2>Statistiques et Revenus</h2>
+                    
+                    <div class="stats-filters">
+                        <select id="statsPeriod" class="filter-select">
+                            <option value="jour">Par Jour</option>
+                            <option value="semaine">Par Semaine</option>
+                            <option value="mois">Par Mois</option>
+                        </select>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stats-card">
+                            <h3>Consultations</h3>
+                            <div id="consultationChart" style="height: 300px;"></div>
+                        </div>
+                        <div class="stats-card">
+                            <h3>Revenus par Médecin</h3>
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Médecin</th>
+                                            <th>Consultations</th>
+                                            <th>Revenus</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="revenueByDoctorTable">
+                                        <tr><td colspan="3" class="empty-state">Aucune donnée</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stats-card">
+                            <h3>Revenus par Catégorie</h3>
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Catégorie</th>
+                                            <th>Consultations</th>
+                                            <th>Revenus Totaux</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="revenueByCategoryTable">
+                                        <tr><td colspan="3" class="empty-state">Aucune donnée</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Messagerie -->
+                <div id="messagerie" class="section">
+                    <h2>Messagerie</h2>
+                    <div class="messaging-container">
+                        <div class="contacts-list" id="contactsList">
+                            <p class="empty-state">Aucun message</p>
+                        </div>
+                        <div class="chat-panel">
+                            <div class="chat-header">
+                                <h3 id="chatWith">Sélectionner un contact</h3>
+                            </div>
+                            <div class="chat-messages" id="chatMessages">
+                                <p class="empty-state">Aucun message à afficher</p>
+                            </div>
+                            <div class="chat-input-area">
+                                <input type="text" id="messageInput" placeholder="Votre message...">
+                                <button id="sendMessageBtn" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat IA -->
+                <div id="chat-ia" class="section">
+                    <h2>Assistant IA</h2>
+                    <div class="chat-ia-container">
+                        <div class="chat-history" id="chatHistory">
+                            <div class="system-message">
+                                <p>Bienvenue ! Je suis votre assistant IA. Comment puis-je vous aider ?</p>
+                            </div>
+                        </div>
+                        <div class="ia-input-area">
+                            <input type="text" id="iaInput" placeholder="Posez votre question...">
+                            <button id="sendIaBtn" class="btn btn-primary">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Paramètres -->
+                <div id="parametres" class="section">
+                    <h2>Paramètres</h2>
+                    <div class="settings-container">
+                        <h3>Profil Administrateur</h3>
+                        <form class="form-container" id="settingsForm">
+                            <div class="profile-section">
+                                <div class="profile-photo-upload">
+                                    <img id="settingsAdminPhoto" src="https://via.placeholder.com/150" alt="Admin">
+                                    <label for="photoUpload" class="upload-btn">
+                                        <i class="fas fa-camera"></i> Changer la Photo
+                                    </label>
+                                    <input type="file" id="photoUpload" accept="image/*" style="display: none;">
+                                </div>
+                                <div class="profile-info">
+                                    <div class="form-group">
+                                        <label>Nom Complet</label>
+                                        <input type="text" id="adminFullName" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Email</label>
+                                        <input type="email" id="adminEmail" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Téléphone</label>
+                                        <input type="tel" id="adminPhone">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Sauvegarder</button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <hr style="margin: 40px 0;">
+
+                        <h3>Gestion des Administrateurs</h3>
+                        <p style="margin-bottom: 20px;">Nommer un médecin comme administrateur</p>
+                        <form class="form-container" id="appointAdminForm">
+                            <div class="form-group">
+                                <label>Sélectionner un Médecin</label>
+                                <select id="selectMedecinAdmin" required>
+                                    <option value="">Choisir un médecin</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Nommer Admin</button>
+                        </form>
+
+                        <div class="admins-list" id="adminsList" style="margin-top: 30px;">
+                            <h4>Administrateurs Actuels</h4>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nom</th>
+                                        <th>Email</th>
+                                        <th>Date Nomination</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adminsTable">
+                                    <tr><td colspan="4" class="empty-state">Aucun administrateur</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal pour approuver/rejeter médecin -->
+    <div id="medecinModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3 id="modalTitle">Détails du Médecin</h3>
+            <div id="medecinDetails" class="details-grid"></div>
+            <div class="modal-actions">
+                <button id="approveMedecinBtn" class="btn btn-success">Approuver</button>
+                <button id="rejectMedecinBtn" class="btn btn-danger">Rejeter</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal pour supprimer médecin -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content confirm-modal">
+            <span class="close-modal">&times;</span>
+            <h3>Confirmation de Suppression</h3>
+            <p>Êtes-vous sûr de vouloir supprimer ce médecin ?</p>
+            <div class="modal-actions">
+                <button id="confirmDeleteBtn" class="btn btn-danger">Supprimer</button>
+                <button class="btn btn-secondary close-modal">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>

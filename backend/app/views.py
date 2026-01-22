@@ -20,9 +20,11 @@ load_dotenv()
 
 # Configuration
 BASE_DIR = Path(__file__).resolve().parent
-SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440))  # 24 heures par défaut
+SECRET_KEY = os.environ["SECRET_KEY"]
+ALGORITHM = os.environ["JWT_ALGO"]
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"])
+
+BASE_DIR = Path(__file__).resolve().parent
 
 # Configuration du router et templates
 router = APIRouter()
@@ -411,7 +413,7 @@ async def register(
             date_naissance=date_naissance_obj,
             genre=genre,
             telephone=telephone.strip(),
-            adresse_ligne1=adresse.strip(),
+            adresse=adresse.strip(),
             ville=ville.strip().capitalize(),
             code_postal=code_postal.strip(),
             est_actif=True,
@@ -576,3 +578,5 @@ async def test_database(db: Session = Depends(get_db)):
             "status": "error",
             "message": f"❌ Erreur de connexion: {str(e)}"
         }
+        
+        
