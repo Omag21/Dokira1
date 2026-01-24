@@ -144,22 +144,54 @@ class Patient(Base):
 # Modèles additionnels pour les relations (optionnel, à développer selon vos besoins)
 
 class RendezVous(Base):
+    """Modèle pour les rendez-vous médicaux"""
     __tablename__ = "rendez_vous"
 
-    id = Column(Integer, primary_key=True, index=True)
-    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
-    medecin_id = Column(Integer, ForeignKey("medecins.id"), nullable=False)
+    # Identifiants
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    medecin_id = Column(Integer, ForeignKey("medecins.id"), nullable=False, index=True)
 
-    date_heure = Column(DateTime, nullable=False)
+    # Informations du rendez-vous
+    date_heure = Column(DateTime, nullable=False, index=True)
     motif = Column(Text, nullable=True)
-    statut = Column(Enum(StatutRendezVous), default=StatutRendezVous.PLANIFIE)
-    lieu = Column(String(255), nullable=True)
-    type_consultation = Column(Enum(TypeConsultation), default=TypeConsultation.CABINET)
-    date_creation = Column(DateTime, default=datetime.utcnow)
+    statut = Column(Enum(StatutRendezVous), default=StatutRendezVous.PLANIFIE, index=True)
+    
+    # Type et lieu de consultation - ✅ IMPORTANT: NE PAS SUPPRIMER
+    type_consultation = Column(Enum(TypeConsultation), default=TypeConsultation.CABINET, nullable=False)
+    lieu = Column(String(500), nullable=True)  # Adresse si domicile, URL vidéo si vidéo
+    
+    # Métadonnées
+    date_creation = Column(DateTime, default=datetime.utcnow, index=True)
+    date_modification = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Relations
     patient = relationship("Patient", back_populates="rendez_vous")
     medecin = relationship("Medecin", back_populates="rendez_vous")
 
+    def __repr__(self):
+        return f"<RendezVous(id={self.id}, patient_id={self.patient_id}, medecin_id={self.medecin_id}, type={self.type_consultation})>"
+
+    @property
+    def est_passe(self):
+        """Vérifie si le rendez-vous est passé"""
+        return self.date_heure < datetime.utcnow()
+
+    @property
+    def est_proche(self, heures=24):
+        """Vérifie si le rendez-vous est dans les prochaines 24h"""
+        delta = self.date_heure - datetime.utcnow()
+        return timedelta(0) < delta < timedelta(hours=heures)
+
+    @property
+    def affichage_type(self):
+        """Retourne le type formaté pour l'affichage"""
+        types_affichage = {
+            "Cabinet": "🏥 En cabinet",
+            "Vidéo": "📱 En ligne",
+            "Domicile": "🏠 À domicile"
+        }
+        return types_affichage.get(self.type_consultation.value if self.type_consultation else "Cabinet", "Cabinet")
 
 class Document(Base):
     __tablename__ = "documents"
@@ -209,7 +241,7 @@ class Medecin(Base):
     ville = Column(String(100), nullable=True)
     code_postal = Column(String(10), nullable=True)
     prix_consultation = Column(Float, nullable=True)  
-    
+    annees_experience = Column(Integer, default=0, nullable=False)
     featured = Column(Boolean, default=False)  # Afficher en vedette sur la page d'accueil
     date_approbation = Column(DateTime, nullable=True)
     approuve_par = Column(Integer, ForeignKey("admins.id"), nullable=True)
@@ -279,61 +311,7 @@ class StatutPhoto(str, enum.Enum):
     ACTIVE = "Active"
     ARCHIVEE = "Archivée"
     SUPPRIMEE = "Supprimée"
-            
-# ============= MODÈLE ADMIN =============
-
-class Admin(Base):
-    """
-    Modèle pour les administrateurs de la plateforme
-    """
-    __tablename__ = "admins"
-    
-    # Identifiant unique
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    
-    # Informations de connexion
-    email = Column(String(255), unique=True, nullable=False, index=True)
-    mot_de_passe_hash = Column(String(255), nullable=False)
-    
-    # Informations personnelles
-    nom = Column(String(100), nullable=False)
-    prenom = Column(String(100), nullable=False)
-    telephone = Column(String(20), nullable=True)
-    
-    # Photo de profil
-    photo_profil_url = Column(String(500), nullable=True)
-    photo_id = Column(Integer, ForeignKey("photos.id"), nullable=True)
-    
-    # Statut et gestion du compte
-    est_actif = Column(Boolean, default=True)
-    est_super_admin = Column(Boolean, default=False)  # Super admin peut tout faire
-    
-    # Dates
-    date_creation = Column(DateTime, default=datetime.utcnow, nullable=False)
-    date_modification = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    derniere_connexion = Column(DateTime, nullable=True)
-    
-    # Token de réinitialisation de mot de passe
-    token_reset_password = Column(String(255), nullable=True)
-    token_reset_expiration = Column(DateTime, nullable=True)
-    
-    # Relations
-    photo = relationship("Photo", back_populates="admin")
-    annonces = relationship("Annonce", back_populates="admin")
-    
-    def __repr__(self):
-        return f"<Admin(id={self.id}, nom={self.nom}, prenom={self.prenom}, email={self.email})>"
-    
-    @property
-    def nom_complet(self):
-        """Retourne le nom complet de l'admin"""
-        return f"{self.prenom} {self.nom}".strip()
-    
-    @property
-    def initiales(self):
-        """Retourne les initiales de l'admin"""
-        return f"{self.prenom[0]}{self.nom[0]}".upper() if self.prenom and self.nom else "A"
-
+  
 
 # ============= MODÈLE PHOTO =============
 
@@ -380,7 +358,13 @@ class Photo(Base):
     description = Column(Text, nullable=True)
     
     # Relations
-    admin = relationship("Admin", back_populates="photo")
+    admin = relationship(
+    "Admin",
+    back_populates="photo",
+    foreign_keys=[admin_id],
+    lazy="selectin")
+
+
     
     def __repr__(self):
         return f"<Photo(id={self.id}, nom={self.nom_original}, type={self.type_photo})>"
@@ -394,6 +378,70 @@ class Photo(Base):
     def taille_mo(self):
         """Convertit la taille en Mo"""
         return round(self.taille_bytes / (1024 * 1024), 2)
+
+
+          
+# ============= MODÈLE ADMIN =============
+
+class Admin(Base):
+    """
+    Modèle pour les administrateurs de la plateforme
+    """
+    __tablename__ = "admins"
+    
+    # Identifiant unique
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    
+    # Informations de connexion
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    mot_de_passe_hash = Column(String(255), nullable=False)
+    
+    # Informations personnelles
+    nom = Column(String(100), nullable=False)
+    prenom = Column(String(100), nullable=False)
+    telephone = Column(String(20), nullable=True)
+    
+    # Photo de profil
+    photo_profil_url = Column(String(500), nullable=True)
+    photo_id = Column(Integer, ForeignKey("photos.id"), nullable=True)
+    
+    # Statut et gestion du compte
+    est_actif = Column(Boolean, default=True)
+    est_super_admin = Column(Boolean, default=False)  # Super admin peut tout faire
+    
+    # Dates
+    date_creation = Column(DateTime, default=datetime.utcnow, nullable=False)
+    date_modification = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    derniere_connexion = Column(DateTime, nullable=True)
+    
+    # Token de réinitialisation de mot de passe
+    token_reset_password = Column(String(255), nullable=True)
+    token_reset_expiration = Column(DateTime, nullable=True)
+    
+    # Relations
+    photo = relationship(
+    "Photo",
+    back_populates="admin",
+    foreign_keys=[Photo.admin_id],
+    lazy="selectin",
+    uselist=False)
+
+
+    annonces = relationship("Annonce", back_populates="admin")
+    
+    def __repr__(self):
+        return f"<Admin(id={self.id}, nom={self.nom}, prenom={self.prenom}, email={self.email})>"
+    
+    @property
+    def nom_complet(self):
+        """Retourne le nom complet de l'admin"""
+        return f"{self.prenom} {self.nom}".strip()
+    
+    @property
+    def initiales(self):
+        """Retourne les initiales de l'admin"""
+        return f"{self.prenom[0]}{self.nom[0]}".upper() if self.prenom and self.nom else "A"
+
 
 
 # ============= MODÈLE ANNONCE =============

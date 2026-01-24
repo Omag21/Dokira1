@@ -12,6 +12,7 @@ from app.views_medecin import router as medecin_router
 from dotenv import load_dotenv
 import time
 from app.views_admin import router as admin_router 
+#from app.views import router as views_router
 
 
 load_dotenv()
