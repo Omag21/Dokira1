@@ -7,6 +7,42 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeFormValidation();
     initializeErrorHandling();
     initializeFormSubmit();
+
+
+    // ========== GESTION DES RÔLES ==========
+    const roleOptions = document.querySelectorAll('.role-option');
+    const roleInput = document.getElementById('roleInput');
+    const loginForm = document.getElementById('loginForm');
+    const createAccountLink = document.querySelector('.toggle-form a');
+
+    // Fonction pour mettre à jour le formulaire dynamiquement
+  function updateFormAction(role) {
+
+    if (role === 'medecin') {
+        loginForm.action = "/medecin/connexion";
+        createAccountLink.style.display = "block";
+        createAccountLink.href = "/medecin/inscriptionMedecin";
+    } else {
+        loginForm.action = "medecin/connexion";
+        createAccountLink.style.display = "block";
+        createAccountLink.href = "admin/inscription";
+    }
+
+    console.log("🔄 Formulaire mis à jour pour :", role);
+}
+
+
+    roleOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            roleOptions.forEach(opt => opt.classList.remove('active'));
+            this.classList.add('active');
+
+            const role = this.getAttribute('data-role');
+            roleInput.value = role;
+
+            updateFormAction(role);
+        });
+    });
 });
 
 // ==================== GESTION MOT DE PASSE ====================

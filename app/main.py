@@ -1,3 +1,5 @@
+
+
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -6,14 +8,17 @@ from fastapi.staticfiles import StaticFiles
 from app.database import Base, engine, get_db
 from app.views import router as views_router
 from app.urls import router as api_router
-from app.views_medecin import router as medecin_router  
+from app.views_medecin import router as medecin_router
 from dotenv import load_dotenv
 import time
+from app.views_admin import router as admin_router 
+#from app.views import router as views_router
+
 
 load_dotenv()
 
 # Initialiser l'application FastAPI D'ABORD
-app = FastAPI()
+app = FastAPI(title="Dokira 2.0", version="2.0.0")
 
 # Configurer les modèles
 templates = Jinja2Templates(directory="app/templates")
@@ -22,8 +27,8 @@ templates.env.cache = {}
 # Inclure les routeurs
 app.include_router(views_router)
 app.include_router(api_router, prefix="/api")
-app.include_router(medecin_router)  
-
+app.include_router(medecin_router)                                                                                                                                                                                                 
+app.include_router(admin_router) 
 # Monte le dossier static pour servir CSS, JS, images
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
@@ -60,3 +65,4 @@ def index(request: Request):
 @app.get("/health")
 def health_check():
     return {"status": "healthy", "timestamp": time.time()}
+

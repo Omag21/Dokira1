@@ -8,6 +8,7 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from pathlib import Path
 import secrets
+from sqlalchemy import func, case, and_,literal
 import os
 from dotenv import load_dotenv
 
@@ -422,28 +423,53 @@ async def get_rendez_vous(
 ):
     """Liste des rendez-vous"""
     current_medecin = get_current_medecin_from_cookie(request, db)
-    
+
     if not current_medecin:
         raise HTTPException(status_code=401, detail="Non authentifié")
-    
-    query = db.query(RendezVous).filter(RendezVous.medecin_id == current_medecin.id)
-    
-    # Filtres
+
+    query = db.query(RendezVous).filter(
+        RendezVous.medecin_id == current_medecin.id
+    )
+
+    # Filtres temporels
     today = datetime.now().date()
+
     if filtre == "aujourd_hui":
-        query = query.filter(RendezVous.date_heure >= datetime.combine(today, datetime.min.time()))
-        query = query.filter(RendezVous.date_heure < datetime.combine(today, datetime.max.time()))
+        query = query.filter(
+            RendezVous.date_heure >= datetime.combine(today, datetime.min.time()),
+            RendezVous.date_heure < datetime.combine(today, datetime.max.time())
+        )
+
     elif filtre == "semaine":
-        from datetime import timedelta
         start_week = today - timedelta(days=today.weekday())
-        query = query.filter(RendezVous.date_heure >= datetime.combine(start_week, datetime.min.time()))
+        query = query.filter(
+            RendezVous.date_heure >= datetime.combine(start_week, datetime.min.time())
+        )
+
     elif filtre == "mois":
-        query = query.filter(RendezVous.date_heure >= datetime(today.year, today.month, 1))
-    
+        query = query.filter(
+            RendezVous.date_heure >= datetime(today.year, today.month, 1)
+        )
+
     rdvs = query.order_by(RendezVous.date_heure.desc()).all()
-    
-    return [
-        {
+
+    results = []
+    for rdv in rdvs:
+        # ✅ TYPE SAFE (string ou enum)
+        type_safe = (
+            rdv.type_consultation.value
+            if hasattr(rdv.type_consultation, "value")
+            else rdv.type_consultation or "Cabinet"
+        )
+
+        # ✅ STATUT SAFE (string ou enum)
+        statut_safe = (
+            rdv.statut.value
+            if hasattr(rdv.statut, "value")
+            else rdv.statut or "Planifié"
+        )
+
+        results.append({
             "id": rdv.id,
             "patient": {
                 "nom_complet": rdv.patient.nom_complet if rdv.patient else "Patient supprimé",
@@ -451,69 +477,11 @@ async def get_rendez_vous(
             },
             "date_heure": rdv.date_heure.isoformat(),
             "motif": rdv.motif,
-            "type": rdv.type_consultation.value if rdv.type_consultation else "Cabinet",
-            "statut": rdv.statut.value if rdv.statut else "Planifié"
-        }
-        for rdv in rdvs
-    ]
+            "type": type_safe,
+            "statut": statut_safe
+        })
 
-
-@router.get("/api/messages")
-async def get_messages(request: Request, db: Session = Depends(get_db)):
-    """Liste des messages"""
-    current_medecin = get_current_medecin_from_cookie(request, db)
-    
-    if not current_medecin:
-        raise HTTPException(status_code=401, detail="Non authentifié")
-    
-    messages = db.query(Message).filter(
-        Message.medecin_id == current_medecin.id
-    ).order_by(Message.date_envoi.desc()).limit(50).all()
-    
-    return [
-        {
-            "id": msg.id,
-            "patient": {
-                "nom_complet": msg.patient.nom_complet if msg.patient else "Patient supprimé"
-            },
-            "sujet": msg.sujet,
-            "contenu": msg.contenu,
-            "statut": msg.statut.value if msg.statut else "Envoyé",
-            "de_medecin": msg.de_medecin,
-            "date_envoi": msg.date_envoi.isoformat()
-        }
-        for msg in messages
-    ]
-
-
-@router.post("/api/messages/send")
-async def send_message(
-    request: Request,
-    patient_id: int = Form(...),
-    sujet: str = Form(...),
-    contenu: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    """Envoyer un message à un patient"""
-    current_medecin = get_current_medecin_from_cookie(request, db)
-    
-    if not current_medecin:
-        raise HTTPException(status_code=401, detail="Non authentifié")
-    
-    nouveau_message = Message(
-        medecin_id=current_medecin.id,
-        patient_id=patient_id,
-        de_medecin=True,
-        sujet=sujet,
-        contenu=contenu
-    )
-    
-    db.add(nouveau_message)
-    db.commit()
-    db.refresh(nouveau_message)
-    
-    return {"success": True, "message_id": nouveau_message.id}
-
+    return results
 
 @router.get("/api/dossiers")
 async def get_dossiers(
@@ -590,6 +558,290 @@ async def get_stats(request: Request, db: Session = Depends(get_db)):
         "messages_non_lus": messages_non_lus
     }
     
+
+# ============= MESSAGERIE ROUTES =============
+
+@router.get("/api/messagerie/conversations")
+async def get_conversations(request: Request, db: Session = Depends(get_db)):
+    """Récupère la liste des conversations du médecin avec compteurs"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    # Récupérer tous les patients avec lesquels le médecin a un RDV
+    # Grouper par conversation (patient)
+    from app.models import StatutMessage
+    
+    conversations = db.query(
+    Patient.id,
+    func.concat(Patient.prenom, " ", Patient.nom).label("nom_complet"),
+    Patient.email,
+    Patient.telephone,
+    func.count(Message.id).label('nb_messages'),
+    func.max(Message.date_envoi).label('derniere_date'),
+    func.sum(
+        case(
+            (and_(Message.de_medecin == False, Message.statut != StatutMessage.LU), 1),
+            else_=0
+        )
+      ).label('non_lus')
+    ).outerjoin(
+      Message, (Message.patient_id == Patient.id) & (Message.medecin_id == current_medecin.id)
+    ).join(
+      RendezVous, RendezVous.patient_id == Patient.id
+    ).filter(
+     RendezVous.medecin_id == current_medecin.id
+    ).group_by(
+        Patient.id,
+        Patient.prenom,
+        Patient.nom,
+        Patient.email,
+        Patient.telephone
+    ).order_by(
+        func.max(Message.date_envoi).desc()
+    ).all()
+        
+    return [
+        {
+            "patient_id": conv.id,
+            "nom_complet": conv.nom_complet,
+            "email": conv.email,
+            "telephone": conv.telephone or "N/A",
+            "nombre_messages": conv.nb_messages or 0,
+            "derniere_date": conv.derniere_date.isoformat() if conv.derniere_date else None,
+            "non_lus": conv.non_lus or 0
+        }
+        for conv in conversations
+    ]
+
+
+@router.get("/api/messagerie/conversation/{patient_id}")
+async def get_conversation_messages(
+    patient_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Récupère tous les messages d'une conversation avec un patient"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    # Vérifier que le médecin a une relation avec ce patient via un RDV
+    patient_rdv = db.query(RendezVous).filter(
+        RendezVous.patient_id == patient_id,
+        RendezVous.medecin_id == current_medecin.id
+    ).first()
+    
+    if not patient_rdv:
+        raise HTTPException(status_code=403, detail="Accès refusé à cette conversation")
+    
+    # ✅ FIX 1: Sélection explicite AVANT conversion enum
+    messages_raw = db.query(
+        Message.id,
+        Message.contenu,
+        Message.sujet,
+        Message.de_medecin,
+        Message.date_envoi,
+        Message.statut  # Récupère comme STRING brut
+    ).filter(
+        Message.patient_id == patient_id,
+        Message.medecin_id == current_medecin.id
+    ).order_by(Message.date_envoi.asc()).all()
+    
+    # Convertir statut en string safe
+    messages_safe = []
+    for msg_raw in messages_raw:
+        statut_safe = str(msg_raw.statut) if msg_raw.statut else 'INCONNU'
+        messages_safe.append({
+            'id': msg_raw.id,
+            'contenu': msg_raw.contenu,
+            'sujet': msg_raw.sujet,
+            'de_medecin': msg_raw.de_medecin,
+            'date_envoi': msg_raw.date_envoi,
+            'statut': statut_safe  # ✅ STRING SAFE
+        })
+    
+    # ✅ FIX 2: Marquer comme lus (sur ID, pas objets)
+    try:
+        from app.models import StatutMessage
+        db.query(Message).filter(
+            Message.patient_id == patient_id,
+            Message.medecin_id == current_medecin.id,
+            Message.de_medecin == False
+        ).update(
+            {Message.statut: StatutMessage.LU.value},  # Utilise .value (string)
+            synchronize_session=False
+        )
+        db.commit()
+        print(f"✅ {len(messages_raw)} messages marqués comme lus pour patient {patient_id}")
+    except Exception as e:
+        print(f"⚠️ Erreur marquage lu: {e}")
+        db.rollback()
+    
+    # Récupérer les infos du patient
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient non trouvé")
+    
+    return {
+        "patient": {
+            "id": patient.id,
+            "nom_complet": patient.nom_complet,
+            "email": patient.email,
+            "telephone": patient.telephone or "N/A"
+        },
+        "messages": [
+            {
+                "id": msg['id'],
+                "contenu": msg['contenu'],
+                "sujet": msg['sujet'],
+                "de_medecin": msg['de_medecin'],
+                "date_envoi": msg['date_envoi'].isoformat(),
+                "statut": msg['statut']
+            }
+            for msg in messages_safe
+        ]
+    }
+
+@router.post("/api/messagerie/send")
+async def send_message_to_patient(
+    request: Request,
+    patient_id: int = Form(...),
+    sujet: str = Form(...),
+    contenu: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """Envoie un message à un patient"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    # Validation des champs
+    sujet = sujet.strip()
+    contenu = contenu.strip()
+    
+    if not sujet or not contenu:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Sujet et contenu obligatoires"}
+        )
+    
+    if len(sujet) > 255:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "Sujet trop long (max 255 caractères)"}
+        )
+    
+    # Vérifier que le patient existe
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "error": "Patient non trouvé"}
+        )
+    
+    # Vérifier que le médecin a une relation avec ce patient via un RDV
+    patient_rdv = db.query(RendezVous).filter(
+        RendezVous.patient_id == patient_id,
+        RendezVous.medecin_id == current_medecin.id
+    ).first()
+    
+    if not patient_rdv:
+        return JSONResponse(
+            status_code=403,
+            content={"success": False, "error": "Accès refusé à cette conversation"}
+        )
+    
+    try:
+        from app.models import StatutMessage
+        
+        nouveau_message = Message(
+            medecin_id=current_medecin.id,
+            patient_id=patient_id,
+            de_medecin=True,
+            sujet=sujet,
+            contenu=contenu,
+            statut=StatutMessage.ENVOYE,
+            date_envoi=datetime.utcnow()
+        )
+        
+        db.add(nouveau_message)
+        db.commit()
+        db.refresh(nouveau_message)
+        
+        return {
+            "success": True,
+            "message_id": nouveau_message.id,
+            "date_envoi": nouveau_message.date_envoi.isoformat(),
+            "statut": nouveau_message.statut.value if hasattr(nouveau_message.statut, 'value') else str(nouveau_message.statut)
+        }
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Erreur envoi message: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": "Erreur lors de l'envoi du message"}
+        )
+
+
+@router.get("/api/messagerie/patients-list")
+async def get_patients_for_messaging(request: Request, db: Session = Depends(get_db)):
+    """Récupère la liste des patients pour sélection dans la messagerie"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    # Récupérer les patients du médecin via les RDV
+    patients = db.query(Patient).join(RendezVous).filter(
+        RendezVous.medecin_id == current_medecin.id
+    ).distinct().all()
+    
+    return [
+        {
+            "id": p.id,
+            "nom_complet": p.nom_complet,
+            "email": p.email,
+            "telephone": p.telephone or "N/A"
+        }
+        for p in patients
+    ]
+
+
+@router.put("/api/messagerie/mark-as-read/{message_id}")
+async def mark_message_as_read(
+    message_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Marque un message comme lu"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    message = db.query(Message).filter(
+        Message.id == message_id,
+        Message.medecin_id == current_medecin.id
+    ).first()
+    
+    if not message:
+        raise HTTPException(status_code=404, detail="Message non trouvé")
+    
+    try:
+        from app.models import StatutMessage
+        message.statut = StatutMessage.LU
+        db.commit()
+        return {"success": True, "statut": message.statut.value if hasattr(message.statut, 'value') else str(message.statut)}
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Erreur mise à jour message: {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la mise à jour")
+
+
 
 # Charger les variables d'environnement
 load_dotenv()

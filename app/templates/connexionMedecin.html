@@ -63,11 +63,29 @@
                     <span id="errorMessage"></span>
                 </div>
                 
+
+
                 <div class="form-container">
                     <div class="form-card">
                         <h2 class="form-title">Connexion Médecin</h2>
                         <p class="form-subtitle">Accédez à votre espace professionnel</p>
                         
+                         <!-- Sélecteur de rôle -->
+                        <div class="role-selector">
+                            <div class="role-option active" data-role="medecin">
+                                <i class="fas fa-user-md"></i>
+                                <div>
+                                    <label>Médecin</label>
+                                </div>
+                            </div>
+                            <div class="role-option" data-role="admin">
+                                <i class="fas fa-user-md"></i>
+                                <div>
+                                    <label>Administrateur</label>
+                                </div>
+                            </div>
+                        </div>
+
                         <form id="loginForm" method="POST" action="/medecin/connexion">
                             <!-- Email -->
                             <div class="form-group">

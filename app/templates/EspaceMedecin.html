@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="/static/css/medecin.css" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/css/messagerie.css">
 </head>
 
 <body>
@@ -43,8 +44,8 @@
                     src="https://ui-avatars.com/api/?name=Dr+Medecin&background=0D8ABC&color=fff&size=45" alt="Avatar"
                     class="profile-avatar">
                 <div class="profile-info">
-                    <div class="profile-name">Dr. Médecin</div>
-                    <div class="profile-role">Cardiologue</div>
+                    <div class="profile-name" id="medecinName">Dr. Médecin</div>
+                    <div class="profile-role" id="medecinSpecialite">Spécialité</div>
                 </div>
             </div>
         </div>
@@ -67,6 +68,12 @@
                 </a>
             </li>
             <li class="menu-item">
+                <a href="#" class="menu-link" data-section="patients">
+                    <i class="fas fa-users"></i>
+                    <span>Mes Patients</span>
+                </a>
+            </li>
+            <li class="menu-item">
                 <a href="#" class="menu-link" data-section="rdv">
                     <i class="fas fa-calendar-check"></i>
                     <span>Mes Rendez-vous</span>
@@ -74,15 +81,15 @@
                 </a>
             </li>
             <li class="menu-item">
-                <a href="#" class="menu-link" data-section="patients">
-                    <i class="fas fa-users"></i>
-                    <span>Mes Patients</span>
-                </a>
-            </li>
-            <li class="menu-item">
                 <a href="#" class="menu-link" data-section="dossiers">
                     <i class="fas fa-folder-medical"></i>
                     <span>Dossiers Médicaux</span>
+                </a>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" data-section="ordonnances">
+                    <i class="fas fa-prescription-bottle"></i>
+                    <span>Ordonnances</span>
                 </a>
             </li>
             <li class="menu-item">
@@ -102,6 +109,12 @@
                 <a href="#" class="menu-link" data-section="historique">
                     <i class="fas fa-history"></i>
                     <span>Historique</span>
+                </a>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" data-section="profil">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Mon Profil</span>
                 </a>
             </li>
             <li class="menu-item">
@@ -127,8 +140,77 @@
         </div>
     </main>
 
+    <!-- Modal Dossier Patient -->
+    <div id="patientModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Dossier Patient</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="patientModalBody">
+                    <!-- Contenu du dossier patient -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nouvelle Ordonnance -->
+    <div id="ordonnanceModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nouvelle Ordonnance</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="ordonnanceForm">
+                        <input type="hidden" id="ordonnancePatientId">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Patient</label>
+                            <input type="text" class="form-control" id="ordonnancePatientName" readonly>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Médicament *</label>
+                            <input type="text" class="form-control" id="ordonnanceMedicament" required placeholder="Nom du médicament">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Posologie *</label>
+                            <textarea class="form-control" id="ordonnancePosologie" required placeholder="Ex: 1 comprimé matin et soir"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Durée du traitement</label>
+                            <input type="text" class="form-control" id="ordonnanceDuree" placeholder="Ex: 7 jours">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Instructions particulières</label>
+                            <textarea class="form-control" id="ordonnanceInstructions" placeholder="Observations..."></textarea>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            L'ordonnance sera convertie en PDF et envoyée au patient
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="submitOrdonnance">
+                        <i class="fas fa-file-pdf"></i> Générer et Envoyer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Script JS -->
     <script src="/static/js/medecin.js"></script>
+    <script src="/static/js/messagerie.js"></script>
 </body>
 
 </html>
