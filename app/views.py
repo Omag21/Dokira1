@@ -1125,7 +1125,7 @@ async def get_conversation_messages(medecin_id: int, request: Request, db: Sessi
         Message.medecin_id == medecin_id,
         Message.statut == StatutMessage.ENVOYE,
         Message.de_medecin == True
-    ).update({"statut": StatutMessage.LU})
+    ).update({"statut": StatutMessage.LU.value})
     db.commit()
     
     result = []
