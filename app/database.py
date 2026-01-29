@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, text
+from sqlalchemy import QueuePool, create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import load_dotenv
@@ -68,23 +68,29 @@ try:
     if DATABASE_URL.startswith("postgresql://"):
         DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
-    # OPTIMISATION: Paramètres de pool réduits pour démarrage rapide
+    # ========== POOL DE CONNEXIONS ==========
     engine = create_engine(
         DATABASE_URL,
-        pool_size=2,  # RÉDUIT: 2 connexions max dans le pool au démarrage
-        max_overflow=0,  # RÉDUIT: Pas de connexions supplémentaires au démarrage
-        pool_timeout=5,  # RÉDUIT: Timeout de 5s max pour obtenir une connexion
+        poolclass=QueuePool,
+        pool_size=200,  # RÉDUIT: 200 connexions max dans le pool au démarrage
+        max_overflow=150,  # RÉDUIT: 150 connexions supplémentaires au démarrage
+        pool_timeout=60,  # RÉDUIT: Timeout de 60s max pour obtenir une connexion
         pool_recycle=3600,  # RECYCLAGE: Recycler les connexions après 1 heure
         pool_pre_ping=True,  # IMPORTANT: Vérifie si la connexion est vivante avant utilisation
+       
         connect_args={
-            "connect_timeout": 3,  # RÉDUIT: Timeout de connexion à 3s
+            "connect_timeout": 10,  # RÉDUIT: Timeout de connexion à 10s
             "application_name": "dokira_app",
             "keepalives_idle": 30,  # Garde la connexion active
             "keepalives_interval": 10,
             "keepalives_count": 5
         },
-        echo=False,  # IMPORTANT: Désactiver le logging SQL (très lent!)
-        future=True  # Utiliser l'API future de SQLAlchemy
+        
+         # ========== PERFORMANCE ==========
+        echo=False,  # Désactive le logging SQL (très lent!)
+        echo_pool=False, # Désactive logs pool
+        future=True  # Utilise l'API future de SQLAlchemy
+        
     )
     
     # Test simple de connexion - version optimisée

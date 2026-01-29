@@ -259,42 +259,79 @@ const sectionsData = {
         ]
     },
     documents: {
+        title: 'Dossier Médical',
+        icon: 'fa-file-medical',
+        stats: [
+            { label: 'Allergies', value: '0' },
+            { label: 'Antécédents', value: '0' },
+            { label: 'Traitements', value: '0' }
+        ],
         cards: [
+             {
+                id: 'medical-allergies',
+                icon: 'fa-allergies',
+                color: 'red',
+                title: 'Allergies',
+                subtitle: 'À compléter',
+                description: 'Liste de vos allergies connues',
+                meta: [],
+                badge: { type: 'danger', text: 'Important' },
+                onclick: 'showMedicalInfo(\'allergies\')'
+            },
             {
-                icon: 'fa-file-pdf',
+                id: 'medical-history',
+                icon: 'fa-history',
+                color: 'orange',
+                title: 'Antécédents',
+                subtitle: 'À compléter',
+                description: 'Antécédents médicaux et familiaux',
+                meta: [],
+                badge: { type: 'warning', text: 'À surveiller' },
+                onclick: 'showMedicalInfo(\'antecedents\')'
+            },
+            {
+                id: 'medical-treatments',
+                icon: 'fa-prescription-bottle',
                 color: 'blue',
-                title: 'Comptes Rendus',
-                subtitle: '0 documents disponibles',
-                description: 'Rapports de consultation, analyses et diagnostics',
-                meta: [
-                    { icon: 'fa-download', text: 'Télécharger tout' }
-                ],
-                badge: { type: 'primary', text: '0 PDF' },
-                onclick: 'showDocumentsInterface()'
+                title: 'Traitements',
+                subtitle: 'À compléter',
+                description: 'Traitements en cours et suivis',
+                meta: [],
+                badge: { type: 'info', text: 'En cours' },
+                onclick: 'showMedicalInfo(\'treatments\')'
             },
             {
-                icon: 'fa-x-ray',
-                color: 'purple',
-                title: 'Imagerie Médicale',
-                subtitle: '0 examens radiologiques',
-                description: 'Radiographies, IRM, scanners et échographies',
-                meta: [
-                    { icon: 'fa-images', text: '0 examen' }
-                ],
-                badge: { type: 'primary', text: 'Images' },
-                onclick: 'showDocumentsInterface()'
+                id: 'medical-blood',
+                icon: 'fa-tint',
+                color: 'dark-red',
+                title: 'Groupe Sanguin',
+                subtitle: 'À renseigner',
+                description: 'Groupe sanguin et rhésus',
+                meta: [],
+                badge: { type: 'danger', text: 'Urgence' },
+                onclick: 'showMedicalInfo(\'blood\')'
             },
             {
-                icon: 'fa-upload',
+                id: 'medical-insurance',
+                icon: 'fa-shield-alt',
                 color: 'green',
-                title: 'Téléverser Document',
-                subtitle: 'Ajouter un fichier',
-                description: 'Importez vos propres documents médicaux',
-                meta: [
-                    { icon: 'fa-cloud-upload-alt', text: 'Format PDF, JPG' }
-                ],
-                badge: { type: 'success', text: 'Importer' },
-                onclick: 'showUploadDocumentForm()'
+                title: 'Couverture Santé',
+                subtitle: 'Non renseigné',
+                description: 'Mutuelle et assurance',
+                meta: [],
+                badge: { type: 'success', text: 'Assuré' },
+                onclick: 'showMedicalInfo(\'insurance\')'
+            },
+            {
+                id: 'medical-doctor',
+                icon: 'fa-user-md',
+                color: 'purple',
+                title: 'Médecin Traitant',
+                subtitle: 'Non renseigné',
+                description: 'Votre médecin référent',
+                meta: [],
+                badge: { type: 'primary', text: 'Contact' },
+                onclick: 'showMedicalInfo(\'doctor\')'
             }
         ]
     },
@@ -439,7 +476,8 @@ async function loadPatientData() {
             if (data.photo_profil_url) {
                 const avatar = document.getElementById('profileAvatar');
                 if (avatar) {
-                    avatar.src = data.photo_profil_url + "?t=" + new Date().getTime();
+                    const timestamp = new Date().getTime();
+                    avatar.src = data.photo_profil_url + "?v=" + timestamp;
                 }
             }
             
@@ -603,7 +641,6 @@ function updateNotificationBadge(count) {
 
 // ============= INTERFACE MESSAGERIE =============
 
-// Afficher l'interface de messagerie
 async function showMessagerieInterface() {
     try {
         // Charger les conversations
@@ -613,13 +650,19 @@ async function showMessagerieInterface() {
         let html = `
             <div class="messagerie-interface">
                 <div class="section-header">
-                    <h2 class="section-title">Messagerie</h2>
-                    <button class="btn btn-primary" onclick="showNewMessageForm()">
+                    <h2 class="section-title">Messagerie Médicale</h2>
+                    <button class="btn-new-message" onclick="showNewMessageForm()">
                         <i class="fas fa-plus"></i> Nouveau message
                     </button>
                 </div>
                 
-                <div class="conversations-container">
+                <div class="messagerie-content">
+                    <!-- Liste des conversations -->
+                    <div class="conversations-container">
+                        <div class="conversations-header">
+                            <input type="text" class="conversations-search" placeholder="Rechercher une conversation...">
+                        </div>
+                        <div class="conversations-list">
         `;
         
         if (conversations.length === 0) {
@@ -629,15 +672,24 @@ async function showMessagerieInterface() {
                         <i class="fas fa-comments"></i>
                     </div>
                     <div class="empty-state-title">Aucune conversation</div>
-                    <div class="empty-state-text">Commencez une nouvelle conversation avec votre médecin</div>
+                    <div class="empty-state-text">Envoyez votre premier message à votre médecin</div>
+                    <button class="btn-new-message" onclick="showNewMessageForm()" style="margin-top: 16px;">
+                        <i class="fas fa-plus"></i> Commencer une conversation
+                    </button>
                 </div>
             `;
         } else {
-            conversations.forEach(conv => {
+            conversations.forEach((conv, index) => {
+                const isActive = index === 0; // Première conversation active par défaut
                 html += `
-                    <div class="conversation-item" onclick="loadConversation(${conv.medecin_id})">
+                    <div class="conversation-item ${isActive ? 'active' : ''}" 
+                         onclick="loadConversation(${conv.medecin_id}, this)">
                         <div class="conversation-avatar">
-                            <img src="${conv.medecin_photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.medecin_name) + '&background=0066cc&color=fff'}" alt="${conv.medecin_name}">
+                            <img src="${conv.medecin_photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.medecin_name) + '&background=0066cc&color=fff'}" 
+                                 alt="${conv.medecin_name}">
+                            ${conv.is_online ? 
+                                '<span class="online-indicator"></span>' : 
+                                '<span class="offline-indicator"></span>'}
                         </div>
                         <div class="conversation-info">
                             <h4>${conv.medecin_name}</h4>
@@ -646,7 +698,167 @@ async function showMessagerieInterface() {
                         </div>
                         <div class="conversation-meta">
                             <span class="time">${conv.last_message_time}</span>
-                            ${conv.unread > 0 ? `<span class="badge badge-danger">${conv.unread}</span>` : ''}
+                            ${conv.unread > 0 ? 
+                                `<span class="badge badge-danger">${conv.unread}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
+        html += `
+                        </div>
+                    </div>
+                    
+                    <!-- Zone de conversation -->
+                    <div id="conversation-area" class="conversation-area">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">
+                                <i class="fas fa-comment-medical"></i>
+                            </div>
+                            <div class="empty-state-title">Sélectionnez une conversation</div>
+                            <div class="empty-state-text">Choisissez un médecin pour commencer à discuter</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('mainContent').innerHTML = html;
+        
+        // Charger la première conversation si elle existe
+        if (conversations.length > 0) {
+            setTimeout(() => {
+                loadConversation(conversations[0].medecin_id);
+            }, 100);
+        }
+        
+        // Ajouter la recherche en temps réel
+        const searchInput = document.querySelector('.conversations-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase();
+                const conversationItems = document.querySelectorAll('.conversation-item');
+                
+                conversationItems.forEach(item => {
+                    const name = item.querySelector('h4').textContent.toLowerCase();
+                    const specialite = item.querySelector('.conversation-specialite').textContent.toLowerCase();
+                    const lastMessage = item.querySelector('.last-message').textContent.toLowerCase();
+                    
+                    if (name.includes(searchTerm) || 
+                        specialite.includes(searchTerm) || 
+                        lastMessage.includes(searchTerm)) {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+    } catch (error) {
+        console.error('Erreur interface messagerie:', error);
+        document.getElementById('mainContent').innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="empty-state-title">Erreur de chargement</div>
+                <div class="empty-state-text">Impossible de charger les conversations</div>
+                <button class="btn-new-message" onclick="showMessagerieInterface()" style="margin-top: 16px;">
+                    <i class="fas fa-redo"></i> Réessayer
+                </button>
+            </div>
+        `;
+    }
+}
+
+// Charger une conversation spécifique
+async function loadConversation(medecinId, clickedElement = null) {
+    try {
+        const response = await fetch(`/api/messagerie/conversation/${medecinId}`);
+        const conversationData = await response.json();
+        const { messages, medecin } = conversationData;
+        
+        // Mettre à jour la sélection visuelle
+        if (clickedElement) {
+            document.querySelectorAll('.conversation-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            clickedElement.classList.add('active');
+        } else {
+            // Trouver l'élément correspondant au médecin
+            const allItems = document.querySelectorAll('.conversation-item');
+            allItems.forEach(item => {
+                item.classList.remove('active');
+            });
+        }
+        
+        let html = `
+            <div class="conversation-detail">
+                <div class="conversation-header">
+                    <button class="btn-back" onclick="showConversationList()">
+                        <i class="fas fa-arrow-left"></i> Retour
+                    </button>
+                    <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                        <div class="conversation-avatar" style="width: 40px; height: 40px;">
+                            <img src="${medecin.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(medecin.nom)}" alt="${medecin.nom}">
+                            ${medecin.is_online ? 
+                                '<span class="online-indicator"></span>' : 
+                                '<span class="offline-indicator"></span>'}
+                        </div>
+                        <div>
+                            <h3>Dr. ${medecin.prenom} ${medecin.nom}</h3>
+                            <p style="margin: 0; font-size: 14px; color: #666;">${medecin.specialite}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="messages-list">
+        `;
+        
+        if (messages.length === 0) {
+            html += `
+                <div class="empty-conversation" style="text-align: center; padding: 40px;">
+                    <div style="font-size: 48px; color: #e0e0e0; margin-bottom: 16px;">
+                        <i class="fas fa-comment-slash"></i>
+                    </div>
+                    <p style="color: #666; margin: 0;">Aucun message dans cette conversation</p>
+                    <p style="color: #999; font-size: 14px; margin-top: 8px;">Envoyez votre premier message</p>
+                </div>
+            `;
+        } else {
+            let currentDate = null;
+            
+            messages.forEach(msg => {
+                const messageDate = new Date(msg.date_envoi).toLocaleDateString('fr-FR');
+                
+                // Afficher la date si elle change
+                if (messageDate !== currentDate) {
+                    currentDate = messageDate;
+                    html += `
+                        <div style="text-align: center; margin: 20px 0;">
+                            <span style="background: #f0f0f0; padding: 6px 12px; border-radius: 16px; font-size: 12px; color: #666;">
+                                ${messageDate}
+                            </span>
+                        </div>
+                    `;
+                }
+                
+                const isPatient = msg.expediteur_type === 'patient';
+                const time = new Date(msg.date_envoi).toLocaleTimeString('fr-FR', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+                
+                html += `
+                    <div class="message ${isPatient ? 'message-sent' : 'message-received'} animate-in">
+                        <div class="message-content">${msg.contenu}</div>
+                        <div class="message-time">
+                            ${time}
+                            ${isPatient ? 
+                                `<span class="message-status">
+                                    <i class="fas fa-check"></i> Envoyé
+                                </span>` : ''}
                         </div>
                     </div>
                 `;
@@ -655,77 +867,60 @@ async function showMessagerieInterface() {
         
         html += `
                 </div>
-                
-                <div id="conversation-area" class="conversation-area"></div>
-            </div>
-        `;
-        
-        document.getElementById('mainContent').innerHTML = html;
-    } catch (error) {
-        console.error('Erreur interface messagerie:', error);
-        document.getElementById('mainContent').innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </div>
-                <div class="empty-state-title">Erreur de chargement</div>
-                <div class="empty-state-text">Impossible de charger les conversations</div>
-            </div>
-        `;
-    }
-}
-
-// Charger une conversation spécifique
-async function loadConversation(medecinId) {
-    try {
-        const response = await fetch(`/api/messagerie/conversation/${medecinId}`);
-        const messages = await response.json();
-        
-        let html = `
-            <div class="conversation-detail">
-                <div class="conversation-header">
-                    <button class="btn btn-back" onclick="showMessagerieInterface()">
-                        <i class="fas fa-arrow-left"></i> Retour
-                    </button>
-                    <h3>Conversation</h3>
-                </div>
-                <div class="messages-list">
-        `;
-        
-        if (messages.length === 0) {
-            html += `
-                <div class="empty-conversation">
-                    <p>Aucun message dans cette conversation</p>
-                </div>
-            `;
-        } else {
-            messages.forEach(msg => {
-                const isPatient = msg.expediteur_type === 'patient';
-                html += `
-                    <div class="message ${isPatient ? 'message-sent' : 'message-received'}">
-                        <div class="message-content">${msg.contenu}</div>
-                        <div class="message-time">${msg.date_envoi}</div>
-                    </div>
-                `;
-            });
-        }
-        
-        html += `
-                </div>
                 <div class="message-input">
-                    <textarea id="newMessageText" placeholder="Écrivez votre message..." rows="3"></textarea>
-                    <button class="btn btn-primary" onclick="sendMessage(${medecinId})">
+                    <textarea id="newMessageText" placeholder="Écrivez votre message... (Appuyez sur Maj+Entrée pour une nouvelle ligne)" rows="3"></textarea>
+                    <button class="btn-send" onclick="sendMessage(${medecinId})">
                         <i class="fas fa-paper-plane"></i> Envoyer
                     </button>
                 </div>
             </div>
         `;
         
-        document.getElementById('conversation-area').innerHTML = html;
+        const conversationArea = document.getElementById('conversation-area');
+        conversationArea.innerHTML = html;
+        conversationArea.classList.remove('empty-state');
+        
+        // Focus sur le champ de message
+        setTimeout(() => {
+            const textarea = document.getElementById('newMessageText');
+            if (textarea) textarea.focus();
+        }, 100);
+        
+        // Gestion du textearea
+        const textarea = document.getElementById('newMessageText');
+        textarea.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && e.shiftKey) {
+                // Shift+Enter pour nouvelle ligne
+                return;
+            } else if (e.key === 'Enter') {
+                // Enter seul pour envoyer
+                e.preventDefault();
+                sendMessage(medecinId);
+            }
+            
+            // Auto-resize
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+        });
+        
+        // Scroller vers le bas
         scrollToBottom();
+        
     } catch (error) {
         console.error('Erreur chargement conversation:', error);
-        alert('Erreur lors du chargement de la conversation');
+        const conversationArea = document.getElementById('conversation-area');
+        conversationArea.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="empty-state-title">Erreur de chargement</div>
+                <div class="empty-state-text">Impossible de charger la conversation</div>
+                <button class="btn-new-message" onclick="loadConversation(${medecinId})" style="margin-top: 16px;">
+                    <i class="fas fa-redo"></i> Réessayer
+                </button>
+            </div>
+        `;
     }
 }
 
@@ -788,6 +983,19 @@ async function showNewMessageForm() {
     }
 }
 
+function showConversationList() {
+    const conversationArea = document.getElementById('conversation-area');
+    conversationArea.innerHTML = `
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-comment-medical"></i>
+            </div>
+            <div class="empty-state-title">Sélectionnez une conversation</div>
+            <div class="empty-state-text">Choisissez un médecin pour commencer à discuter</div>
+        </div>
+    `;
+}
+
 // Envoyer un nouveau message
 async function sendNewMessage(medecinId, content) {
     try {
@@ -830,6 +1038,31 @@ async function sendMessage(medecinId) {
     }
     
     try {
+        // Ajouter temporairement le message localement
+        const messagesList = document.querySelector('.messages-list');
+        const time = new Date().toLocaleTimeString('fr-FR', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        
+        const tempMessageHTML = `
+            <div class="message message-sent">
+                <div class="message-content">${content}</div>
+                <div class="message-time">
+                    ${time}
+                    <span class="message-status">
+                        <i class="fas fa-clock"></i> Envoi...
+                    </span>
+                </div>
+            </div>
+        `;
+        
+        messagesList.innerHTML += tempMessageHTML;
+        scrollToBottom();
+        
+        // Vider le champ
+        document.getElementById('newMessageText').value = '';
+        
         const response = await fetch('/api/messagerie/send', {
             method: 'POST',
             headers: {
@@ -844,14 +1077,34 @@ async function sendMessage(medecinId) {
         if (response.ok) {
             const result = await response.json();
             if (result.success) {
-                document.getElementById('newMessageText').value = '';
-                await loadConversation(medecinId);
+                // Mettre à jour le statut du message
+                const lastMessage = messagesList.lastElementChild;
+                const statusSpan = lastMessage.querySelector('.message-status');
+                statusSpan.innerHTML = '<i class="fas fa-check"></i> Envoyé';
+                statusSpan.style.color = '#28a745';
+                
+                // Rafraîchir la conversation pour avoir l'ID du message
+                setTimeout(() => {
+                    loadConversation(medecinId);
+                }, 500);
+                
+                // Mettre à jour les notifications
                 await refreshNotifications();
             }
         }
     } catch (error) {
         console.error('Erreur envoi message:', error);
-        alert('Erreur lors de l\'envoi du message');
+        
+        // Afficher une notification d'erreur
+        const errorHTML = `
+            <div class="message-error" style="text-align: center; padding: 10px; color: #dc3545; font-size: 14px;">
+                <i class="fas fa-exclamation-circle"></i> Échec de l'envoi. Vérifiez votre connexion.
+            </div>
+        `;
+        
+        const messagesList = document.querySelector('.messages-list');
+        messagesList.innerHTML += errorHTML;
+        scrollToBottom();
     }
 }
 
@@ -916,7 +1169,7 @@ async function showMessageToMedecin(medecinId) {
     }
 }
 
-// ============= INTERFACE DOCUMENTS - DESIGN PROFESSIONNEL =============
+// ============= INTERFACE DOCUMENTS =============
 
 async function showDocumentsInterface() {
     try {
@@ -987,10 +1240,10 @@ async function showDocumentsInterface() {
                                             </div>
                                         </div>
                                         <div class="document-card-actions">
-                                            <a href="${doc.fichier_url}" class="btn-action btn-view" title="Télécharger">
-                                                <i class="fas fa-download"></i>
-                                                <span>Télécharger</span>
-                                            </a>
+                                            <button class="btn-action btn-view" onclick="viewDocument(${doc.id}, '${doc.titre}', '${doc.fichier_url}', '${doc.type_document}')" title="Voir">
+                                                <i class="fas fa-eye"></i>
+                                                <span>Voir</span>
+                                            </button>
                                             <button class="btn-action btn-delete" onclick="supprimerDocument(${doc.id})" title="Supprimer">
                                                 <i class="fas fa-trash"></i>
                                             </button>
@@ -1020,7 +1273,130 @@ async function showDocumentsInterface() {
     }
 }
 
- //============ FORMULAIRE DE TÉLÉVERSEMENT DE DOCUMENT =============
+// ============= VISUALISATION DE DOCUMENT =============
+async function viewDocument(docId, docTitle, docUrl, docType) {
+    try {
+        // CORRECTION: Obtenir l'URL complète via l'API
+        const response = await fetch(`/api/documents/${docId}/view`);
+        if (!response.ok) throw new Error('Document non trouvé');
+        
+        const docData = await response.json();
+        const fullDocUrl = docData.fichier_url;
+        
+        let viewerHtml = '';
+        
+        // Créer le HTML de visualisation selon le type de document
+        if (docType.startsWith('image/')) {
+            // Pour les images (JPEG, PNG, etc.)
+            viewerHtml = `
+                <div class="document-viewer-modal">
+                    <div class="document-viewer-overlay" onclick="closeDocumentViewer()"></div>
+                    <div class="document-viewer-container">
+                        <div class="document-viewer-header">
+                            <h2>${docTitle}</h2>
+                            <div class="document-viewer-actions">
+                                <a href="${fullDocUrl}" download="${docTitle}" class="btn-viewer-action btn-download" title="Télécharger">
+                                    <i class="fas fa-download"></i>
+                                    <span>Télécharger</span>
+                                </a>
+                                <button class="btn-viewer-action btn-close" onclick="closeDocumentViewer()" title="Fermer">
+                                    <i class="fas fa-times"></i>
+                                    <span>Fermer</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="document-viewer-content">
+                            <img src="${fullDocUrl}" alt="${docTitle}" class="document-image-viewer" onerror="this.onerror=null;this.src='https://via.placeholder.com/600x800?text=Image+non+chargée';">
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (docType === 'application/pdf') {
+            // Pour les PDF
+            viewerHtml = `
+                <div class="document-viewer-modal">
+                    <div class="document-viewer-overlay" onclick="closeDocumentViewer()"></div>
+                    <div class="document-viewer-container pdf-viewer">
+                        <div class="document-viewer-header">
+                            <h2>${docTitle}</h2>
+                            <div class="document-viewer-actions">
+                                <a href="${fullDocUrl}" download="${docTitle}" class="btn-viewer-action btn-download" title="Télécharger">
+                                    <i class="fas fa-download"></i>
+                                    <span>Télécharger</span>
+                                </a>
+                                <button class="btn-viewer-action btn-close" onclick="closeDocumentViewer()" title="Fermer">
+                                    <i class="fas fa-times"></i>
+                                    <span>Fermer</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="document-viewer-content pdf-content">
+                            <embed src="${fullDocUrl}#view=FitH" type="application/pdf" width="100%" height="600px" />
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Pour les autres fichiers (Word, etc.)
+            viewerHtml = `
+                <div class="document-viewer-modal">
+                    <div class="document-viewer-overlay" onclick="closeDocumentViewer()"></div>
+                    <div class="document-viewer-container">
+                        <div class="document-viewer-header">
+                            <h2>${docTitle}</h2>
+                            <div class="document-viewer-actions">
+                                <a href="${fullDocUrl}" download="${docTitle}" class="btn-viewer-action btn-download" title="Télécharger">
+                                    <i class="fas fa-download"></i>
+                                    <span>Télécharger</span>
+                                </a>
+                                <button class="btn-viewer-action btn-close" onclick="closeDocumentViewer()" title="Fermer">
+                                    <i class="fas fa-times"></i>
+                                    <span>Fermer</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="document-viewer-content">
+                            <div class="document-preview-message">
+                                <i class="fas fa-file"></i>
+                                <p><strong>${docTitle}</strong></p>
+                                <p>Ce format de fichier ne peut pas être prévisualisé dans le navigateur.</p>
+                                <p>Cliquez sur "Télécharger" pour ouvrir le fichier.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Ajouter la modale au contenu principal
+        const viewerDiv = document.createElement('div');
+        viewerDiv.id = 'documentViewerWrapper';
+        viewerDiv.innerHTML = viewerHtml;
+        document.body.appendChild(viewerDiv);
+        
+        // Animation d'apparition
+        setTimeout(() => {
+            viewerDiv.classList.add('active');
+        }, 10);
+        
+    } catch (error) {
+        console.error('Erreur visualisation:', error);
+        alert('Erreur lors de l\'ouverture du document');
+    }
+}
+
+// Fermer la modale de visualisation
+function closeDocumentViewer() {
+    const viewerWrapper = document.getElementById('documentViewerWrapper');
+    if (viewerWrapper) {
+        viewerWrapper.classList.remove('active');
+        setTimeout(() => {
+            viewerWrapper.remove();
+        }, 300);
+    }
+}
+
+//============ FORMULAIRE DE TÉLÉVERSEMENT DE DOCUMENT =============
 // Afficher le formulaire de téléversement
 function showUploadDocumentForm() {
     let html = `
@@ -1145,7 +1521,6 @@ async function supprimerDocument(docId) {
         console.error('Erreur:', error);
     }
 }
-
 // ============= INTERFACE PARAMÈTRES =============
 
 // Afficher l'interface des paramètres
@@ -1778,10 +2153,12 @@ if (photoInput) {
             const data = await res.json();
 
             if (data.photo_url) {
-                // Cache buster pour forcer le rechargement de l'image
-                document.getElementById('profileAvatar').src = data.photo_url + "?t=" + new Date().getTime();
+               
+                const timestamp = new Date().getTime();
+                document.getElementById('profileAvatar').src = data.photo_url + "?v=" + timestamp;
                 alert('Photo de profil mise à jour avec succès !');
             }
+
         } catch (error) {
             console.error('Erreur upload photo:', error);
             alert('Erreur lors de l\'upload de la photo');

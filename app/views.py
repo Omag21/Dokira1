@@ -620,18 +620,16 @@ async def get_patient_rendez_vous(request: Request, db: Session = Depends(get_db
         )
 
 
-    # ============= PATIENT - CRÉER UN NOUVEAU RENDEZ-VOUS =============
-# ================== COPIER CETTE FONCTION COMPLÈTE ==================
-# Remplacez TOUTE la fonction creer_rendez_vous (lignes ~650-710) par ceci:
+# ============= PATIENT - CRÉER UN NOUVEAU RENDEZ-VOUS =============
 
 @router.post("/api/rendez-vous/creer")
 async def creer_rendez_vous(
     request: Request,
     medecin_id: int = Body(...),
-    date_heure: str = Body(...),  # Format: "2026-01-25T14:30"
+    date_heure: str = Body(...), 
     motif: str = Body(...),
-    type_consultation: str = Body(...),  # "Cabinet", "Vidéo", "Domicile"
-    lieu: str = Body(None),  # Optionnel: adresse ou URL
+    type_consultation: str = Body(...),  
+    lieu: str = Body(None),  
     db: Session = Depends(get_db)
 ):
     """Crée un nouveau rendez-vous"""
@@ -676,10 +674,10 @@ async def creer_rendez_vous(
                 detail="Format de date invalide. Utilisez: 2026-01-25T14:30"
             )
 
-        # ✅ DÉFINIR specialite_final (DOIT rester ici, pas commentée!)
+       
         specialite_final = medecin.specialite.value
 
-        # ✅ Créer le rendez-vous avec tous les paramètres validés
+        # ✅ Création du rendez-vous avec tous les paramètres validés
         nouveau_rdv = RendezVous(
             patient_id=current_user.id,
             medecin_id=medecin_id,
@@ -808,7 +806,7 @@ async def modifier_rendez_vous(
             detail=f"Erreur interne serveur: {str(e)}"
         )
 
-   # ============= PATIENT - SUPPRIMER UN RENDEZ-VOUS =============
+# ============= PATIENT - SUPPRIMER UN RENDEZ-VOUS =============
 @router.delete("/api/rendez-vous/{rdv_id}")
 async def supprimer_rendez_vous(
     rdv_id: int,
@@ -884,6 +882,7 @@ async def get_patient_info(request: Request, db: Session = Depends(get_db)):
         "derniere_connexion": current_user.derniere_connexion.isoformat() if current_user.derniere_connexion else None
     }
 
+# ============= PATIENT - INFORMATIONS COMPLÈTES =============
 @router.get("/api/patient/full-info")
 async def get_patient_full_info(request: Request, db: Session = Depends(get_db)):
     """
@@ -915,6 +914,7 @@ async def get_patient_full_info(request: Request, db: Session = Depends(get_db))
         "traitements_en_cours": current_user.traitements_en_cours
     }
 
+# ============= PATIENT - METTRE À JOUR INFORMATIONS =============
 @router.post("/api/patient/update")
 async def update_patient_info(
     request: Request,
@@ -1027,7 +1027,8 @@ async def get_messagerie_stats(request: Request, db: Session = Depends(get_db)):
         "conversations_count": conversations_count
     }
 
-@router.get("/api/messagerie/conversations")
+# ============= PATIENT - LISTE DES CONVERSATIONS =============
+@router.get("/api/messagerie/conversations")    
 async def get_conversations_list(request: Request, db: Session = Depends(get_db)):
     """
     API pour récupérer la liste des conversations
@@ -1092,6 +1093,7 @@ async def get_conversations_list(request: Request, db: Session = Depends(get_db)
     
     return result
 
+# ============= PATIENT - MESSAGES D'UNE CONVERSATION =============
 @router.get("/api/messagerie/conversation/{medecin_id}")
 async def get_conversation_messages(medecin_id: int, request: Request, db: Session = Depends(get_db)):
     """
@@ -1125,7 +1127,7 @@ async def get_conversation_messages(medecin_id: int, request: Request, db: Sessi
         Message.medecin_id == medecin_id,
         Message.statut == StatutMessage.ENVOYE,
         Message.de_medecin == True
-    ).update({"statut": StatutMessage.LU.value})
+    ).update({"statut": StatutMessage.LU})
     db.commit()
     
     result = []
@@ -1140,6 +1142,7 @@ async def get_conversation_messages(medecin_id: int, request: Request, db: Sessi
     
     return result
 
+# ============= PATIENT - ENVOYER UN MESSAGE =============
 @router.post("/api/messagerie/send")
 async def send_message_api(
     request: Request,
@@ -1237,6 +1240,7 @@ async def get_all_medecins(request: Request, db: Session = Depends(get_db)):
     
     return result
 
+# ============= DÉTAIL MÉDECIN =============
 @router.get("/api/medecins/{medecin_id}")
 async def get_medecin_detail(medecin_id: int, request: Request, db: Session = Depends(get_db)):
     """
@@ -1299,6 +1303,13 @@ async def get_patient_documents(request: Request, db: Session = Depends(get_db))
     
     result = []
     for doc in documents:
+        # CORRECTION: Construire l'URL absolue pour le serveur
+        fichier_url = doc.fichier_url
+        if fichier_url and not fichier_url.startswith("http"):
+            # Si c'est un chemin relatif, ajouter le host
+            base_url = str(request.base_url).rstrip('/')
+            fichier_url = f"{base_url}{fichier_url}"
+        
         result.append({
             "id": doc.id,
             "titre": doc.titre,
@@ -1306,12 +1317,13 @@ async def get_patient_documents(request: Request, db: Session = Depends(get_db))
             "description": doc.description,
             "date_document": doc.date_document.isoformat() if doc.date_document else None,
             "date_upload": doc.date_upload.isoformat() if doc.date_upload else None,
-            "fichier_url": doc.fichier_url,
-            "fichier_nom": doc.fichier_nom if hasattr(doc, 'fichier_nom') else doc.titre
+            "fichier_url": fichier_url,
+            "fichier_nom": doc.titre
         })
     
     return result
 
+# ============= UPLOAD DOCUMENT =============
 @router.post("/api/documents/upload")
 async def upload_document_api(
     request: Request,
@@ -1320,7 +1332,7 @@ async def upload_document_api(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    """API pour téléverser un document - Version CORRIGÉE"""
+    """API pour téléverser un document - Version CORRIGÉE avec chemin absolu"""
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
@@ -1330,27 +1342,35 @@ async def upload_document_api(
         )
     
     try:
-        # Créer le répertoire
-        upload_dir = Path("static") / "uploads" / "documents"
-        upload_dir.mkdir(parents=True, exist_ok=True)
+       
+        BASE_DIR = Path(__file__).resolve().parent  
+        UPLOAD_BASE_DIR = BASE_DIR  / "static" / "uploads"
+        
+        # Répertoire spécifique aux documents
+        documents_dir = UPLOAD_BASE_DIR / "documents"
+        documents_dir.mkdir(parents=True, exist_ok=True)
         
         # Générer un nom de fichier unique
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"doc_{current_user.id}_{timestamp}_{file.filename}"
-        file_path = upload_dir / filename
+        safe_filename = file.filename.replace(" ", "_").replace("/", "_")
+        filename = f"doc_{current_user.id}_{timestamp}_{safe_filename}"
+        file_path = documents_dir / filename
         
         # Sauvegarder le fichier
         content = await file.read()
         with open(file_path, "wb") as buffer:
             buffer.write(content)
         
-        # Créer l'entrée document - SANS 'fichier_nom'
+        
+        fichier_url = f"/static/uploads/documents/{filename}"
+        
+        # Créer l'entrée document
         document = Document(
             patient_id=current_user.id,
             titre=titre,
             description=description,
             type_document=file.content_type,
-            fichier_url=f"/static/uploads/documents/{filename}",
+            fichier_url=fichier_url,
             date_upload=datetime.utcnow(),
             date_document=datetime.utcnow().date()
         )
@@ -1363,18 +1383,128 @@ async def upload_document_api(
             "success": True,
             "document_id": document.id,
             "filename": filename,
-            "url": document.fichier_url
+            "url": fichier_url
         }
         
     except Exception as e:
         db.rollback()
         print(f"Erreur upload document: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur lors du téléversement: {str(e)}"
         )
 
+# ============= SUPPRIMER DOCUMENT =============
+@router.delete("/api/documents/{document_id}")
+async def delete_document_api(
+    document_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """API pour supprimer un document"""
+    current_user = get_current_user_from_cookie(request, db)
+    
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Non authentifié"
+        )
+    
+    try:
+        # Récupérer le document
+        document = db.query(Document).filter(
+            Document.id == document_id,
+            Document.patient_id == current_user.id
+        ).first()
+        
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document non trouvé"
+            )
+        
+        
+        uploads_dir = Path(__file__).resolve().parent / "static" / "uploads" / "documents"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
 
+        
+        if document.fichier_url and document.fichier_url.startswith("/static/uploads/"):
+            # Extraire le nom de fichier de l'URL
+            filename = document.fichier_url.split("/")[-1]
+            #file_path = UPLOAD_BASE_DIR / "documents" / filename
+            file_path = uploads_dir / filename
+            
+            # Vérifier et supprimer le fichier physique
+            if file_path.exists():
+                try:
+                    file_path.unlink()
+                    print(f"✅ Fichier supprimé: {file_path}")
+                except Exception as e:
+                    print(f"⚠️ Impossible de supprimer le fichier physique: {e}")
+        
+        # Supprimer l'entrée de la base de données
+        db.delete(document)
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Document supprimé avec succès"
+        }
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Erreur suppression document: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de la suppression: {str(e)}"
+        )
+        
+ #============ VUE DÉTAILLÉE D'UN DOCUMENT ============= 
+@router.get("/api/documents/{document_id}/view")
+async def view_document_api(
+    document_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """API pour récupérer les infos d'un document spécifique"""
+    current_user = get_current_user_from_cookie(request, db)
+    
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Non authentifié"
+        )
+    
+    document = db.query(Document).filter(
+        Document.id == document_id,
+        Document.patient_id == current_user.id
+    ).first()
+    
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document non trouvé"
+        )
+    
+    # Construire l'URL complète
+    base_url = str(request.base_url).rstrip('/')
+    fichier_url = f"{base_url}{document.fichier_url}"
+    
+    return {
+        "id": document.id,
+        "titre": document.titre,
+        "description": document.description,
+        "type_document": document.type_document,
+        "date_upload": document.date_upload.isoformat() if document.date_upload else None,
+        "fichier_url": fichier_url,
+        "fichier_nom": document.titre
+    }
+    
+    
 # ============= ORDONNANCES =============
 
 @router.get("/api/ordonnances")
@@ -1721,7 +1851,7 @@ async def upload_photo(
         raise HTTPException(status_code=401, detail="Non authentifié")
 
     # Créer le répertoire avec le chemin correct
-    uploads_dir = Path("static") / "uploads" / "patients"
+    uploads_dir = Path(__file__).resolve().parent / "static" / "uploads" / "patients"
     uploads_dir.mkdir(parents=True, exist_ok=True)
 
     # Générer un nom de fichier unique avec timestamp
@@ -1737,7 +1867,7 @@ async def upload_photo(
             buffer.write(content)
 
         # Construire l'URL avec cache busting
-        photo_url = f"/static/uploads/patients/{filename}?v={timestamp}"
+        photo_url = f"/static/uploads/patients/{filename}"
         
         # Mettre à jour la base de données
         current_user.photo_profil_url = photo_url
@@ -1872,3 +2002,199 @@ def get_ia_response(message: str, context: dict) -> str:
         if keyword in message_lower:
             return response
     return responses["default"] 
+
+
+
+# ============= FONCTION POUR VERIFIER L'AUTH (RAPIDE) =============
+
+def verify_token(token: str):
+    """Vérifie un token JWT rapidement"""
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except Exception:
+        return None
+
+
+# ============= INFORMATIONS MÉDICALES PATIENT =============
+@router.get("/api/patient/medical-info")
+async def get_patient_medical_info(request: Request, db: Session = Depends(get_db)):
+    """
+    API pour récupérer UNIQUEMENT les informations médicales du patient
+    (Sans les infos sensibles de connexion)
+    """
+    # Vérification rapide du token
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token invalide")
+    
+    email = payload.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="Token invalide")
+    
+    patient = get_user_by_email(db, email)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient non trouvé")
+    
+    # Retourner uniquement les infos médicales
+    return {
+        "allergies": patient.allergies or "",
+        "antecedents_medicaux": patient.antecedents_medicaux or "",
+        "antecedents_familiaux": patient.antecedents_familiaux or "",
+        "traitements_en_cours": patient.traitements_en_cours or "",
+        "groupe_sanguin": patient.groupe_sanguin.value if patient.groupe_sanguin else "",
+        "numero_securite_sociale": patient.numero_securite_sociale or "",
+        "mutuelle_nom": patient.mutuelle_nom or "",
+        "mutuelle_numero": patient.mutuelle_numero or "",
+        "medecin_traitant_nom": patient.medecin_traitant_nom or "",
+        "medecin_traitant_telephone": patient.medecin_traitant_telephone or ""
+    }
+
+# ============= RÉCUPÉRER INFORMATIONS MÉDICALES VIA ASYNC =============
+
+async def get_medical_info(request: Request, db: Session = Depends(get_db)):
+    """
+    Version alternative pour récupérer les infos médicales
+    """
+    current_user = get_current_user_from_cookie(request, db)
+    
+    if not current_user:
+        return {"success": False, "message": "Non authentifié"}
+    
+    return {
+        "success": True,
+        "data": {
+            "allergies": current_user.allergies or "",
+            "antecedents_medicaux": current_user.antecedents_medicaux or "",
+            "antecedents_familiaux": current_user.antecedents_familiaux or "",
+            "traitements_en_cours": current_user.traitements_en_cours or "",
+            "groupe_sanguin": current_user.groupe_sanguin.value if current_user.groupe_sanguin else "",
+            "numero_securite_sociale": current_user.numero_securite_sociale or "",
+            "mutuelle_nom": current_user.mutuelle_nom or "",
+            "mutuelle_numero": current_user.mutuelle_numero or "",
+            "medecin_traitant_nom": current_user.medecin_traitant_nom or "",
+            "medecin_traitant_telephone": current_user.medecin_traitant_telephone or ""
+        }
+    }
+    
+    
+# ============= METTRE À JOUR INFORMATIONS MÉDICALES PATIENT =============
+@router.post("/api/patient/update-medical")
+async def update_patient_medical_info(
+    request: Request,
+    patient_data: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    API pour mettre à jour UNIQUEMENT les informations médicales
+    (Différent de /api/patient/update qui met à jour toutes les infos)
+    """
+    # Vérification rapide du token
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token invalide")
+    
+    email = payload.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="Token invalide")
+    
+    patient = get_user_by_email(db, email)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient non trouvé")
+    
+    try:
+        # Mettre à jour uniquement les champs médicaux
+        if "allergies" in patient_data:
+            patient.allergies = patient_data["allergies"].strip()
+        if "antecedents_medicaux" in patient_data:
+            patient.antecedents_medicaux = patient_data["antecedents_medicaux"].strip()
+        if "antecedents_familiaux" in patient_data:
+            patient.antecedents_familiaux = patient_data["antecedents_familiaux"].strip()
+        if "traitements_en_cours" in patient_data:
+            patient.traitements_en_cours = patient_data["traitements_en_cours"].strip()
+        if "groupe_sanguin" in patient_data and patient_data["groupe_sanguin"]:
+            patient.groupe_sanguin = patient_data["groupe_sanguin"]
+        if "numero_securite_sociale" in patient_data:
+            patient.numero_securite_sociale = patient_data["numero_securite_sociale"].strip()
+        if "mutuelle_nom" in patient_data:
+            patient.mutuelle_nom = patient_data["mutuelle_nom"].strip()
+        if "mutuelle_numero" in patient_data:
+            patient.mutuelle_numero = patient_data["mutuelle_numero"].strip()
+        if "medecin_traitant_nom" in patient_data:
+            patient.medecin_traitant_nom = patient_data["medecin_traitant_nom"].strip()
+        if "medecin_traitant_telephone" in patient_data:
+            patient.medecin_traitant_telephone = patient_data["medecin_traitant_telephone"].strip()
+        
+        patient.date_modification = datetime.utcnow()
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Informations médicales mises à jour avec succès"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Erreur mise à jour infos médicales: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de la mise à jour: {str(e)}"
+        )
+
+
+
+# ============= SUPPRIMER COMPTE PATIENT =============
+@router.delete("/api/patient/delete-account")
+async def delete_patient_account(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Supprime le compte du patient (soft delete)
+    """
+    # Vérification rapide du token
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token invalide")
+    
+    email = payload.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="Token invalide")
+    
+    patient = get_user_by_email(db, email)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient non trouvé")
+    
+    try:
+        # Soft delete: désactiver le compte au lieu de le supprimer
+        patient.est_actif = False
+        patient.email = f"deleted_{patient.id}_{patient.email}"  # Empêche la réutilisation
+        patient.date_modification = datetime.utcnow()
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Compte désactivé avec succès"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de la suppression: {str(e)}"
+        )
