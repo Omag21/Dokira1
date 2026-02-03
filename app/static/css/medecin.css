@@ -884,3 +884,472 @@ body {
 .custom-table::-webkit-scrollbar-thumb:hover {
     background: var(--text-secondary);
 }
+
+
+
+/* ============= TABLEAU DOSSIERS MÉDICAUX ============= */
+
+.custom-table-dossiers {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.custom-table-dossiers thead {
+    background: linear-gradient(135deg, #0d8abc 0%, #0a6d9e 100%);
+    color: white;
+}
+
+.custom-table-dossiers thead th {
+    padding: 16px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.custom-table-dossiers tbody tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.3s ease;
+}
+
+.custom-table-dossiers tbody tr:hover {
+    background-color: #f8f9fa;
+    transform: scale(1.01);
+}
+
+.custom-table-dossiers tbody td {
+    padding: 14px 16px;
+    vertical-align: middle;
+    font-size: 14px;
+}
+
+/* Patient Cell */
+.patient-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.patient-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0d8abc, #00bcd4);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.patient-info-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.patient-name {
+    font-weight: 600;
+    color: #1a1a1a;
+    font-size: 14px;
+}
+
+.patient-email {
+    font-size: 12px;
+    color: #666;
+}
+
+/* Motif et Diagnostic Cell */
+.motif-cell,
+.diagnostic-cell {
+    color: #555;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Status Badge */
+.status-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-à-traiter {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.status-en-cours-de-traitement {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.status-traité {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.status-archivé {
+    background-color: #e5e7eb;
+    color: #374151;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-action {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+    color: white;
+}
+
+.btn-action.view {
+    background-color: #0d8abc;
+}
+
+.btn-action.view:hover {
+    background-color: #0a6d9e;
+    transform: scale(1.1);
+}
+
+.btn-action.edit {
+    background-color: #f59e0b;
+}
+
+.btn-action.edit:hover {
+    background-color: #d97706;
+    transform: scale(1.1);
+}
+
+/* ============= MODALE DÉTAIL DOSSIER ============= */
+
+.dossier-detail-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: 10px 0;
+}
+
+.detail-section {
+    background: #f9f9f9;
+    border-left: 4px solid #0d8abc;
+    padding: 16px;
+    border-radius: 6px;
+}
+
+.section-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0d8abc;
+    margin: 0 0 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.info-item.full-width {
+    grid-column: 1 / -1;
+}
+
+.info-item .label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-item .value {
+    font-size: 14px;
+    color: #1a1a1a;
+    font-weight: 500;
+}
+
+.info-item p {
+    font-size: 14px;
+    color: #333;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Document Info */
+.document-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+}
+
+.doc-icon {
+    font-size: 28px;
+    color: #ef4444;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffe5e5;
+    border-radius: 6px;
+}
+
+.doc-details {
+    flex: 1;
+}
+
+.doc-title {
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0;
+}
+
+.doc-type {
+    font-size: 12px;
+    color: #666;
+    margin: 4px 0 0 0;
+}
+
+/* Ordonnance Info */
+.ordonnance-info {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+/* Consultation Info */
+.consultation-info {
+    background: white;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+/* Historique */
+.historique-list {
+    background: white;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.historique-item {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    gap: 12px;
+}
+
+.historique-item:last-child {
+    border-bottom: none;
+}
+
+.historique-date {
+    min-width: 80px;
+    font-weight: 700;
+    color: #0d8abc;
+    font-size: 13px;
+}
+
+.historique-content {
+    flex: 1;
+    font-size: 13px;
+}
+
+.historique-content p {
+    margin: 4px 0;
+    color: #333;
+}
+
+.historique-content strong {
+    color: #0d8abc;
+}
+
+/* ============= FILTRES ============= */
+
+.filters-bar {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.filters-bar .btn {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* ============= EMPTY STATE ============= */
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #999;
+}
+
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    color: #ccc;
+}
+
+.empty-state p {
+    font-size: 16px;
+    margin: 0;
+    color: #666;
+}
+
+/* ============= RESPONSIVE ============= */
+
+@media (max-width: 1024px) {
+    .custom-table-dossiers thead th:nth-child(4),
+    .custom-table-dossiers thead th:nth-child(5) {
+        display: none;
+    }
+    
+    .custom-table-dossiers tbody td:nth-child(4),
+    .custom-table-dossiers tbody td:nth-child(5) {
+        display: none;
+    }
+    
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .custom-table-dossiers {
+        font-size: 12px;
+    }
+    
+    .custom-table-dossiers thead th,
+    .custom-table-dossiers tbody td {
+        padding: 10px 8px;
+    }
+    
+    .patient-avatar {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+    
+    .btn-action {
+        width: 28px;
+        height: 28px;
+    }
+    
+    .dossier-detail-container {
+        gap: 16px;
+    }
+}
+
+
+/* ============= FORMULAIRE MODALE ORDONNANCE ============= */
+ .form-section {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 4px solid #0d8abc;
+    }
+    
+    .section-header {
+        font-size: 15px;
+        font-weight: 700;
+        color: #0d8abc;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .form-control, .form-select, .form-select-lg {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+    
+    .form-control:focus, .form-select:focus, .form-select-lg:focus {
+        border-color: #0d8abc;
+        box-shadow: 0 0 0 3px rgba(13, 138, 188, 0.1);
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+    
+    .form-text {
+        font-size: 12px;
+        color: #999;
+        margin-top: 6px;
+        display: block;
+    }
+    
+    #ordonnanceModal .modal-header {
+        border-bottom: none;
+    }
+    
+    #ordonnanceModal .btn-primary {
+        background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
+        border: none;
+        padding: 12px 24px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    #ordonnanceModal .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(13, 138, 188, 0.3);
+    }
+    
+    .modal-body {
+        padding: 30px;
+        max-height: 70vh;
+        overflow-y: auto;
+    }

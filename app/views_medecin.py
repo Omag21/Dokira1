@@ -1,6 +1,6 @@
 # views_medecin.py - Routes pour les médecins
-from fastapi import APIRouter, Request, Depends, HTTPException, status, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi import APIRouter, Request, Depends, HTTPException, status, Form, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
@@ -8,14 +8,23 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from pathlib import Path
 import secrets
+import shutil
 from sqlalchemy import func, case, and_,literal
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib import colors
+from reportlab.pdfgen import canvas
+from io import BytesIO
+import tempfile
 import os
 from dotenv import load_dotenv
 
 
 # Imports locaux
 from app.database import get_db
-from app.models import Medecin, Patient, RendezVous, DossierMedical, Message
+from app.models import Medecin, Patient, RendezVous, DossierMedical, Message , StatutMessage, Document, Ordonnance
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -483,37 +492,6 @@ async def get_rendez_vous(
 
     return results
 
-@router.get("/api/dossiers")
-async def get_dossiers(
-    request: Request,
-    statut: str = None,
-    db: Session = Depends(get_db)
-):
-    """Liste des dossiers médicaux"""
-    current_medecin = get_current_medecin_from_cookie(request, db)
-    
-    if not current_medecin:
-        raise HTTPException(status_code=401, detail="Non authentifié")
-    
-    query = db.query(DossierMedical).filter(DossierMedical.medecin_id == current_medecin.id)
-    
-    if statut:
-        query = query.filter(DossierMedical.statut_traitement == statut)
-    
-    dossiers = query.order_by(DossierMedical.date_consultation.desc()).all()
-    
-    return [
-        {
-            "id": d.id,
-            "patient": {
-                "nom_complet": d.patient.nom_complet if d.patient else "Patient supprimé"
-            },
-            "diagnostic": d.diagnostic,
-            "date_consultation": d.date_consultation.isoformat(),
-            "statut_traitement": d.statut_traitement.value if d.statut_traitement else "À traiter"
-        }
-        for d in dossiers
-    ]
 
 
 @router.get("/api/stats")
@@ -548,7 +526,7 @@ async def get_stats(request: Request, db: Session = Depends(get_db)):
     messages_non_lus = db.query(Message).filter(
         Message.medecin_id == current_medecin.id,
         Message.de_medecin == False,
-        Message.statut != "Lu"
+        Message.statut != StatutMessage.LU
     ).count()
     
     return {
@@ -840,6 +818,540 @@ async def mark_message_as_read(
         db.rollback()
         print(f"❌ Erreur mise à jour message: {e}")
         raise HTTPException(status_code=500, detail="Erreur lors de la mise à jour")
+
+
+
+# ============= API - DOSSIERS MÉDICAUX =============
+
+@router.get("/api/dossiers-medicaux")
+async def get_dossiers_medicaux(
+    request: Request,
+    statut: str = None,
+    db: Session = Depends(get_db)
+):
+    """Récupère TOUS les dossiers médicaux des patients du médecin"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    # Récupérer tous les dossiers du médecin
+    query = db.query(DossierMedical).filter(
+        DossierMedical.medecin_id == current_medecin.id
+    )
+    
+    # Filtrer par statut si spécifié
+    if statut:
+        query = query.filter(DossierMedical.statut_traitement == statut)
+    
+    dossiers = query.order_by(DossierMedical.date_consultation.desc()).all()
+    
+    result = []
+    for d in dossiers:
+        # Récupérer le patient associé
+        patient = d.patient
+        
+        # Récupérer le document s'il existe
+        document = None
+        if d.document_id:
+            doc_obj = db.query(Document).filter(Document.id == d.document_id).first()
+            if doc_obj:
+                document = {
+                    "id": doc_obj.id,
+                    "titre": doc_obj.titre,
+                    "type": doc_obj.type_document,
+                    "url": doc_obj.fichier_url
+                }
+        
+        # Récupérer l'ordonnance s'elle existe
+        ordonnance = None
+        if d.ordonnance_id:
+            ord_obj = db.query(Ordonnance).filter(Ordonnance.id == d.ordonnance_id).first()
+            if ord_obj:
+                ordonnance = {
+                    "id": ord_obj.id,
+                    "medecin_nom": ord_obj.medecin_nom,
+                    "date_emission": ord_obj.date_emission.strftime("%d/%m/%Y") if ord_obj.date_emission else None,
+                    "medicaments": ord_obj.medicaments,
+                    "statut": ord_obj.statut
+                }
+        
+        result.append({
+            "id": d.id,
+            "patient": {
+                "id": patient.id if patient else None,
+                "nom_complet": patient.nom_complet if patient else "Patient supprimé",
+                "email": patient.email if patient else "N/A",
+                "telephone": patient.telephone if patient else "N/A",
+                "age": patient.age if patient else None
+            },
+            "date_consultation": d.date_consultation.strftime("%d/%m/%Y") if d.date_consultation else None,
+            "date_consultation_iso": d.date_consultation.isoformat() if d.date_consultation else None,
+            "motif": d.motif_consultation or "",
+            "diagnostic": d.diagnostic or "",
+            "traitement": d.traitement or "",
+            "observations": d.observations or "",
+            "groupe_sanguin": d.groupe_sanguin.value if d.groupe_sanguin else None,
+            "allergies": d.allergies or "",
+            "antecedents_medicaux": d.antecedents_medicaux or "",
+            "antecedents_familiaux": d.antecedents_familiaux or "",
+            "numero_securite_sociale": d.numero_securite_sociale or "",
+            "statut_traitement": d.statut_traitement.value if d.statut_traitement else "À traiter",
+            "document": document,
+            "ordonnance": ordonnance
+        })
+    
+    return {
+        "success": True,
+        "total": len(result),
+        "dossiers": result
+    }
+
+
+@router.get("/api/dossiers-medicaux/{dossier_id}")
+async def get_dossier_medical_detail(
+    dossier_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Récupère les détails d'un dossier médical spécifique"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    dossier = db.query(DossierMedical).filter(
+        DossierMedical.id == dossier_id,
+        DossierMedical.medecin_id == current_medecin.id
+    ).first()
+    
+    if not dossier:
+        raise HTTPException(status_code=404, detail="Dossier non trouvé")
+    
+    patient = dossier.patient
+    
+    # Récupérer le document
+    document = None
+    if dossier.document_id:
+        doc_obj = db.query(Document).filter(Document.id == dossier.document_id).first()
+        if doc_obj:
+            document = {
+                "id": doc_obj.id,
+                "titre": doc_obj.titre,
+                "type": doc_obj.type_document,
+                "url": doc_obj.fichier_url,
+                "date_upload": doc_obj.date_upload.strftime("%d/%m/%Y") if doc_obj.date_upload else None
+            }
+    
+    # Récupérer l'ordonnance
+    ordonnance = None
+    if dossier.ordonnance_id:
+        ord_obj = db.query(Ordonnance).filter(Ordonnance.id == dossier.ordonnance_id).first()
+        if ord_obj:
+            ordonnance = {
+                "id": ord_obj.id,
+                "medecin_nom": ord_obj.medecin_nom,
+                "date_emission": ord_obj.date_emission.strftime("%d/%m/%Y") if ord_obj.date_emission else None,
+                "medicaments": ord_obj.medicaments,
+                "posologie": ord_obj.posologie,
+                "duree_traitement": ord_obj.duree_traitement,
+                "statut": ord_obj.statut,
+                "fichier_url": ord_obj.fichier_url
+            }
+    
+    # Récupérer tous les dossiers du même patient pour l'historique
+    historique = db.query(DossierMedical).filter(
+        DossierMedical.patient_id == patient.id,
+        DossierMedical.medecin_id == current_medecin.id
+    ).order_by(DossierMedical.date_consultation.desc()).all()
+    
+    historique_list = []
+    for h in historique:
+        historique_list.append({
+            "id": h.id,
+            "date": h.date_consultation.strftime("%d/%m/%Y") if h.date_consultation else None,
+            "motif": h.motif_consultation or "",
+            "diagnostic": h.diagnostic or "",
+            "statut": h.statut_traitement.value if h.statut_traitement else "À traiter"
+        })
+    
+    return {
+        "success": True,
+        "dossier": {
+            "id": dossier.id,
+            "patient": {
+                "id": patient.id if patient else None,
+                "nom_complet": patient.nom_complet if patient else "Patient supprimé",
+                "email": patient.email if patient else "N/A",
+                "telephone": patient.telephone if patient else "N/A",
+                "age": patient.age if patient else None,
+                "genre": patient.genre.value if patient and patient.genre else None
+            },
+            "date_consultation": dossier.date_consultation.strftime("%d/%m/%Y") if dossier.date_consultation else None,
+            "motif": dossier.motif_consultation or "",
+            "diagnostic": dossier.diagnostic or "",
+            "traitement": dossier.traitement or "",
+            "observations": dossier.observations or "",
+            "groupe_sanguin": dossier.groupe_sanguin.value if dossier.groupe_sanguin else None,
+            "allergies": dossier.allergies or "",
+            "antecedents_medicaux": dossier.antecedents_medicaux or "",
+            "antecedents_familiaux": dossier.antecedents_familiaux or "",
+            "numero_securite_sociale": dossier.numero_securite_sociale or "",
+            "statut_traitement": dossier.statut_traitement.value if dossier.statut_traitement else "À traiter",
+            "document": document,
+            "ordonnance": ordonnance,
+            "historique": historique_list
+        }
+    }
+
+
+ # ============= API - ORDONNANCES =============
+
+@router.post("/api/ordonnances/creer")
+async def creer_ordonnance(
+    request: Request,
+    patient_id: int = Form(...),
+    medicaments: str = Form(...),
+    posologie: str = Form(...),
+    duree_traitement: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """Crée une ordonnance et génère un PDF"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    # Vérifier que le patient existe
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient non trouvé")
+    
+    # Vérifier que le médecin a une relation avec ce patient via un RDV
+    patient_rdv = db.query(RendezVous).filter(
+        RendezVous.patient_id == patient_id,
+        RendezVous.medecin_id == current_medecin.id
+    ).first()
+    
+    if not patient_rdv:
+        raise HTTPException(status_code=403, detail="Accès refusé à ce patient")
+    
+    try:
+        # Créer l'ordonnance en BD
+        ordonnance = Ordonnance(
+            patient_id=patient_id,
+            medecin_nom=f"Dr. {current_medecin.prenom} {current_medecin.nom}",
+            date_emission=datetime.now().date(),
+            medicaments=medicaments.strip(),
+            posologie=posologie.strip(),
+            duree_traitement=duree_traitement.strip(),
+            statut="Active"
+        )
+        
+        db.add(ordonnance)
+        db.commit()
+        db.refresh(ordonnance)
+        
+        # Générer le PDF
+        pdf_buffer = generer_pdf_ordonnance(ordonnance, patient, current_medecin)
+        
+        # Sauvegarder le fichier
+        upload_dir = Path("static/uploads/ordonnances")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        filename = f"ordonnance_{ordonnance.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        filepath = upload_dir / filename
+        
+        with open(filepath, 'wb') as f:
+            f.write(pdf_buffer.getvalue())
+        
+        # Mettre à jour l'URL du fichier
+        ordonnance.fichier_url = f"/static/uploads/ordonnances/{filename}"
+        db.commit()
+        
+        return {
+            "success": True,
+            "ordonnance_id": ordonnance.id,
+            "fichier_url": ordonnance.fichier_url,
+            "message": "Ordonnance créée et PDF généré"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Erreur création ordonnance: {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la création de l'ordonnance")
+
+
+def generer_pdf_ordonnance(ordonnance, patient, medecin):
+    """Génère le PDF de l'ordonnance"""
+    buffer = BytesIO()
+    
+    # Créer le document PDF
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    elements = []
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#0d8abc'),
+        spaceAfter=20,
+        alignment=1  # Center
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#0d8abc'),
+        spaceAfter=12,
+        spaceBefore=12,
+        borderPadding=10
+    )
+    
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontSize=11,
+        leading=16
+    )
+    
+    # En-tête
+    elements.append(Paragraph("ORDONNANCE MÉDICALE", title_style))
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Infos Cabinet/Médecin
+    medecin_info = f"""
+    <b>Dr. {medecin.prenom} {medecin.nom}</b><br/>
+    Spécialité: {medecin.specialite.value if medecin.specialite else 'Généraliste'}<br/>
+    Téléphone: {medecin.telephone or 'N/A'}<br/>
+    Numéro d'ordre: {medecin.numero_ordre or 'N/A'}
+    """
+    elements.append(Paragraph(medecin_info, normal_style))
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Ligne séparatrice
+    elements.append(Paragraph("_" * 80, normal_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Infos Patient
+    elements.append(Paragraph("INFORMATIONS PATIENT", heading_style))
+    
+    patient_data = [
+        ['Nom Complet:', patient.nom_complet],
+        ['Âge:', f"{patient.age} ans"],
+        ['Genre:', patient.genre.value if patient.genre else 'N/A'],
+        ['Date de naissance:', patient.date_naissance.strftime("%d/%m/%Y") if patient.date_naissance else 'N/A'],
+    ]
+    
+    patient_table = Table(patient_data, colWidths=[2*inch, 4*inch])
+    patient_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    
+    elements.append(patient_table)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Ligne séparatrice
+    elements.append(Paragraph("_" * 80, normal_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Ordonnance - Médicaments
+    elements.append(Paragraph("PRESCRIPTION MÉDICALE", heading_style))
+    
+    ordonnance_data = [
+        ['Médicament(s):', ordonnance.medicaments],
+        ['Posologie:', ordonnance.posologie],
+        ['Durée du traitement:', ordonnance.duree_traitement],
+    ]
+    
+    ordonnance_table = Table(ordonnance_data, colWidths=[2*inch, 4*inch])
+    ordonnance_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
+    ]))
+    
+    elements.append(ordonnance_table)
+    elements.append(Spacer(1, 0.4*inch))
+    
+    # Ligne séparatrice
+    elements.append(Paragraph("_" * 80, normal_style))
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Infos supplémentaires
+    info_supplementaires = f"""
+    <b>Date d'émission:</b> {ordonnance.date_emission.strftime("%d/%m/%Y")}<br/>
+    <b>Statut:</b> {ordonnance.statut}<br/>
+    <b>Valide jusqu'au:</b> {ordonnance.date_expiration.strftime("%d/%m/%Y") if ordonnance.date_expiration else 'À définir'}
+    """
+    elements.append(Paragraph(info_supplementaires, normal_style))
+    elements.append(Spacer(1, 0.4*inch))
+    
+    # Signature
+    elements.append(Spacer(1, 0.3*inch))
+    signature = f"""
+    <br/><br/>
+    ________________________<br/>
+    Signature du médecin<br/>
+    <b>Dr. {medecin.prenom} {medecin.nom}</b>
+    """
+    elements.append(Paragraph(signature, normal_style))
+    
+    # Footer
+    elements.append(Spacer(1, 0.5*inch))
+    footer = f"""
+    <font size="9" color="gray">
+    Document généré par Dokira - {datetime.now().strftime("%d/%m/%Y à %H:%M")}<br/>
+    Ordonnance ID: {ordonnance.id} | Patient ID: {patient.id}
+    </font>
+    """
+    elements.append(Paragraph(footer, normal_style))
+    
+    # Construire le PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    return buffer
+
+
+@router.get("/api/ordonnances")
+async def get_ordonnances_medecin(
+    request: Request,
+    statut: str = None,
+    db: Session = Depends(get_db)
+):
+    """Récupère toutes les ordonnances du médecin"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    # Récupérer tous les patients du médecin
+    patients_ids = db.query(RendezVous.patient_id).filter(
+        RendezVous.medecin_id == current_medecin.id
+    ).distinct().all()
+    
+    patients_ids = [p[0] for p in patients_ids]
+    
+    query = db.query(Ordonnance).filter(Ordonnance.patient_id.in_(patients_ids))
+    
+    if statut:
+        query = query.filter(Ordonnance.statut == statut)
+    
+    ordonnances = query.order_by(Ordonnance.date_emission.desc()).all()
+    
+    result = []
+    for ord in ordonnances:
+        patient = db.query(Patient).filter(Patient.id == ord.patient_id).first()
+        result.append({
+            "id": ord.id,
+            "patient": {
+                "id": patient.id if patient else None,
+                "nom_complet": patient.nom_complet if patient else "Patient supprimé"
+            },
+            "medecin_nom": ord.medecin_nom,
+            "date_emission": ord.date_emission.strftime("%d/%m/%Y") if ord.date_emission else None,
+            "medicaments": ord.medicaments,
+            "posologie": ord.posologie,
+            "duree_traitement": ord.duree_traitement,
+            "statut": ord.statut,
+            "fichier_url": ord.fichier_url
+        })
+    
+    return {
+        "success": True,
+        "total": len(result),
+        "ordonnances": result
+    }
+
+# ============= Télécharger Ordonnance PDF =============
+@router.get("/api/ordonnances/telecharger/{ordonnance_id}")
+async def telecharger_ordonnance(
+    ordonnance_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Télécharge le PDF d'une ordonnance"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    ordonnance = db.query(Ordonnance).filter(Ordonnance.id == ordonnance_id).first()
+    
+    if not ordonnance:
+        raise HTTPException(status_code=404, detail="Ordonnance non trouvée")
+    
+    # Vérifier que le médecin a créé cette ordonnance
+    if ordonnance.medecin_nom != f"Dr. {current_medecin.prenom} {current_medecin.nom}":
+        raise HTTPException(status_code=403, detail="Accès refusé")
+    
+    if not ordonnance.fichier_url:
+        raise HTTPException(status_code=404, detail="Fichier non trouvé")
+    
+    filepath = ordonnance.fichier_url.replace("/static/", "static/")
+    
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Fichier non trouvé sur le serveur")
+    
+    return FileResponse(filepath, filename=f"ordonnance_{ordonnance_id}.pdf")
+
+
+
+
+# ============= UPLOAD PHOTO PROFIL =============
+
+@router.post("/api/upload-photo")
+async def upload_photo_profil(
+    request: Request,
+    photo: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    current_medecin = get_current_medecin_from_cookie(request, db)
+
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+
+    # Vérifier type image
+    if not photo.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Fichier invalide")
+
+    # Dossier upload
+    upload_dir = Path("app/static/uploads/medecins")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    # Nom unique
+    ext = photo.filename.split(".")[-1]
+    filename = f"medecin_{current_medecin.id}_{secrets.token_hex(8)}.{ext}"
+
+    file_path = upload_dir / filename
+
+    # Sauvegarde
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(photo.file, buffer)
+
+    # URL publique
+    photo_url = f"/static/uploads/medecins/{filename}"
+
+    # Sauvegarde DB
+    current_medecin.photo_profil_url = photo_url
+    db.commit()
+
+    return {
+        "success": True,
+        "photo_url": photo_url
+    }
+
 
 
 

@@ -9,14 +9,15 @@ let messagerie = {
 };
 
 // ============= FONCTION PRINCIPALE - MESSAGERIE =============
-
 function getMessagerieContent() {
     return `
         <div class="messagerie-container">
             <!-- Panneau Conversations -->
             <div class="messagerie-sidebar">
                 <div class="sidebar-header">
-                    <h3>Messagerie</h3>
+                    <h3>
+                        <i class="fas fa-comments"></i> Messagerie
+                    </h3>
                     <button class="btn-new-message" onclick="openNewMessageModal()" title="Nouveau message">
                         <i class="fas fa-pen"></i> Nouveau
                     </button>
@@ -44,7 +45,7 @@ function getMessagerieContent() {
                 </div>
                 
                 <div id="chatContent" class="chat-content" style="display: none;">
-                    <!-- Header Conversation -->
+                    <!-- Header Conversation - Professionnel -->
                     <div class="conversation-header">
                         <div class="patient-header">
                             <div class="patient-avatar" id="chatPatientAvatar"></div>
@@ -58,60 +59,54 @@ function getMessagerieContent() {
                         </button>
                     </div>
                     
-                    <!-- Messages -->
+                    <!-- Messages Container - Affichage uniquement -->
                     <div class="messages-container" id="messagesContainer">
                         <p class="text-center text-muted">Aucun message</p>
                     </div>
                     
-                    <!-- Formulaire Envoi -->
-                    <div class="message-input-area">
-                        <form id="messageForm" onsubmit="sendMessage(event)">
-                            <div class="form-group">
-                                <input type="text" id="messageSubject" placeholder="Sujet du message..." 
-                                    class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <textarea id="messageContent" placeholder="Écrivez votre message ici..." 
-                                    class="form-control" rows="3" required></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-primary btn-send">
-                                <i class="fas fa-paper-plane"></i> Envoyer
-                            </button>
-                        </form>
-                    </div>
+                    <!-- SUPPRIMÉ: Zone d'envoi de messages -->
+                    <!-- Les médecins envoient des messages via la modale "Nouveau Message" -->
                 </div>
             </div>
         </div>
         
-        <!-- Modal Nouveau Message -->
+        <!-- Modal Nouveau Message - Pour envoyer -->
         <div class="modal fade" id="newMessageModal" tabindex="-1">
-            <div class="modal-dialog">
+            <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">Nouveau Message</h5>
+                        <h5 class="modal-title">
+                            <i class="fas fa-paper-plane"></i> Nouveau Message
+                        </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <form id="newMessageForm">
                             <div class="form-group mb-3">
-                                <label class="form-label"><strong>Destinataire</strong></label>
+                                <label class="form-label">
+                                    <strong>Destinataire</strong>
+                                    <span class="text-danger">*</span>
+                                </label>
                                 <select id="newMessagePatient" class="form-control" required>
                                     <option value="">Sélectionnez un patient...</option>
                                 </select>
                             </div>
                             <div class="form-group mb-3">
-                                <label class="form-label"><strong>Sujet</strong></label>
-                                <input type="text" id="newMessageSubject" class="form-control" required>
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label"><strong>Message</strong></label>
-                                <textarea id="newMessageContent" class="form-control" rows="5" required></textarea>
+                                <label class="form-label">
+                                    <strong>Message</strong>
+                                    <span class="text-danger">*</span>
+                                </label>
+                                <textarea id="newMessageContent" class="form-control" rows="6" placeholder="Écrivez votre message ici..." required></textarea>
                             </div>
                         </form>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                        <button type="button" class="btn btn-primary" onclick="submitNewMessage()">Envoyer</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times"></i> Annuler
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="submitNewMessage()">
+                            <i class="fas fa-paper-plane"></i> Envoyer
+                        </button>
                     </div>
                 </div>
             </div>
@@ -148,8 +143,10 @@ async function loadConversations() {
         updateUnreadBadge();
     } catch (error) {
         console.error('Erreur chargement conversations:', error);
-        document.getElementById('conversationsList').innerHTML = 
-            '<p class="text-center text-danger">Erreur chargement conversations</p>';
+        const container = document.getElementById('conversationsList');
+        if (container) {
+            container.innerHTML = '<p class="text-center text-danger p-3">Erreur chargement conversations</p>';
+        }
     }
 }
 
@@ -180,10 +177,15 @@ function displayConversations(conversations) {
         const classe = messagerie.patientActuel?.id === conv.patient_id ? 'active' : '';
         const dernierMsg = conv.derniere_date ? new Date(conv.derniere_date).toLocaleDateString('fr-FR') : '';
         
+        // Avatar professionnel avec initiales
+        const initials = getInitials(conv.nom_complet);
+        
         return `
-            <div class="conversation-item ${classe}" onclick="openConversation(${conv.patient_id}, '${conv.nom_complet}', '${conv.email}')">
+            <div class="conversation-item ${classe}" 
+                 data-patient-id="${conv.patient_id}"
+                 onclick="openConversation(${conv.patient_id}, '${conv.nom_complet}', '${conv.email}')">
                 <div class="conversation-avatar">
-                    ${conv.nom_complet.charAt(0).toUpperCase()}${conv.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || ''}
+                    ${initials}
                 </div>
                 <div class="conversation-info">
                     <div class="conversation-header-row">
@@ -229,28 +231,29 @@ async function openConversation(patientId, patientName, patientEmail) {
         if (!response.ok) throw new Error('Erreur chargement conversation');
         
         const data = await response.json();
-        messagerie.messagesActuels = data.messages;
+        messagerie.messagesActuels = data.messages || [];
         
         // Afficher le chat
-        document.getElementById('emptyState').style.display = 'none';
-        document.getElementById('chatContent').style.display = 'flex';
+        const emptyState = document.getElementById('emptyState');
+        const chatContent = document.getElementById('chatContent');
+        
+        if (emptyState) emptyState.style.display = 'none';
+        if (chatContent) chatContent.style.display = 'flex';
         
         // Remplir les infos du patient
-        document.getElementById('chatPatientName').textContent = data.patient.nom_complet;
-        document.getElementById('chatPatientEmail').textContent = data.patient.email;
-        document.getElementById('chatPatientAvatar').textContent = 
-            data.patient.nom_complet.charAt(0).toUpperCase() + 
-            (data.patient.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || '');
+        const initials = getInitials(patientName);
+        document.getElementById('chatPatientName').textContent = patientName;
+        document.getElementById('chatPatientEmail').textContent = patientEmail;
+        document.getElementById('chatPatientAvatar').textContent = initials;
         
         // Afficher les messages
-        displayMessages(data.messages);
+        displayMessages(messagerie.messagesActuels);
         
-        // Mise à jour visuelle
+        // Mise à jour visuelle - marquer comme actif
         document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
-        event.target.closest('.conversation-item')?.classList.add('active');
+        const activeItem = document.querySelector(`[data-patient-id="${patientId}"]`);
+        if (activeItem) activeItem.classList.add('active');
         
-        // Reset form
-        document.getElementById('messageForm').reset();
     } catch (error) {
         console.error('Erreur ouverture conversation:', error);
         alert('Erreur lors de l\'ouverture de la conversation');
@@ -273,11 +276,15 @@ function displayMessages(messages) {
         const timeStr = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         const dateStr = dateObj.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
         
+        // Sécuriser le contenu HTML
+        const safeSubject = escapeHtml(msg.sujet || '');
+        const safeContent = escapeHtml(msg.contenu || '');
+        
         return `
             <div class="message-group ${fromClass}">
                 <div class="message-bubble">
-                    <div class="message-subject"><strong>${msg.sujet}</strong></div>
-                    <div class="message-content">${msg.contenu}</div>
+                    <div class="message-subject"><strong>${safeSubject}</strong></div>
+                    <div class="message-content">${safeContent}</div>
                     <div class="message-time">${dateStr} à ${timeStr}</div>
                 </div>
             </div>
@@ -347,38 +354,62 @@ async function sendMessage(event) {
 // ============= NOUVEAU MESSAGE MODAL =============
 
 function openNewMessageModal() {
+    // Réinitialiser le formulaire
+    const form = document.getElementById('newMessageForm');
+    if (form) form.reset();
+    
     const modal = new bootstrap.Modal(document.getElementById('newMessageModal'));
     modal.show();
 }
 
 function populatePatientsSelect() {
     const select = document.getElementById('newMessagePatient');
+    if (!select) return;
+    
     select.innerHTML = '<option value="">Sélectionnez un patient...</option>';
     
-    messagerie.patients.forEach(patient => {
-        const option = document.createElement('option');
-        option.value = patient.id;
-        option.textContent = `${patient.nom_complet} (${patient.email})`;
-        select.appendChild(option);
-    });
+    if (messagerie.patients && messagerie.patients.length > 0) {
+        messagerie.patients.forEach(patient => {
+            const option = document.createElement('option');
+            option.value = patient.id;
+            option.textContent = `${patient.nom_complet} (${patient.email})`;
+            select.appendChild(option);
+        });
+    }
 }
 
 async function submitNewMessage() {
     const patientId = document.getElementById('newMessagePatient').value;
-    const sujet = document.getElementById('newMessageSubject').value;
-    const contenu = document.getElementById('newMessageContent').value;
+    const sujet = document.getElementById('newMessageSubject').value.trim();
+    const contenu = document.getElementById('newMessageContent').value.trim();
     
-    if (!patientId || !sujet.trim() || !contenu.trim()) {
-        alert('Veuillez remplir tous les champs');
+    if (!patientId) {
+        alert('⚠️ Veuillez sélectionner un patient');
         return;
     }
     
-    const formData = new FormData();
-    formData.append('patient_id', patientId);
-    formData.append('sujet', sujet);
-    formData.append('contenu', contenu);
+    if (!sujet) {
+        alert('⚠️ Veuillez renseigner le sujet');
+        return;
+    }
+    
+    if (!contenu) {
+        alert('⚠️ Veuillez écrire un message');
+        return;
+    }
+    
+    // Afficher le loading
+    const submitBtn = event.target;
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi en cours...';
     
     try {
+        const formData = new FormData();
+        formData.append('patient_id', patientId);
+        formData.append('sujet', sujet);
+        formData.append('contenu', contenu);
+        
         const response = await fetch('/medecin/api/messagerie/send', {
             method: 'POST',
             body: formData
@@ -386,27 +417,33 @@ async function submitNewMessage() {
         
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || 'Erreur envoi message');
+            throw new Error(error.error || 'Erreur lors de l\'envoi');
         }
         
-        // Fermer modal et recharger
-        bootstrap.Modal.getInstance(document.getElementById('newMessageModal')).hide();
-        document.getElementById('newMessageForm').reset();
+        const result = await response.json();
         
-        // Ouvrir la conversation du patient
-        const patient = messagerie.patients.find(p => p.id == patientId);
+        // Succès
+        alert('✅ Message envoyé avec succès!');
+        
+        // Fermer la modale
+        const modal = bootstrap.Modal.getInstance(document.getElementById('newMessageModal'));
+        modal.hide();
+        
+        // Recharger les conversations
         await loadConversations();
         
-        // Afficher la conversation
-        setTimeout(() => {
-            const conv = messagerie.conversations.find(c => c.patient_id == patientId);
-            if (conv) {
-                openConversation(patientId, patient.nom_complet, patient.email);
-            }
-        }, 500);
+        // Si le patient était déjà sélectionné, recharger ses messages
+        const patient = messagerie.patients.find(p => p.id == patientId);
+        if (messagerie.patientActuel?.id == patientId) {
+            await openConversation(patientId, patient.nom_complet, patient.email);
+        }
+        
     } catch (error) {
         console.error('Erreur:', error);
-        alert('Erreur: ' + error.message);
+        alert('❌ Erreur: ' + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
     }
 }
 
@@ -415,8 +452,13 @@ async function submitNewMessage() {
 function closeChat() {
     messagerie.patientActuel = null;
     messagerie.messagesActuels = [];
-    document.getElementById('emptyState').style.display = 'flex';
-    document.getElementById('chatContent').style.display = 'none';
+    
+    const emptyState = document.getElementById('emptyState');
+    const chatContent = document.getElementById('chatContent');
+    
+    if (emptyState) emptyState.style.display = 'flex';
+    if (chatContent) chatContent.style.display = 'none';
+    
     document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
 }
 
@@ -437,4 +479,16 @@ function setupMessagerieListeners() {
     }
 }
 
+// ============= FONCTIONS UTILITAIRES =============
 
+function getInitials(nom_complet) {
+    if (!nom_complet) return '?';
+    const parts = nom_complet.split(' ').filter(p => p.length > 0);
+    return (parts[0]?.charAt(0) || '') + (parts[1]?.charAt(0) || '');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}

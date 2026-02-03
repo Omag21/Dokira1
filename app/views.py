@@ -1097,16 +1097,15 @@ async def get_conversations_list(request: Request, db: Session = Depends(get_db)
 @router.get("/api/messagerie/conversation/{medecin_id}")
 async def get_conversation_messages(medecin_id: int, request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer les messages d'une conversation
+    API pour récupérer les messages d'une conversation et les infos du médecin
     """
     current_user = get_current_user_from_cookie(request, db)
-    
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Non authentifié"
         )
-    
+
     # Récupérer les messages
     messages = db.query(
         Message.id,
@@ -1120,7 +1119,7 @@ async def get_conversation_messages(medecin_id: int, request: Request, db: Sessi
     ).order_by(
         Message.date_envoi.asc()
     ).all()
-    
+
     # Marquer comme lus
     db.query(Message).filter(
         Message.patient_id == current_user.id,
@@ -1129,7 +1128,7 @@ async def get_conversation_messages(medecin_id: int, request: Request, db: Sessi
         Message.de_medecin == True
     ).update({"statut": StatutMessage.LU})
     db.commit()
-    
+
     result = []
     for msg in messages:
         result.append({
@@ -1139,8 +1138,24 @@ async def get_conversation_messages(medecin_id: int, request: Request, db: Sessi
             "expediteur_type": "medecin" if msg.de_medecin else "patient",
             "statut": msg.statut
         })
-    
-    return result
+
+    # Infos du médecin
+    medecin = db.query(Medecin).filter(Medecin.id == medecin_id).first()
+    medecin_data = None
+    if medecin:
+        medecin_data = {
+            "id": medecin.id,
+            "nom": medecin.nom,
+            "prenom": medecin.prenom,
+            "specialite": medecin.specialite.value if medecin.specialite else "Non spécifié",
+            "photo": medecin.photo_profil_url,
+            "is_online": getattr(medecin, "is_online", False)
+        }
+
+    return {
+        "messages": result,
+        "medecin": medecin_data
+    }
 
 # ============= PATIENT - ENVOYER UN MESSAGE =============
 @router.post("/api/messagerie/send")
@@ -2198,3 +2213,139 @@ async def delete_patient_account(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur lors de la suppression: {str(e)}"
         )
+        
+        
+ # ============= ROUTES DOSSIER MÉDICAL =============
+
+@router.get("/api/dossier-medical")
+async def get_dossier_medical_complet(request: Request, db: Session = Depends(get_db)):
+    """API UNIFIÉE pour récupérer TOUTES les données du dossier médical"""
+    current_user = get_current_user_from_cookie(request, db)
+    
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    # 1. Données du patient (table patients)
+    allergies = current_user.allergies or ""
+    antecedents_medicaux = current_user.antecedents_medicaux or ""
+    antecedents_familiaux = current_user.antecedents_familiaux or ""
+    groupe_sanguin = current_user.groupe_sanguin.value if current_user.groupe_sanguin else ""
+    medecin_traitant = current_user.medecin_traitant_nom or ""
+    numero_securite_sociale = current_user.numero_securite_sociale or ""
+    
+    # 2. Historique (table dossiers_medicaux)
+    dossiers_count = db.query(DossierMedical).filter(
+        DossierMedical.patient_id == current_user.id
+    ).count()
+    
+    # 3. Récupérer quelques consultations récentes
+    consultations_recentes = db.query(DossierMedical, Medecin).outerjoin(
+        Medecin, DossierMedical.medecin_id == Medecin.id
+    ).filter(
+        DossierMedical.patient_id == current_user.id
+    ).order_by(
+        DossierMedical.date_consultation.desc()
+    ).limit(5).all()
+    
+    consultations_list = []
+    for dossier, medecin in consultations_recentes:
+        consultations_list.append({
+            "date": dossier.date_consultation.strftime("%d/%m/%Y") if dossier.date_consultation else "",
+            "medecin": f"Dr. {medecin.prenom} {medecin.nom}" if medecin else "Médecin",
+            "specialite": medecin.specialite.value if medecin and medecin.specialite else "",
+            "motif": dossier.motif_consultation or "",
+            "diagnostic": dossier.diagnostic or ""
+        })
+    
+    # 4. ✅ Récupérer les documents médicaux du patient (depuis la table documents)
+    documents = db.query(Document).filter(
+        Document.patient_id == current_user.id
+    ).order_by(Document.date_upload.desc()).all()
+    
+    documents_list = []
+    for doc in documents:
+        documents_list.append({
+            "id": doc.id,
+            "titre": doc.titre,
+            "type_document": doc.type_document,
+            "date_upload": doc.date_upload.strftime("%d/%m/%Y") if doc.date_upload else "",
+            "description": doc.description or "",
+            "fichier_url": doc.fichier_url
+        })
+    
+    # 5. ✅ Récupérer les ordonnances du patient (depuis la table ordonnances)
+    ordonnances = db.query(Ordonnance).filter(
+        Ordonnance.patient_id == current_user.id
+    ).order_by(Ordonnance.date_emission.desc()).all()
+    
+    ordonnances_list = []
+    for ord in ordonnances:
+        ordonnances_list.append({
+            "id": ord.id,
+            "medecin_nom": ord.medecin_nom,
+            "date_emission": ord.date_emission.strftime("%d/%m/%Y") if ord.date_emission else "",
+            "medicaments": ord.medicaments,
+            "posologie": ord.posologie,
+            "statut": ord.statut or "Active",
+            "fichier_url": ord.fichier_url
+        })
+    
+    return {
+        "success": True,
+        "data": {
+            # Infos médicales
+            "allergies": allergies,
+            "allergies_count": len([a for a in allergies.split(",") if a.strip()]) if allergies else 0,
+            "antecedents_medicaux": antecedents_medicaux,
+            "antecedents_familiaux": antecedents_familiaux,
+            "groupe_sanguin": groupe_sanguin,
+            "traitements_en_cours": current_user.traitements_en_cours or "",
+            "medecin_traitant": medecin_traitant,
+            "numero_securite_sociale": numero_securite_sociale,
+            
+            # Statistiques
+            "consultations_count": dossiers_count,
+            "documents_count": len(documents_list),
+            "ordonnances_count": len(ordonnances_list),
+            
+            # Détails
+            "consultations_recentes": consultations_list,
+            "documents": documents_list,
+            "ordonnances": ordonnances_list,
+            "has_data": bool(allergies or antecedents_medicaux or antecedents_familiaux or groupe_sanguin)
+        }
+    }
+
+@router.get("/api/dossier-medical/historique-detaille")
+async def get_historique_detaille(request: Request, db: Session = Depends(get_db)):
+    """API pour l'historique détaillé"""
+    current_user = get_current_user_from_cookie(request, db)
+    
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    dossiers = db.query(DossierMedical, Medecin).outerjoin(
+        Medecin, DossierMedical.medecin_id == Medecin.id
+    ).filter(
+        DossierMedical.patient_id == current_user.id
+    ).order_by(DossierMedical.date_consultation.desc()).all()
+    
+    result = []
+    for dossier, medecin in dossiers:
+        result.append({
+            "id": dossier.id,
+            "date": dossier.date_consultation.isoformat() if dossier.date_consultation else None,
+            "date_formatee": dossier.date_consultation.strftime("%d/%m/%Y %H:%M") if dossier.date_consultation else "",
+            "medecin_nom": f"Dr. {medecin.prenom} {medecin.nom}" if medecin else "Médecin",
+            "medecin_specialite": medecin.specialite.value if medecin and medecin.specialite else "",
+            "motif": dossier.motif_consultation or "",
+            "diagnostic": dossier.diagnostic or "",
+            "prescription": dossier.prescription or "",
+            "notes": dossier.notes_medecin or ""
+        })
+    
+    return {
+        "success": True,
+        "total": len(result),
+        "consultations": result
+    }

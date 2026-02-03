@@ -280,12 +280,23 @@ class DossierMedical(Base):
     id = Column(Integer, primary_key=True, index=True)
     medecin_id = Column(Integer, ForeignKey("medecins.id"), nullable=False)
     patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    
+    groupe_sanguin = Column(Enum(GroupeSanguin), nullable=True)
+    allergies = Column(Text, nullable=True)
+    antecedents_medicaux = Column(Text, nullable=True)
+    antecedents_familiaux = Column(Text, nullable=True)
+    numero_securite_sociale = Column(String(15), nullable=True)
+
 
     date_consultation = Column(DateTime, default=datetime.utcnow)
     motif_consultation = Column(String(255))
     diagnostic = Column(Text)
     traitement = Column(Text)
     observations = Column(Text)
+    
+    document_id = Column(Integer, ForeignKey("documents.id"), nullable=True, index=True)
+    ordonnance_id = Column(Integer, ForeignKey("ordonnances.id"), nullable=True, index=True)
+
 
     statut_traitement = Column(Enum(StatutDossier), default=StatutDossier.A_TRAITER)
     date_creation = Column(DateTime, default=datetime.utcnow)
@@ -293,6 +304,13 @@ class DossierMedical(Base):
 
     patient = relationship("Patient", backref="dossiers")
     medecin = relationship("Medecin", back_populates="dossiers")
+    document = relationship("Document", backref="dossier_medical", foreign_keys=[document_id])
+    ordonnance = relationship("Ordonnance", backref="dossier_medical", foreign_keys=[ordonnance_id])
+    
+    def __repr__(self):
+        return f"<DossierMedical(id={self.id}, patient_id={self.patient_id}, medecin_id={self.medecin_id})>"
+
+
 
 class Message(Base):
     __tablename__ = "messages"

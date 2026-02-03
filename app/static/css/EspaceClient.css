@@ -1,3 +1,174 @@
+/* ====== Chat Professional Styles ====== */
+.chat-header {
+    display: flex;
+    align-items: center;
+    background: #f7f9fb;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 16px 20px 12px 20px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.doctor-avatar-wrapper {
+    position: relative;
+    width: 48px;
+    height: 48px;
+}
+.doctor-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #e0e0e0;
+    background: #fff;
+}
+.online-indicator, .offline-indicator {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+}
+.online-indicator {
+    background: #4caf50;
+}
+.offline-indicator {
+    background: #bdbdbd;
+}
+.doctor-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.doctor-name {
+    font-weight: 600;
+    font-size: 18px;
+    color: #222;
+}
+.doctor-specialite {
+    font-size: 14px;
+    color: #888;
+}
+.messages-list {
+    padding: 24px 20px 16px 20px;
+    background: #f4f7fa;
+    min-height: 350px;
+    max-height: 55vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.message {
+    display: flex;
+    flex-direction: column;
+    max-width: 70%;
+    margin-bottom: 4px;
+    border-radius: 18px;
+    padding: 10px 16px;
+    font-size: 15px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    word-break: break-word;
+    position: relative;
+}
+.message-sent {
+    align-self: flex-end;
+    background: linear-gradient(90deg, #4f8cff 0%, #1cb5e0 100%);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+.message-received {
+    align-self: flex-start;
+    background: #fff;
+    color: #222;
+    border-bottom-left-radius: 4px;
+}
+.message-content {
+    margin-bottom: 4px;
+}
+.message-time {
+    font-size: 12px;
+    color: #b0b0b0;
+    text-align: right;
+}
+.message-status {
+    margin-left: 6px;
+    color: #fff;
+    font-size: 12px;
+}
+.message-input {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 16px 20px;
+    background: #fff;
+    border-top: 1px solid #e0e0e0;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+}
+.message-input textarea {
+    flex: 1;
+    border-radius: 12px;
+    border: 1px solid #d0d0d0;
+    padding: 10px 14px;
+    font-size: 15px;
+    resize: none;
+    min-height: 36px;
+    max-height: 120px;
+    background: #f7f9fb;
+    outline: none;
+    transition: border 0.2s;
+}
+.message-input textarea:focus {
+    border: 1.5px solid #4f8cff;
+}
+.btn-send {
+    background: linear-gradient(90deg, #4f8cff 0%, #1cb5e0 100%);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(76,140,255,0.08);
+    transition: background 0.2s;
+}
+.btn-send:hover {
+    background: linear-gradient(90deg, #1cb5e0 0%, #4f8cff 100%);
+}
+@media (max-width: 600px) {
+    .chat-header, .messages-list, .message-input {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+    .doctor-name {
+        font-size: 16px;
+    }
+    .doctor-avatar, .doctor-avatar-wrapper {
+        width: 38px;
+        height: 38px;
+    }
+    .messages-list {
+        max-height: 40vh;
+    }
+    .message {
+        font-size: 14px;
+        padding: 8px 10px;
+    }
+}
+/* ====== End Chat Professional Styles ====== */
   
         :root {
             --primary-color: #0066cc;
@@ -2089,4 +2260,192 @@ textarea.form-control {
     display: grid !important;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
     gap: 18px !important;
+}
+
+
+
+/* ============= STYLE POUR LE DOSSIER MÉDICAL ============= */
+
+.medical-details-modal {
+    animation: fadeIn 0.3s ease;
+}
+
+.medical-details-modal > div {
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.consultation-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.consultation-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Style pour les cartes du dossier médical */
+.content-card[data-card-type="dossier"] {
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.content-card[data-card-type="dossier"]::after {
+    content: "📋";
+    position: absolute;
+    right: 15px;
+    bottom: 15px;
+    opacity: 0.3;
+    font-size: 24px;
+    transition: opacity 0.3s ease;
+}
+
+.content-card[data-card-type="dossier"]:hover::after {
+    opacity: 0.6;
+}
+
+/* Badges spécifiques pour le dossier médical */
+.badge-warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-success {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+
+
+/* ============= ORDONNANCES STYLES ============= */
+
+.ordonnances-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.ordonnance-card-dossier {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.ordonnance-card-dossier:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+    border-color: #0d8abc;
+    transform: translateY(-4px);
+}
+
+.ord-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.ord-header h4 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0;
+}
+
+.ord-status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    background-color: #10b981;
+}
+
+.ord-status.expired {
+    background-color: #ef4444;
+}
+
+.ord-info {
+    flex: 1;
+    margin-bottom: 16px;
+}
+
+.ord-info p {
+    font-size: 13px;
+    color: #333;
+    margin: 10px 0;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.ord-info strong {
+    color: #0d8abc;
+    display: block;
+    margin-bottom: 3px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.ord-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-ord-view {
+    flex: 1;
+    padding: 10px 16px;
+    background: #0d8abc;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+}
+
+.btn-ord-view:hover {
+    background: #0a6d9e;
+    transform: scale(1.02);
+}
+
+/* ============= RESPONSIVE ORDONNANCES ============= */
+
+@media (max-width: 768px) {
+    .ordonnances-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .ordonnance-card-dossier {
+        padding: 16px;
+    }
+    
+    .ord-header h4 {
+        font-size: 14px;
+    }
 }
