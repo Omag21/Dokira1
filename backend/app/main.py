@@ -1,5 +1,6 @@
 
 
+from pathlib import Path
 from fastapi import FastAPI, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -31,6 +32,8 @@ app.include_router(medecin_router)
 app.include_router(admin_router) 
 # Monte le dossier static pour servir CSS, JS, images
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+#app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parents[1] / "static"), name="static")
+
 
 # Middleware pour mesurer le temps de chargement
 @app.middleware("http")

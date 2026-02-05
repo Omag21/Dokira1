@@ -1,7 +1,7 @@
 // ============= DONNÉES STRUCTURÉES POUR CHAQUE SECTION =============
 const sectionsData = {
     dashboard: {
-        stats: [
+        stats: [    
             {
                 icon: 'fa-calendar-check',
                 color: 'blue',
@@ -108,39 +108,101 @@ const sectionsData = {
         ]
     },
     dossier: {
+         title: 'Dossier Médical',
+        icon: 'fa-file-medical',
+        stats: [
+            { label: 'Allergies', value: '0' },
+            { label: 'Antécédents', value: '0' },
+            { label: 'Traitements', value: '0' }
+        ],
         cards: [
-            {
-                icon: 'fa-history',
-                color: 'blue',
-                title: 'Historique Médical',
-                subtitle: '0 consultations enregistrées',
-                description: 'Accédez à l\'ensemble de vos consultations et diagnostics passés',
-                meta: [
-                    { icon: 'fa-calendar', text: 'Aucune donnée' }
-                ],
-                badge: { type: 'primary', text: '0 entrée' }
-            },
-            {
+             {
+                id: 'medical-allergies',
                 icon: 'fa-allergies',
-                color: 'orange',
-                title: 'Allergies Connues',
-                subtitle: 'Liste des allergies déclarées',
-                description: 'À compléter dans vos paramètres',
-                meta: [
-                    { icon: 'fa-exclamation-triangle', text: '0 allergie' }
-                ],
-                badge: { type: 'warning', text: 'Important' }
+                color: 'red',
+                title: 'Allergies',
+                subtitle: 'À compléter',
+                description: 'Liste de vos allergies connues',
+                meta: [],
+                badge: { type: 'danger', text: 'Important' },
+                onclick: 'showMedicalInfo(\'allergies\')'
             },
             {
-                icon: 'fa-dna',
-                color: 'purple',
+                id: 'medical-history',
+                icon: 'fa-history',
+                color: 'orange',
                 title: 'Antécédents',
-                subtitle: 'Antécédents personnels et familiaux',
-                description: 'À compléter dans vos paramètres',
-                meta: [
-                    { icon: 'fa-users', text: 'À renseigner' }
-                ],
-                badge: { type: 'primary', text: 'À surveiller' }
+                subtitle: 'À compléter',
+                description: 'Antécédents médicaux et familiaux',
+                meta: [],
+                badge: { type: 'warning', text: 'À surveiller' },
+                onclick: 'showMedicalInfo(\'antecedents\')'
+            },
+            {
+                id: 'medical-treatments',
+                icon: 'fa-prescription-bottle',
+                color: 'blue',
+                title: 'Traitements',
+                subtitle: 'À compléter',
+                description: 'Traitements en cours et suivis',
+                meta: [],
+                badge: { type: 'info', text: 'En cours' },
+                onclick: 'showMedicalInfo(\'treatments\')'
+            },
+            {
+                id: 'medical-blood',
+                icon: 'fa-tint',
+                color: 'dark-red',
+                title: 'Groupe Sanguin',
+                subtitle: 'À renseigner',
+                description: 'Groupe sanguin et rhésus',
+                meta: [],
+                badge: { type: 'danger', text: 'Urgence' },
+                onclick: 'showMedicalInfo(\'blood\')'
+            },
+            {
+                id: 'medical-insurance',
+                icon: 'fa-shield-alt',
+                color: 'green',
+                title: 'Couverture Santé',
+                subtitle: 'Non renseigné',
+                description: 'Mutuelle et assurance',
+                meta: [],
+                badge: { type: 'success', text: 'Assuré' },
+                onclick: 'showMedicalInfo(\'insurance\')'
+            },
+            {
+                id: 'medical-doctor',
+                icon: 'fa-user-md',
+                color: 'purple',
+                title: 'Médecin Traitant',
+                subtitle: 'Non renseigné',
+                description: 'Votre médecin référent',
+                meta: [],
+                badge: { type: 'primary', text: 'Contact' },
+                onclick: 'showMedicalInfo(\'doctor\')'
+            },
+            {
+            id: 'medical-doctor',
+            icon: 'fa-user-md',
+            color: 'purple',
+            title: 'Médecin Traitant',
+            subtitle: 'Non renseigné',
+            description: 'Votre médecin référent',
+            meta: [],
+            badge: { type: 'primary', text: 'Contact' },
+            onclick: 'showMedicalInfo(\'doctor\')'
+            },
+            {
+            id: 'medical-ordonnances',
+            icon: 'fa-prescription-bottle',
+            color: 'blue',
+            title: 'Ordonnances',
+            subtitle: 'Aucune',
+            description: 'Prescriptions médicales en cours',
+            meta: [],
+            badge: { type: 'info', text: 'À vérifier' },
+            onclick: 'showMedicalInfo(\'ordonnances\')'
             }
         ]
     },
@@ -259,7 +321,7 @@ const sectionsData = {
         ]
     },
     documents: {
-        cards: [
+       cards: [
             {
                 icon: 'fa-file-pdf',
                 color: 'blue',
@@ -296,7 +358,7 @@ const sectionsData = {
                 badge: { type: 'success', text: 'Importer' },
                 onclick: 'showUploadDocumentForm()'
             }
-        ]
+        ]   
     },
     analyses: {
         cards: [
@@ -417,12 +479,16 @@ const sectionsData = {
         ]
     }
 };
+//============ VARIABLES GLOBALES =============
+let medecins = [];
+let dossierMedicalCache = null;
+
 
 // ============= FONCTIONS POUR CHARGER LES DONNÉES DYNAMIQUES =============
 
 // Charger les données du patient
 async function loadPatientData() {
-    try {
+    try {   
         const response = await timedFetch('/api/patient/info');
         if (response.ok) {
             const data = await response.json();
@@ -437,7 +503,8 @@ async function loadPatientData() {
             if (data.photo_profil_url) {
                 const avatar = document.getElementById('profileAvatar');
                 if (avatar) {
-                    avatar.src = data.photo_profil_url + "?t=" + new Date().getTime();
+                    const timestamp = new Date().getTime();
+                    avatar.src = data.photo_profil_url + "?v=" + timestamp;
                 }
             }
             
@@ -601,50 +668,275 @@ function updateNotificationBadge(count) {
 
 // ============= INTERFACE MESSAGERIE =============
 
-// Afficher l'interface de messagerie
 async function showMessagerieInterface() {
     try {
         // Charger les conversations
         const response = await fetch('/api/messagerie/conversations');
+
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`);
+        }
         const conversations = await response.json();
+
+        if (!Array.isArray(conversations)) {
+            throw new Error('Format de réponse invalide');
+        }
         
+        // HTML STRUCTURE 2 COLONNES
         let html = `
-            <div class="messagerie-interface">
-                <div class="section-header">
-                    <h2 class="section-title">Messagerie</h2>
-                    <button class="btn btn-primary" onclick="showNewMessageForm()">
-                        <i class="fas fa-plus"></i> Nouveau message
-                    </button>
-                </div>
-                
-                <div class="conversations-container">
+            <div class="messagerie-wrapper">
+                <!-- COLONNE 1: LISTE DES CONVERSATIONS -->
+                <div class="conversations-sidebar">
+                    <div class="sidebar-header">
+                        <h2>Messagerie</h2>
+                        <button class="btn-new-message-sidebar" onclick="showNewMessageForm()">
+                            <i class="fas fa-pen-to-square"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="sidebar-search">
+                        <input type="text" 
+                               class="search-input" 
+                               placeholder="Rechercher un médecin..."
+                               id="conversationSearch">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    
+                    <div class="conversations-list" id="conversationsList">
         `;
         
         if (conversations.length === 0) {
             html += `
-                <div class="empty-state">
-                    <div class="empty-state-icon">
-                        <i class="fas fa-comments"></i>
-                    </div>
-                    <div class="empty-state-title">Aucune conversation</div>
-                    <div class="empty-state-text">Commencez une nouvelle conversation avec votre médecin</div>
+                <div class="empty-conversations">
+                    <i class="fas fa-comments"></i>
+                    <p>Aucune conversation</p>
+                    <button class="btn btn-primary" onclick="showNewMessageForm()">
+                        <i class="fas fa-plus"></i> Commencer une conversation
+                    </button>
                 </div>
             `;
         } else {
-            conversations.forEach(conv => {
+            conversations.forEach((conv, index) => {
+                const isActive = index === 0;
+                const unreadClass = conv.unread > 0 ? 'unread' : '';
+                const lastMessagePreview = (conv.last_message || 'Aucun message').substring(0, 30);
+                
+                // Avatar professionnel - utiliser le nom du médecin
+                const medecinName = conv.medecin_name || 'Médecin';
+                const initials = getInitials(medecinName);
+                const bgColor = getColorFromName(medecinName);
+                
                 html += `
-                    <div class="conversation-item" onclick="loadConversation(${conv.medecin_id})">
-                        <div class="conversation-avatar">
-                            <img src="${conv.medecin_photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.medecin_name) + '&background=0066cc&color=fff'}" alt="${conv.medecin_name}">
+                    <div class="conversation-item ${isActive ? 'active' : ''} ${unreadClass}" 
+                         data-medecin-id="${conv.medecin_id}"
+                         onclick="selectConversation(${conv.medecin_id}, this)">
+                        
+                        <!-- AVATAR PROFESSIONNEL -->
+                        <div class="conversation-avatar" style="background-color: ${bgColor};">
+                            <span class="avatar-initials">${initials}</span>
+                            ${conv.is_online ? '<span class="online-badge"></span>' : ''}
                         </div>
-                        <div class="conversation-info">
-                            <h4>${conv.medecin_name}</h4>
-                            <p class="conversation-specialite">${conv.specialite}</p>
-                            <p class="last-message">${conv.last_message || 'Aucun message'}</p>
+                        
+                        <!-- INFO CONVERSATION -->
+                        <div class="conversation-content">
+                            <div class="conversation-header-row">
+                                <h4 class="conversation-name">${medecinName}</h4>
+                                <span class="conversation-time">${formatTimeAgo(conv.last_message_time)}</span>
+                            </div>
+                            <p class="conversation-specialty">${conv.specialite || 'Spécialiste'}</p>
+                            <p class="conversation-preview">${lastMessagePreview}${lastMessagePreview.length >= 30 ? '...' : ''}</p>
                         </div>
-                        <div class="conversation-meta">
-                            <span class="time">${conv.last_message_time}</span>
-                            ${conv.unread > 0 ? `<span class="badge badge-danger">${conv.unread}</span>` : ''}
+                        
+                        <!-- BADGE NON LUS -->
+                        ${conv.unread > 0 ? `
+                            <div class="unread-badge">${conv.unread}</div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+        }
+        
+        html += `
+                    </div>
+                </div>
+                
+                <!-- COLONNE 2: ZONE DE CONVERSATION -->
+                <div class="conversation-main" id="conversationMain">
+                    <div class="conversation-empty">
+                        <div class="empty-icon">
+                            <i class="fas fa-comment-medical"></i>
+                        </div>
+                        <h3>Sélectionnez une conversation</h3>
+                        <p>Choisissez un médecin pour commencer à discuter</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('mainContent').innerHTML = html;
+        
+        // Ajouter la recherche en temps réel
+        const searchInput = document.getElementById('conversationSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase();
+                const conversationItems = document.querySelectorAll('.conversation-item');
+                
+                conversationItems.forEach(item => {
+                    const name = item.querySelector('.conversation-name').textContent.toLowerCase();
+                    const specialty = item.querySelector('.conversation-specialty').textContent.toLowerCase();
+                    
+                    if (name.includes(searchTerm) || specialty.includes(searchTerm)) {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        }
+        
+        // Charger la première conversation si elle existe
+        if (conversations.length > 0) {
+            setTimeout(() => {
+                selectConversation(conversations[0].medecin_id, 
+                    document.querySelector('.conversation-item.active'));
+            }, 100);
+        }
+        
+    } catch (error) {
+        console.error('Erreur interface messagerie:', error);
+        document.getElementById('mainContent').innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="empty-state-title">Erreur de chargement</div>
+                <div class="empty-state-text">Impossible de charger les conversations</div>
+                <button class="btn-new-message" onclick="showMessagerieInterface()" style="margin-top: 16px;">
+                    <i class="fas fa-redo"></i> Réessayer
+                </button>
+            </div>
+        `;
+    }
+}
+
+
+// ============= SÉLECTION D'UNE CONVERSATION =============
+
+async function selectConversation(medecinId, element) {
+    try {
+        // Mettre à jour la sélection visuelle
+        document.querySelectorAll('.conversation-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        if (element) {
+            element.classList.add('active');
+        }
+        
+        // Charger la conversation
+        const response = await fetch(`/api/messagerie/conversation/${medecinId}`);
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('Conversation non trouvée');
+            }
+            throw new Error(`Erreur HTTP ${response.status}`);
+        }
+        
+        const conversationData = await response.json();
+        
+        if (!conversationData || typeof conversationData !== 'object') {
+            throw new Error('Format de données invalide');
+        }
+        
+        const messages = conversationData.messages || [];
+        const medecin = conversationData.medecin || {};
+        
+        // Données du médecin sécurisées
+        const medecinName = `Dr. ${medecin.prenom || ''} ${medecin.nom || ''}`.trim() || 'Médecin';
+        const medecinSpecialite = medecin.specialite || 'Spécialité non spécifiée';
+        const isOnline = medecin.is_online || false;
+        const initials = getInitials(medecinName);
+        const bgColor = getColorFromName(medecinName);
+        
+        // Construire le contenu de la conversation
+        let html = `
+            <div class="conversation-header-professional">
+                <div class="header-left">
+                    <div class="header-avatar" style="background-color: ${bgColor};">
+                        <span class="avatar-initials">${initials}</span>
+                        ${isOnline ? '<span class="online-badge"></span>' : ''}
+                    </div>
+                    <div class="header-info">
+                        <h2 class="header-name">${medecinName}</h2>
+                        <p class="header-specialty">${medecinSpecialite}</p>
+                        <p class="header-status">${isOnline ? '<span class="status-online">En ligne</span>' : '<span class="status-offline">Hors ligne</span>'}</p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="header-action-btn" title="Appel vidéo">
+                        <i class="fas fa-video"></i>
+                    </button>
+                    <button class="header-action-btn" title="Appel audio">
+                        <i class="fas fa-phone"></i>
+                    </button>
+                    <button class="header-action-btn" title="Plus d'options">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="messages-container" id="messagesContainer">
+        `;
+        
+        if (messages.length === 0) {
+            html += `
+                <div class="empty-messages">
+                    <div class="empty-messages-icon">
+                        <i class="fas fa-comment-slash"></i>
+                    </div>
+                    <p>Aucun message dans cette conversation</p>
+                    <p class="empty-messages-subtitle">Envoyez votre premier message</p>
+                </div>
+            `;
+        } else {
+            let currentDate = null;
+            
+            messages.forEach(msg => {
+                if (!msg) return;
+                
+                const messageDate = msg.date_envoi 
+                    ? new Date(msg.date_envoi).toLocaleDateString('fr-FR')
+                    : new Date().toLocaleDateString('fr-FR');
+                
+                // Afficher le séparateur de date si elle change
+                if (messageDate !== currentDate) {
+                    currentDate = messageDate;
+                    html += `
+                        <div class="message-date-separator">
+                            <span>${messageDate}</span>
+                        </div>
+                    `;
+                }
+                
+                const isPatient = msg.expediteur_type === 'patient';
+                const time = msg.date_envoi 
+                    ? new Date(msg.date_envoi).toLocaleTimeString('fr-FR', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })
+                    : new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                
+                const safeContent = escapeHtml(msg.contenu || '');
+                
+                html += `
+                    <div class="message-wrapper ${isPatient ? 'message-sent-wrapper' : 'message-received-wrapper'}">
+                        <div class="message-bubble ${isPatient ? 'message-sent' : 'message-received'}">
+                            <p class="message-text">${safeContent}</p>
+                            <div class="message-meta">
+                                <span class="message-time">${time}</span>
+                                ${isPatient ? '<span class="message-check"><i class="fas fa-check"></i></span>' : ''}
+                            </div>
                         </div>
                     </div>
                 `;
@@ -652,57 +944,201 @@ async function showMessagerieInterface() {
         }
         
         html += `
-                </div>
-                
-                <div id="conversation-area" class="conversation-area"></div>
+            </div>
+            
+            <div class="message-input-area">
+                <form id="messageForm" class="message-form" onsubmit="sendMessage(event, ${medecinId})">
+                    <textarea id="messageInput" 
+                              class="message-textarea" 
+                              placeholder="Écrivez votre message..."
+                              rows="1"></textarea>
+                    <button type="submit" class="message-send-btn" title="Envoyer">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
             </div>
         `;
         
-        document.getElementById('mainContent').innerHTML = html;
+        const conversationMain = document.getElementById('conversationMain');
+        if (conversationMain) {
+            conversationMain.innerHTML = html;
+            
+            // Auto-resize textarea
+            const textarea = document.getElementById('messageInput');
+            if (textarea) {
+                textarea.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+                });
+                
+                // Shift+Enter pour nouvelle ligne, Enter seul pour envoyer
+                textarea.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        document.getElementById('messageForm').dispatchEvent(new Event('submit'));
+                    }
+                });
+                
+                textarea.focus();
+            }
+            
+            // Scroller vers le bas
+            scrollMessagesToBottom();
+        }
+        
     } catch (error) {
-        console.error('Erreur interface messagerie:', error);
-        document.getElementById('mainContent').innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">
+        console.error('Erreur chargement conversation:', error);
+        document.getElementById('conversationMain').innerHTML = `
+            <div class="error-state">
+                <div class="error-icon">
                     <i class="fas fa-exclamation-triangle"></i>
                 </div>
-                <div class="empty-state-title">Erreur de chargement</div>
-                <div class="empty-state-text">Impossible de charger les conversations</div>
+                <div class="error-title">Erreur de chargement</div>
+                <div class="error-text">Impossible de charger la conversation</div>
             </div>
         `;
     }
 }
 
+
 // Charger une conversation spécifique
-async function loadConversation(medecinId) {
+async function loadConversation(medecinId, clickedElement = null) {
     try {
-        const response = await fetch(`/api/messagerie/conversation/${medecinId}`);
-        const messages = await response.json();
+        // Vérifier que medecinId est valide
+        if (!medecinId || medecinId <= 0) {
+            throw new Error('ID médecin invalide');
+        }
         
-        let html = `
+        const response = await fetch(`/api/messagerie/conversation/${medecinId}`);
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('Conversation non trouvée');
+            }
+            throw new Error(`Erreur HTTP ${response.status}`);
+        }
+        
+        const conversationData = await response.json();
+        
+        // VALIDATION: Vérifier la structure des données
+        if (!conversationData || typeof conversationData !== 'object') {
+            throw new Error('Format de données invalide');
+        }
+        
+        const messages = conversationData.messages || [];
+        const medecin = conversationData.medecin || {};
+        
+        // CORRECTION: Données par défaut pour le médecin
+        const medecinName = `Dr. ${medecin.prenom || ''} ${medecin.nom || ''}`.trim() || 'Médecin';
+        const medecinSpecialite = medecin.specialite || 'Spécialité non spécifiée';
+        const medecinPhoto = medecin.photo || '';
+        const isOnline = medecin.is_online || false;
+        
+        // CORRECTION: URL d'avatar sécurisée
+        const avatarUrl = medecinPhoto && medecinPhoto.trim() !== ''
+            ? medecinPhoto
+            : `https://ui-avatars.com/api/?name=${encodeURIComponent(medecinName)}&background=0066cc&color=fff`;
+        
+        // Mettre à jour la sélection visuelle
+        if (clickedElement) {
+            document.querySelectorAll('.conversation-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            clickedElement.classList.add('active');
+        } else {
+            // Trouver l'élément correspondant au médecin
+            const conversationItem = document.querySelector(`.conversation-item[data-medecin-id="${medecinId}"]`);
+            if (conversationItem) {
+                document.querySelectorAll('.conversation-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                conversationItem.classList.add('active');
+            }
+        }
+        
+       let html = `
             <div class="conversation-detail">
-                <div class="conversation-header">
-                    <button class="btn btn-back" onclick="showMessagerieInterface()">
-                        <i class="fas fa-arrow-left"></i> Retour
-                    </button>
-                    <h3>Conversation</h3>
+                <div class="chat-header">
+                    <div class="chat-header-left">
+                        <button class="btn-back" onclick="showConversationList()">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <div class="doctor-avatar-wrapper">
+                            <img class="doctor-avatar" src="${avatarUrl}" alt="${medecinName}" onerror="this.src='https://ui-avatars.com/api/?name=M&background=075e54&color=fff'">
+                            ${isOnline ? 
+                                '<span class="online-indicator"></span>' : 
+                                '<span class="offline-indicator"></span>'}
+                        </div>
+                        <div class="doctor-info">
+                            <span class="doctor-name">${medecinName}</span>
+                            <span class="doctor-specialite">${medecinSpecialite}</span>
+                        </div>
+                    </div>
+                    <div class="chat-header-actions">
+                        <button class="chat-header-btn" title="Rechercher">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button class="chat-header-btn" title="Plus d'options">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="messages-list">
         `;
-        
+
+        // --- End of chat header and start of JS logic ---
         if (messages.length === 0) {
             html += `
-                <div class="empty-conversation">
-                    <p>Aucun message dans cette conversation</p>
+                <div class="empty-conversation" style="text-align: center; padding: 40px;">
+                    <div style="font-size: 48px; color: #e0e0e0; margin-bottom: 16px;">
+                        <i class="fas fa-comment-slash"></i>
+                    </div>
+                    <p style="color: #666; margin: 0;">Aucun message dans cette conversation</p>
+                    <p style="color: #999; font-size: 14px; margin-top: 8px;">Envoyez votre premier message</p>
                 </div>
             `;
         } else {
+            let currentDate = null;
+            
             messages.forEach(msg => {
+                // CORRECTION: Validation des données du message
+                if (!msg) return;
+                
+                const messageDate = msg.date_envoi 
+                    ? new Date(msg.date_envoi).toLocaleDateString('fr-FR')
+                    : new Date().toLocaleDateString('fr-FR');
+                
+                // Afficher la date si elle change
+                if (messageDate !== currentDate) {
+                    currentDate = messageDate;
+                    html += `
+                        <div class="date-indicator">
+                            <span>${messageDate}</span>
+                        </div>
+                    `;
+                }
+                
                 const isPatient = msg.expediteur_type === 'patient';
+                const time = msg.date_envoi 
+                    ? new Date(msg.date_envoi).toLocaleTimeString('fr-FR', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })
+                    : new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                
+                // Échapper le contenu pour la sécurité
+                const safeContent = escapeHtml(msg.contenu || '');
+                
                 html += `
-                    <div class="message ${isPatient ? 'message-sent' : 'message-received'}">
-                        <div class="message-content">${msg.contenu}</div>
-                        <div class="message-time">${msg.date_envoi}</div>
+                    <div class="message ${isPatient ? 'message-sent' : 'message-received'} animate-in">
+                        <div class="message-content">${safeContent}</div>
+                        <div class="message-time">
+                            ${time}
+                            ${isPatient ? 
+                                `<span class="message-status">
+                                    <i class="fas fa-check"></i> Envoyé
+                                </span>` : ''}
+                        </div>
                     </div>
                 `;
             });
@@ -711,22 +1147,69 @@ async function loadConversation(medecinId) {
         html += `
                 </div>
                 <div class="message-input">
-                    <textarea id="newMessageText" placeholder="Écrivez votre message..." rows="3"></textarea>
-                    <button class="btn btn-primary" onclick="sendMessage(${medecinId})">
+                    <textarea id="newMessageText" placeholder="Écrivez votre message... (Appuyez sur Maj+Entrée pour une nouvelle ligne)" rows="3"></textarea>
+                    <button class="btn-send" onclick="sendMessage(${medecinId})">
                         <i class="fas fa-paper-plane"></i> Envoyer
                     </button>
                 </div>
             </div>
         `;
         
-        document.getElementById('conversation-area').innerHTML = html;
-        scrollToBottom();
+        const conversationArea = document.getElementById('conversation-area');
+        if (conversationArea) {
+            conversationArea.innerHTML = html;
+            conversationArea.classList.remove('empty-state');
+            
+            // Focus sur le champ de message
+            setTimeout(() => {
+                const textarea = document.getElementById('newMessageText');
+                if (textarea) {
+                    textarea.focus();
+                    
+                    // Gestion du textarea
+                    textarea.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' && e.shiftKey) {
+                            // Shift+Enter pour nouvelle ligne
+                            return;
+                        } else if (e.key === 'Enter') {
+                            // Enter seul pour envoyer
+                            e.preventDefault();
+                            sendMessage(medecinId);
+                        }
+                        
+                        // Auto-resize
+                        this.style.height = 'auto';
+                        this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+                    });
+                }
+            }, 100);
+            
+            // Scroller vers le bas
+            scrollToBottom();
+        }
+        
     } catch (error) {
         console.error('Erreur chargement conversation:', error);
-        alert('Erreur lors du chargement de la conversation');
+        const conversationArea = document.getElementById('conversation-area');
+        if (conversationArea) {
+            conversationArea.innerHTML = `
+                <div class="error-state">
+                    <div class="error-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="error-title">Erreur de chargement</div>
+                    <div class="error-text">Impossible de charger la conversation</div>
+                    <div class="error-details" style="margin-top: 10px; font-size: 12px; color: #888;">
+                        ${error.message}
+                    </div>
+                    <button class="btn-retry" onclick="loadConversation(${medecinId})" style="margin-top: 16px;">
+                        <i class="fas fa-redo"></i> Réessayer
+                    </button>
+                </div>
+            `;
+        }
     }
 }
-
 // Afficher le formulaire de nouveau message
 async function showNewMessageForm() {
     try {
@@ -745,22 +1228,20 @@ async function showNewMessageForm() {
                         <i class="fas fa-arrow-left"></i> Retour
                     </button>
                 </div>
-                
-                <form id="newMessageForm">
-                    <div class="form-group">
+                <form id="newMessageForm" style="margin:0;">
+                    <div class="form-group" style="margin-bottom:18px;">
                         <label for="recipientSelect">Destinataire</label>
                         <select id="recipientSelect" class="form-control" required>
                             <option value="">Sélectionnez un médecin</option>
                             ${options}
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label for="messageContent">Message</label>
-                        <textarea id="messageContent" class="form-control" rows="6" placeholder="Tapez votre message ici..." required></textarea>
+                    <div class="message-input" style="margin-top:10px;">
+                        <textarea id="messageContent" class="form-control" rows="3" placeholder="Écrivez votre message ici..." required style="resize:none;"></textarea>
+                        <button type="submit" class="btn-send" title="Envoyer">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-paper-plane"></i> Envoyer le message
-                    </button>
                 </form>
             </div>
         `;
@@ -785,6 +1266,86 @@ async function showNewMessageForm() {
         alert('Erreur lors du chargement des médecins');
     }
 }
+
+function showConversationList() {
+    const conversationArea = document.getElementById('conversation-area');
+    conversationArea.innerHTML = `
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-comment-medical"></i>
+            </div>
+            <div class="empty-state-title">Sélectionnez une conversation</div>
+            <div class="empty-state-text">Choisissez un médecin pour commencer à discuter</div>
+        </div>
+    `;
+}
+
+
+// ============= ENVOYER UN MESSAGE =============
+
+async function sendMessage(e, medecinId) {
+    e.preventDefault();
+    
+    const textarea = document.getElementById('messageInput');
+    const content = textarea.value.trim();
+    
+    if (!content) return;
+    
+    const messagesContainer = document.getElementById('messagesContainer');
+    const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    
+    // Ajouter le message temporaire
+    const tempMessageHTML = `
+        <div class="message-wrapper message-sent-wrapper">
+            <div class="message-bubble message-sent">
+                <p class="message-text">${escapeHtml(content)}</p>
+                <div class="message-meta">
+                    <span class="message-time">${time}</span>
+                    <span class="message-check pending"><i class="fas fa-clock"></i></span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    messagesContainer.innerHTML += tempMessageHTML;
+    textarea.value = '';
+    textarea.style.height = 'auto';
+    scrollMessagesToBottom();
+    
+    try {
+        const response = await fetch('/api/messagerie/send', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                medecin_id: parseInt(medecinId),
+                contenu: content.trim()
+            })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                // Mettre à jour le statut du message
+                const lastMessage = messagesContainer.lastElementChild;
+                const checkSpan = lastMessage.querySelector('.message-check');
+                if (checkSpan) {
+                    checkSpan.innerHTML = '<i class="fas fa-check"></i>';
+                    checkSpan.classList.remove('pending');
+                }
+                
+                // Rafraîchir la conversation
+                setTimeout(() => {
+                    selectConversation(medecinId);
+                }, 500);
+            }
+        }
+    } catch (error) {
+        console.error('Erreur envoi message:', error);
+    }
+}
+
 
 // Envoyer un nouveau message
 async function sendNewMessage(medecinId, content) {
@@ -828,6 +1389,31 @@ async function sendMessage(medecinId) {
     }
     
     try {
+        // Ajouter temporairement le message localement
+        const messagesList = document.querySelector('.messages-list');
+        const time = new Date().toLocaleTimeString('fr-FR', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        
+        const tempMessageHTML = `
+            <div class="message message-sent">
+                <div class="message-content">${content}</div>
+                <div class="message-time">
+                    ${time}
+                    <span class="message-status">
+                        <i class="fas fa-clock"></i> Envoi...
+                    </span>
+                </div>
+            </div>
+        `;
+        
+        messagesList.innerHTML += tempMessageHTML;
+        scrollToBottom();
+        
+        // Vider le champ
+        document.getElementById('newMessageText').value = '';
+        
         const response = await fetch('/api/messagerie/send', {
             method: 'POST',
             headers: {
@@ -842,14 +1428,34 @@ async function sendMessage(medecinId) {
         if (response.ok) {
             const result = await response.json();
             if (result.success) {
-                document.getElementById('newMessageText').value = '';
-                await loadConversation(medecinId);
+                // Mettre à jour le statut du message
+                const lastMessage = messagesList.lastElementChild;
+                const statusSpan = lastMessage.querySelector('.message-status');
+                statusSpan.innerHTML = '<i class="fas fa-check"></i> Envoyé';
+                statusSpan.style.color = '#28a745';
+                
+                // Rafraîchir la conversation pour avoir l'ID du message
+                setTimeout(() => {
+                    loadConversation(medecinId);
+                }, 500);
+                
+                // Mettre à jour les notifications
                 await refreshNotifications();
             }
         }
     } catch (error) {
         console.error('Erreur envoi message:', error);
-        alert('Erreur lors de l\'envoi du message');
+        
+        // Afficher une notification d'erreur
+        const errorHTML = `
+            <div class="message-error" style="text-align: center; padding: 10px; color: #dc3545; font-size: 14px;">
+                <i class="fas fa-exclamation-circle"></i> Échec de l'envoi. Vérifiez votre connexion.
+            </div>
+        `;
+        
+        const messagesList = document.querySelector('.messages-list');
+        messagesList.innerHTML += errorHTML;
+        scrollToBottom();
     }
 }
 
@@ -914,7 +1520,71 @@ async function showMessageToMedecin(medecinId) {
     }
 }
 
-// ============= INTERFACE DOCUMENTS - DESIGN PROFESSIONNEL =============
+
+// Générer des initiales à partir d'un nom
+function getInitials(name) {
+    const parts = name.split(' ').filter(p => p.length > 0);
+    if (parts.length >= 2) {
+        return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+}
+
+// Générer une couleur stable basée sur le nom
+function getColorFromName(name) {
+    const colors = [
+        '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
+        '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B88B', '#95E1D3',
+        '#FF7675', '#52C41A', '#1890FF', '#FAAD14', '#EB2F96'
+    ];
+    
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    return colors[Math.abs(hash) % colors.length];
+}
+
+// Formater le temps écoulé
+function formatTimeAgo(dateString) {
+    if (!dateString) return '';
+    
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+    
+    if (seconds < 60) return 'À l\'instant';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}j`;
+    
+    return date.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
+}
+
+// Échapper le HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Scroller vers le bas
+function scrollMessagesToBottom() {
+    const container = document.getElementById('messagesContainer');
+    if (container) {
+        setTimeout(() => {
+            container.scrollTop = container.scrollHeight;
+        }, 0);
+    }
+}
+
+
+
+// ============= INTERFACE DOCUMENTS =============
 
 async function showDocumentsInterface() {
     try {
@@ -985,10 +1655,10 @@ async function showDocumentsInterface() {
                                             </div>
                                         </div>
                                         <div class="document-card-actions">
-                                            <a href="${doc.fichier_url}" class="btn-action btn-view" title="Télécharger">
-                                                <i class="fas fa-download"></i>
-                                                <span>Télécharger</span>
-                                            </a>
+                                            <button class="btn-action btn-view" onclick="viewDocument(${doc.id}, '${doc.titre}', '${doc.fichier_url}', '${doc.type_document}')" title="Voir">
+                                                <i class="fas fa-eye"></i>
+                                                <span>Voir</span>
+                                            </button>
                                             <button class="btn-action btn-delete" onclick="supprimerDocument(${doc.id})" title="Supprimer">
                                                 <i class="fas fa-trash"></i>
                                             </button>
@@ -1018,8 +1688,131 @@ async function showDocumentsInterface() {
     }
 }
 
- //============ FORMULAIRE DE TÉLÉVERSEMENT DE DOCUMENT =============
-// Afficher le formulaire de téléversement
+// ============= VISUALISATION DE DOCUMENT =============
+async function viewDocument(docId, docTitle, docUrl, docType) {
+    try {
+        // CORRECTION: Obtenir l'URL complète via l'API
+        const response = await fetch(`/api/documents/${docId}/view`);
+        if (!response.ok) throw new Error('Document non trouvé');
+        
+        const docData = await response.json();
+        const fullDocUrl = docData.fichier_url;
+        
+        let viewerHtml = '';
+        
+        // Créer le HTML de visualisation selon le type de document
+        if (docType.startsWith('image/')) {
+            // Pour les images (JPEG, PNG, etc.)
+            viewerHtml = `
+                <div class="document-viewer-modal">
+                    <div class="document-viewer-overlay" onclick="closeDocumentViewer()"></div>
+                    <div class="document-viewer-container">
+                        <div class="document-viewer-header">
+                            <h2>${docTitle}</h2>
+                            <div class="document-viewer-actions">
+                                <a href="${fullDocUrl}" download="${docTitle}" class="btn-viewer-action btn-download" title="Télécharger">
+                                    <i class="fas fa-download"></i>
+                                    <span>Télécharger</span>
+                                </a>
+                                <button class="btn-viewer-action btn-close" onclick="closeDocumentViewer()" title="Fermer">
+                                    <i class="fas fa-times"></i>
+                                    <span>Fermer</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="document-viewer-content">
+                            <img src="${fullDocUrl}" alt="${docTitle}" class="document-image-viewer" onerror="this.onerror=null;this.src='https://via.placeholder.com/600x800?text=Image+non+chargée';">
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (docType === 'application/pdf') {
+            // Pour les PDF
+            viewerHtml = `
+                <div class="document-viewer-modal">
+                    <div class="document-viewer-overlay" onclick="closeDocumentViewer()"></div>
+                    <div class="document-viewer-container pdf-viewer">
+                        <div class="document-viewer-header">
+                            <h2>${docTitle}</h2>
+                            <div class="document-viewer-actions">
+                                <a href="${fullDocUrl}" download="${docTitle}" class="btn-viewer-action btn-download" title="Télécharger">
+                                    <i class="fas fa-download"></i>
+                                    <span>Télécharger</span>
+                                </a>
+                                <button class="btn-viewer-action btn-close" onclick="closeDocumentViewer()" title="Fermer">
+                                    <i class="fas fa-times"></i>
+                                    <span>Fermer</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="document-viewer-content pdf-content">
+                            <embed src="${fullDocUrl}#view=FitH" type="application/pdf" width="100%" height="600px" />
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Pour les autres fichiers (Word, etc.)
+            viewerHtml = `
+                <div class="document-viewer-modal">
+                    <div class="document-viewer-overlay" onclick="closeDocumentViewer()"></div>
+                    <div class="document-viewer-container">
+                        <div class="document-viewer-header">
+                            <h2>${docTitle}</h2>
+                            <div class="document-viewer-actions">
+                                <a href="${fullDocUrl}" download="${docTitle}" class="btn-viewer-action btn-download" title="Télécharger">
+                                    <i class="fas fa-download"></i>
+                                    <span>Télécharger</span>
+                                </a>
+                                <button class="btn-viewer-action btn-close" onclick="closeDocumentViewer()" title="Fermer">
+                                    <i class="fas fa-times"></i>
+                                    <span>Fermer</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="document-viewer-content">
+                            <div class="document-preview-message">
+                                <i class="fas fa-file"></i>
+                                <p><strong>${docTitle}</strong></p>
+                                <p>Ce format de fichier ne peut pas être prévisualisé dans le navigateur.</p>
+                                <p>Cliquez sur "Télécharger" pour ouvrir le fichier.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Ajouter la modale au contenu principal
+        const viewerDiv = document.createElement('div');
+        viewerDiv.id = 'documentViewerWrapper';
+        viewerDiv.innerHTML = viewerHtml;
+        document.body.appendChild(viewerDiv);
+        
+        // Animation d'apparition
+        setTimeout(() => {
+            viewerDiv.classList.add('active');
+        }, 10);
+        
+    } catch (error) {
+        console.error('Erreur visualisation:', error);
+        alert('Erreur lors de l\'ouverture du document');
+    }
+}
+
+// Fermer la modale de visualisation
+function closeDocumentViewer() {
+    const viewerWrapper = document.getElementById('documentViewerWrapper');
+    if (viewerWrapper) {
+        viewerWrapper.classList.remove('active');
+        setTimeout(() => {
+            viewerWrapper.remove();
+        }, 300);
+    }
+}
+
+//============ FORMULAIRE DE TÉLÉVERSEMENT DE DOCUMENT =============
+
 function showUploadDocumentForm() {
     let html = `
         <div class="upload-document-interface">
@@ -1143,7 +1936,6 @@ async function supprimerDocument(docId) {
         console.error('Erreur:', error);
     }
 }
-
 // ============= INTERFACE PARAMÈTRES =============
 
 // Afficher l'interface des paramètres
@@ -1662,6 +2454,12 @@ async function displaySection(sectionName) {
         return;
     }
 
+    if (sectionName === 'dossier') {
+        await loadDossierMedicalData();
+        showDossierMedicalInterface();
+        return;
+    }
+
     if (sectionName === 'chat-ia') {
         showChatIAInterface();
         return;
@@ -1776,10 +2574,12 @@ if (photoInput) {
             const data = await res.json();
 
             if (data.photo_url) {
-                // Cache buster pour forcer le rechargement de l'image
-                document.getElementById('profileAvatar').src = data.photo_url + "?t=" + new Date().getTime();
+               
+                const timestamp = new Date().getTime();
+                document.getElementById('profileAvatar').src = data.photo_url + "?v=" + timestamp;
                 alert('Photo de profil mise à jour avec succès !');
             }
+
         } catch (error) {
             console.error('Erreur upload photo:', error);
             alert('Erreur lors de l\'upload de la photo');
@@ -1880,10 +2680,12 @@ function loadMedecinsSection() {
 
 async function showRendezVousInterface() {
     try {
+        //document.head.innerHTML += '<link rel="stylesheet" href="/static/css/EspaceClient.css?v=' + Date.now() + '">';
         const response = await fetch('/api/medecins');
         const medecins = await response.json();
         
         let html = `
+            
             <div class="rendez-vous-interface">
                 <div class="section-header">
                     <h2 class="section-title">Prendre un Rendez-vous</h2>
@@ -2044,10 +2846,11 @@ async function showRendezVousInterface() {
     }
 }
 
+
 async function creerRendezVous() {
     const form = document.getElementById('rdvForm');
     const formData = new FormData(form);
-
+    
     const medecin_id = formData.get('medecin_id');
     const type_consultation = formData.get('type_consultation');
     const date_heure = document.getElementById('date_heure').value;
@@ -2060,6 +2863,10 @@ async function creerRendezVous() {
         return;
     }
 
+    // Récupérer la spécialité du médecin sélectionné
+    const medecin = medecins.find(m => m.id == medecin_id);
+    const specialite = medecin ? medecin.specialite : null;
+
     try {
         const response = await fetch('/api/rendez-vous/creer', {
             method: 'POST',
@@ -2071,7 +2878,8 @@ async function creerRendezVous() {
                 date_heure: date_heure,
                 motif: motif,
                 type_consultation: type_consultation,
-                lieu: lieu
+                lieu: lieu,
+                specialite: specialite  // ✅ syntaxe correcte
             })
         });
 
@@ -2086,7 +2894,7 @@ async function creerRendezVous() {
             alert('✅ Rendez-vous créé avec succès!');
             form.reset();
             loadMesRendezVous();
-            
+
             // Afficher l'onglet mes rdv
             document.querySelector('[data-tab="mes-rdv"]').click();
         }
@@ -2192,3 +3000,407 @@ async function timedFetch(url, opts) {
     console.log(`[API] ${url} : ${(end - start).toFixed(1)} ms`);
     return response;
 }
+
+
+ // ============= GESTION DU DOSSIER MÉDICAL =============
+async function loadDossierMedicalData() {
+
+    try {
+        const res = await fetch('/api/dossier-medical', {
+            credentials: 'include'
+        });
+
+        if (!res.ok) throw new Error("Erreur serveur");
+
+        const result = await res.json();
+
+        if (!result.success) {
+            throw new Error("Réponse invalide");
+        }
+
+        dossierMedicalCache = result.data;
+
+        updateDossierSection(result.data);
+
+    } catch (err) {
+        console.error("Dossier médical :", err);
+        showError("Impossible de charger le dossier médical");
+    }
+}
+
+function updateDossierSection(data) {
+
+    const dossier = sectionsData.dossier;
+
+    /* ================= STATS ================= */
+
+    dossier.stats = [
+        {
+            label: 'Allergies',
+            value: data.allergies_count
+        },
+        {
+            label: 'Antécédents',
+            value: data.antecedents_medicaux
+                ? data.antecedents_medicaux.split(',').length
+                : 0
+        },
+        {
+            label: 'Traitements',
+            value: data.traitements_en_cours
+                ? data.traitements_en_cours.split(',').length
+                : 0
+        }
+    ];
+
+    /* ================= CARTES ================= */
+
+    dossier.cards.forEach(card => {
+
+        switch (card.id) {
+
+            case 'medical-allergies':
+                card.subtitle = data.allergies || 'Aucune';
+                break;
+
+            case 'medical-history':
+                const hasAntecedents = data.antecedents_medicaux || data.antecedents_familiaux;
+                card.subtitle = hasAntecedents ? 'Renseignés' : 'Aucun';
+                break;
+
+            case 'medical-treatments':
+                card.subtitle =
+                    data.traitements_en_cours || 'Aucun';
+                break;
+
+            case 'medical-blood':
+                card.subtitle =
+                    data.groupe_sanguin || 'Non renseigné';
+                break;
+
+            case 'medical-insurance':
+                const hasInsurance = data.numero_securite_sociale;
+                card.subtitle = hasInsurance ? 'Renseignée' : 'Non renseignée';
+                break;
+
+            case 'medical-doctor':
+                card.subtitle =
+                     card.subtitle = data.medecin_traitant || 'Non défini';
+                break;
+
+            case 'medical-ordonnances':
+                card.subtitle = 
+                    data.ordonnances_count > 0 ? `${data.ordonnances_count} ordonnance(s)` : 'Aucune';
+                break;
+        }
+    });
+}
+
+function showMedicalInfo(type) {
+
+    if (!dossierMedicalCache) {
+        alert("Données non chargées");
+        return;
+    }
+
+    let title = '';
+    let content = '';
+
+    switch (type) {
+
+        case 'allergies':
+            title = 'Allergies';
+            content = dossierMedicalCache.allergies || 'Aucune allergie';
+            break;
+
+        case 'antecedents':
+            title = 'Antécédents médicaux';
+            content = `
+                 <div style="margin-bottom: 20px;">
+                    <strong style="font-size: 16px;">📋 Antécédents Médicaux :</strong>
+                    <p style="margin: 10px 0; color: #333; padding: 10px; background: #f5f5f5; border-radius: 6px;">
+                        ${dossierMedicalCache.antecedents_medicaux || 'Aucun antécédent médical'}
+                    </p>
+                </div>
+
+                <div>
+                    <strong style="font-size: 16px;">👨‍👩‍👧 Antécédents Familiaux :</strong>
+                    <p style="margin: 10px 0; color: #333; padding: 10px; background: #f5f5f5; border-radius: 6px;">
+                        ${dossierMedicalCache.antecedents_familiaux || 'Aucun antécédent familial'}
+                    </p>
+                </div>
+            `;
+            break;
+
+        case 'treatments':
+            title = 'Traitements en cours';
+            content =
+                dossierMedicalCache.traitements_en_cours || 'Aucun traitement';
+            break;
+
+        case 'blood':
+            title = 'Groupe sanguin';
+            content =
+                dossierMedicalCache.groupe_sanguin || 'Non renseigné';
+            break;
+
+        case 'insurance':
+            title = 'Sécurité sociale';
+             content = dossierMedicalCache.numero_securite_sociale 
+                ? `Numéro de sécurité sociale : ${dossierMedicalCache.numero_securite_sociale}`
+                : 'Aucune information d\'assurance renseignée';
+            break;
+
+        case 'doctor':
+            title = 'Médecin traitant';
+            content =
+               dossierMedicalCache.medecin_traitant || 'Non défini';
+            break;
+
+        case 'ordonnances':
+            title = 'Ordonnances';
+            if (dossierMedicalCache.ordonnances && dossierMedicalCache.ordonnances.length > 0) {
+                content = '<div style="max-height: 400px; overflow-y: auto;">';
+                dossierMedicalCache.ordonnances.forEach((ord, index) => {
+                    content += `
+                        <div style="margin-bottom: 15px; padding: 12px; background: #f9f9f9; border-left: 4px solid #0d8abc; border-radius: 4px;">
+                            <p style="margin: 5px 0;"><strong>Ordonnance ${index + 1}</strong></p>
+                            <p style="margin: 5px 0; font-size: 13px; color: #666;">📅 ${ord.date_emission}</p>
+                            <p style="margin: 5px 0; font-size: 13px; color: #666;">👨‍⚕️ ${ord.medecin_nom}</p>
+                            <p style="margin: 5px 0; font-size: 13px; color: #666;">💊 ${ord.medicaments}</p>
+                            <p style="margin: 5px 0; font-size: 13px; color: #666;">📋 ${ord.posologie}</p>
+                            <p style="margin: 5px 0; font-size: 12px;"><span style="background: #e3f2fd; padding: 2px 6px; border-radius: 3px; color: #0d8abc;">${ord.statut}</span></p>
+                        </div>
+                    `;
+                });
+                content += '</div>';
+            } else {
+                content = 'Aucune ordonnance';
+            }
+            break;
+    }
+
+    showMedicalModal(title, content);
+}
+
+function showMedicalModal(title, content) {
+
+    const modal = document.createElement('div');
+    modal.className = 'medical-modal';
+
+    modal.innerHTML = `
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <h3>${title}</h3>
+            <div class="modal-body">${content}</div>
+            <button id="closeModal">Fermer</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    document
+        .getElementById('closeModal')
+        .addEventListener('click', () => {
+            modal.remove();
+        });
+}
+
+async function openFullHistorique() {
+
+    const res = await fetch('/api/dossier-medical/historique-detaille', {
+        credentials: 'include'
+    });
+
+    const result = await res.json();
+
+    if (!result.success) return;
+
+    renderHistoriqueModal(result.consultations);
+}
+
+// ============= AFFICHER L'INTERFACE DOSSIER MÉDICAL =============
+
+async function showDossierMedicalInterface() {
+    try {
+        // Charger les données du dossier
+        await loadDossierMedicalData();
+        
+        // Récupérer les données du cache
+        const data = dossierMedicalCache;
+        
+        // Construire le HTML
+        let html = `
+            <div class="dossier-medical-wrapper">
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <i class="fas fa-file-medical"></i> Dossier Médical
+                    </h2>
+                </div>
+        `;
+        
+        // Afficher les statistiques
+        if (sectionsData.dossier.stats) {
+            html += renderStats(sectionsData.dossier.stats);
+        }
+        
+        // Afficher les cartes principales
+        html += `<div class="cards-grid">`;
+        
+        sectionsData.dossier.cards.forEach((card, index) => {
+            html += `
+                <div class="content-card animate-in" style="animation-delay: ${index * 0.1}s" 
+                     onclick="${card.onclick}" style="cursor: pointer;">
+                    <div class="card-header">
+                        <div class="card-icon-wrapper ${card.color}">
+                            <i class="fas ${card.icon}"></i>
+                        </div>
+                        <div class="card-content">
+                            <h3 class="card-title">${card.title}</h3>
+                            <p class="card-subtitle">${card.subtitle}</p>
+                        </div>
+                    </div>
+                    <p class="card-description">${card.description}</p>
+                    <div class="card-meta">
+                        <span class="card-badge badge-${card.badge.type}">${card.badge.text}</span>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `</div>`;
+        
+        //  Afficher les documents médicaux
+        if (data.documents && data.documents.length > 0) {
+            html += `
+                <div style="margin-top: 40px;">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <i class="fas fa-file-alt"></i> Documents Médicaux (${data.documents_count})
+                        </h2>
+                    </div>
+                    <div class="documents-grid">
+            `;
+            
+            data.documents.forEach(doc => {
+                const typeIcon = {
+                    'application/pdf': 'fa-file-pdf',
+                    'image/jpeg': 'fa-image',
+                    'image/png': 'fa-image',
+                    'application/msword': 'fa-file-word'
+                };
+                
+                const icon = typeIcon[doc.type_document] || 'fa-file';
+                
+                html += `
+                    <div class="document-card-dossier">
+                        <div class="doc-icon">
+                            <i class="fas ${icon}"></i>
+                        </div>
+                        <div class="doc-info">
+                            <h4>${doc.titre}</h4>
+                            <p class="doc-type">${doc.type_document}</p>
+                            <p class="doc-date">📅 ${doc.date_upload}</p>
+                            ${doc.description ? `<p class="doc-desc">${doc.description}</p>` : ''}
+                        </div>
+                        <div class="doc-actions">
+                            <a href="${doc.fichier_url}" target="_blank" class="btn-doc-view">
+                                <i class="fas fa-eye"></i> Voir
+                            </a>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                    </div>
+                </div>
+            `;
+        } else {
+            html += `
+                <div style="margin-top: 40px; text-align: center; padding: 40px; background: #f5f5f5; border-radius: 8px;">
+                    <i class="fas fa-file-alt" style="font-size: 48px; color: #ccc; margin-bottom: 16px;"></i>
+                    <p style="color: #666; margin: 0;">Aucun document médical</p>
+                </div>
+            `;
+        }
+        // Afficher les ordonnances
+        if (data.ordonnances && data.ordonnances.length > 0) {
+            html += `
+                <div style="margin-top: 40px;">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <i class="fas fa-prescription-bottle"></i> Ordonnances (${data.ordonnances_count})
+                        </h2>
+                    </div>
+                    <div class="ordonnances-grid">
+            `;
+            
+            data.ordonnances.forEach(ord => {
+                const statusColor = ord.statut === 'Active' ? '#10b981' : '#ef4444';
+                
+                html += `
+                    <div class="ordonnance-card-dossier">
+                        <div class="ord-header">
+                            <h4>Ordonnance du ${ord.date_emission}</h4>
+                            <span class="ord-status" style="background-color: ${statusColor};">${ord.statut}</span>
+                        </div>
+                        <div class="ord-info">
+                            <p><strong>👨‍⚕️ Médecin :</strong> ${ord.medecin_nom}</p>
+                            <p><strong>💊 Médicaments :</strong> ${ord.medicaments}</p>
+                            <p><strong>📋 Posologie :</strong> ${ord.posologie}</p>
+                        </div>
+                        <div class="ord-actions">
+                            ${ord.fichier_url ? `
+                                <a href="${ord.fichier_url}" target="_blank" class="btn-ord-view">
+                                    <i class="fas fa-download"></i> Télécharger
+                                </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+        
+       
+        html += `</div>`;
+        
+        document.getElementById('mainContent').innerHTML = html;
+        
+    } catch (error) {
+        console.error('Erreur affichage dossier:', error);
+        document.getElementById('mainContent').innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Erreur lors du chargement du dossier médical</p>
+            </div>
+        `;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

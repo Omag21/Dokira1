@@ -1,3 +1,174 @@
+/* ====== Chat Professional Styles ====== */
+.chat-header {
+    display: flex;
+    align-items: center;
+    background: #f7f9fb;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 16px 20px 12px 20px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.doctor-avatar-wrapper {
+    position: relative;
+    width: 48px;
+    height: 48px;
+}
+.doctor-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #e0e0e0;
+    background: #fff;
+}
+.online-indicator, .offline-indicator {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+}
+.online-indicator {
+    background: #4caf50;
+}
+.offline-indicator {
+    background: #bdbdbd;
+}
+.doctor-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.doctor-name {
+    font-weight: 600;
+    font-size: 18px;
+    color: #222;
+}
+.doctor-specialite {
+    font-size: 14px;
+    color: #888;
+}
+.messages-list {
+    padding: 24px 20px 16px 20px;
+    background: #f4f7fa;
+    min-height: 350px;
+    max-height: 55vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.message {
+    display: flex;
+    flex-direction: column;
+    max-width: 70%;
+    margin-bottom: 4px;
+    border-radius: 18px;
+    padding: 10px 16px;
+    font-size: 15px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    word-break: break-word;
+    position: relative;
+}
+.message-sent {
+    align-self: flex-end;
+    background: linear-gradient(90deg, #4f8cff 0%, #1cb5e0 100%);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+.message-received {
+    align-self: flex-start;
+    background: #fff;
+    color: #222;
+    border-bottom-left-radius: 4px;
+}
+.message-content {
+    margin-bottom: 4px;
+}
+.message-time {
+    font-size: 12px;
+    color: #b0b0b0;
+    text-align: right;
+}
+.message-status {
+    margin-left: 6px;
+    color: #fff;
+    font-size: 12px;
+}
+.message-input {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 16px 20px;
+    background: #fff;
+    border-top: 1px solid #e0e0e0;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+}
+.message-input textarea {
+    flex: 1;
+    border-radius: 12px;
+    border: 1px solid #d0d0d0;
+    padding: 10px 14px;
+    font-size: 15px;
+    resize: none;
+    min-height: 36px;
+    max-height: 120px;
+    background: #f7f9fb;
+    outline: none;
+    transition: border 0.2s;
+}
+.message-input textarea:focus {
+    border: 1.5px solid #4f8cff;
+}
+.btn-send {
+    background: linear-gradient(90deg, #4f8cff 0%, #1cb5e0 100%);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(76,140,255,0.08);
+    transition: background 0.2s;
+}
+.btn-send:hover {
+    background: linear-gradient(90deg, #1cb5e0 0%, #4f8cff 100%);
+}
+@media (max-width: 600px) {
+    .chat-header, .messages-list, .message-input {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+    .doctor-name {
+        font-size: 16px;
+    }
+    .doctor-avatar, .doctor-avatar-wrapper {
+        width: 38px;
+        height: 38px;
+    }
+    .messages-list {
+        max-height: 40vh;
+    }
+    .message {
+        font-size: 14px;
+        padding: 8px 10px;
+    }
+}
+/* ====== End Chat Professional Styles ====== */
   
         :root {
             --primary-color: #0066cc;
@@ -1452,5 +1623,829 @@
 @media (max-width: 768px) {
     .chat-bubble {
         max-width: 85%;
+    }
+}
+
+/* ======== RENDEZ-VOUS - STYLES AMÉLIORÉS ======== */
+
+/* Container général */
+.rendez-vous-interface {
+    padding: 24px;
+    background-color: #f8f9fa;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Titres de section */
+.rendez-vous-interface .section-title {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 2rem;
+    color: #0d6efd;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 3px solid #e7f1ff;
+}
+
+/* Onglets améliorés */
+.rdv-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 28px;
+    background: white;
+    padding: 8px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.rdv-tabs .tab-btn {
+    flex: 1;
+    padding: 14px 20px;
+    background-color: transparent;
+    border: 2px solid transparent;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #666;
+}
+
+.rdv-tabs .tab-btn.active {
+    background-color: #0d6efd;
+    color: white;
+    border-color: #0d6efd;
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.2);
+}
+
+.rdv-tabs .tab-btn:hover:not(.active) {
+    background-color: #f0f7ff;
+    color: #0d6efd;
+    border-color: #e7f1ff;
+    transform: translateY(-2px);
+}
+
+/* Form sections améliorées */
+.rdv-form .form-section {
+    background-color: #ffffff;
+    padding: 28px;
+    margin-bottom: 24px;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    border-left: 5px solid #0d6efd;
+    transition: transform 0.3s ease;
+}
+
+.rdv-form .form-section:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Section titres améliorés */
+.rdv-form h3 {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 20px;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rdv-form h3::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: #0d6efd;
+    border-radius: 50%;
+}
+
+/* Médecins grid amélioré */
+.medecins-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 18px;
+}
+
+.medecin-card-selectable {
+    position: relative;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    padding: 0; 
+    background-color: #fff;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    cursor: pointer;
+    overflow: hidden;
+    display: block !important;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.medecin-card-selectable::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background-color: transparent;
+    transition: background-color 0.3s;
+}
+
+.medecin-card-selectable:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 8px 25px rgba(13, 110, 253, 0.15);
+    transform: translateY(-3px);
+}
+
+.medecin-card-selectable:hover::before {
+    background-color: #0d6efd;
+}
+
+.medecin-card-selectable input[type="radio"] {
+    display: none;
+}
+
+.medecin-card-selectable input[type="radio"]:checked + .medecin-label {
+    border: 2px solid #0d6efd;
+    background: linear-gradient(135deg, #f0f7ff 0%, #e7f1ff 100%);
+    box-shadow: 0 6px 20px rgba(13, 110, 253, 0.15);
+}
+.medecin-card-selectable input[type="radio"]:checked + label::before {
+    content: "✓";
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #0d6efd;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9rem;
+    z-index: 10;
+}
+
+/* Médecin label amélioré */
+.medecin-label {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 10px;
+    transition: all 0.3s;
+    position: relative;
+    box-sizing: border-box; 
+    position: relative; 
+}
+
+.medecin-avatar {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+    flex-shrink: 0;
+}
+
+.medecin-details {
+    flex-grow: 1;
+}
+
+.medecin-details strong {
+    display: block;
+    font-size: 1.05rem;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.medecin-details p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.exp-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 20px;
+    font-weight: 500;
+    color: #495057;
+    border: 1px solid #dee2e6;
+}
+
+/* Type consultation amélioré */
+.consultation-types {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.type-option {
+    position: relative;
+    border: 2px solid #e9ecef;
+    border-radius: 14px;
+    padding: 0; 
+    cursor: pointer;
+    background-color: #fff;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    overflow: hidden;
+    display: block !important; 
+    height: 100%;
+}
+
+.type-option::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background-color: transparent;
+    transition: background-color 0.3s;
+}
+
+.type-option:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 8px 25px rgba(13, 110, 253, 0.15);
+    transform: translateY(-3px);
+}
+
+.type-option:hover::before {
+    background-color: #0d6efd;
+}
+
+.type-option input[type="radio"] {
+    display: none;
+}
+
+.type-option input[type="radio"]:checked + label {
+    border: 2px solid #0d6efd; 
+    background: linear-gradient(135deg, #f0f7ff 0%, #e7f1ff 100%);
+    box-shadow: 0 6px 20px rgba(13, 110, 253, 0.15);
+}
+
+.type-option input[type="radio"]:checked + label::before {
+    content: "✓";
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background-color: #0d6efd;
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.type-option label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    padding: 24px 20px;
+    border-radius: 12px;
+    transition: all 0.3s;
+    height: 100%;
+    position: relative;
+}
+
+.type-option i {
+    font-size: 2.2rem;
+    color: #0d6efd;
+    margin-bottom: 12px;
+    transition: transform 0.3s;
+}
+
+.type-option:hover i {
+    transform: scale(1.1);
+}
+
+.type-option span {
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.type-option p {
+    font-size: 0.9rem;
+    color: #666;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Champ lieu amélioré */
+#lieu-container {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    border-left: 4px solid #0d6efd;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Champs de formulaire améliorés */
+.form-group {
+    margin-bottom: 24px;
+}
+
+.form-group label {
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: block;
+    color: #333;
+    font-size: 0.95rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    font-size: 1rem;
+    margin-top: 8px;
+    transition: all 0.3s;
+    background-color: #fff;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.1);
+}
+
+.form-control:hover {
+    border-color: #adb5bd;
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* Bouton confirmer amélioré */
+.form-actions {
+    text-align: center;
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 2px solid #e9ecef;
+}
+
+.form-actions .btn {
+    font-size: 1.1rem;
+    padding: 14px 32px;
+    border-radius: 12px;
+    font-weight: 600;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 15px rgba(13, 110, 253, 0.3);
+}
+
+.form-actions .btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(13, 110, 253, 0.4);
+    background: linear-gradient(135deg, #0b5ed7 0%, #0a58ca 100%);
+}
+
+.form-actions .btn:active {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+}
+
+/* Tab content */
+.tab-content {
+    display: none;
+    animation: fadeIn 0.4s ease;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Mes RDV amélioré */
+.rdv-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+.rdv-card {
+    background-color: #fff;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    border-top: 5px solid #0d6efd;
+    position: relative;
+    overflow: hidden;
+}
+
+.rdv-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+
+.rdv-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 40px;
+    height: 40px;
+    background-color: rgba(13, 110, 253, 0.1);
+    border-radius: 0 0 0 40px;
+}
+
+.rdv-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f8f9fa;
+}
+
+.rdv-header h3 {
+    font-size: 1.1rem;
+    color: #333;
+    margin: 0;
+    flex: 1;
+}
+
+.rdv-status {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.rdv-status.en_attente { 
+    background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+}
+.rdv-status.confirme { 
+    background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.3);
+}
+.rdv-status.annule { 
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+.rdv-body {
+    margin-bottom: 20px;
+}
+
+.rdv-body p {
+    margin: 8px 0;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.rdv-body p strong {
+    min-width: 60px;
+    color: #666;
+}
+
+.rdv-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 2px solid #f8f9fa;
+}
+
+.rdv-actions .btn {
+    flex: 1;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.rdv-actions .btn:hover {
+    transform: translateY(-2px);
+}
+
+/* Empty state amélioré */
+.empty-state {
+    text-align: center;
+    padding: 60px 40px;
+    color: #6c757d;
+    background-color: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    max-width: 400px;
+    margin: 40px auto;
+}
+
+.empty-state i {
+    font-size: 3.5rem;
+    margin-bottom: 20px;
+    color: #e9ecef;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+.empty-state p {
+    font-size: 1.1rem;
+    color: #999;
+    margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .medecins-grid, 
+    .consultation-types {
+        grid-template-columns: 1fr !important;
+    }
+    .rdv-tabs {
+        flex-direction: column;
+    }
+    
+    .medecins-grid,
+    .consultation-types,
+    .rdv-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .rdv-form .form-section {
+        padding: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .section-title {
+        font-size: 1.6rem;
+    }
+    
+    .rdv-form h3 {
+        font-size: 1.1rem;
+    }
+}
+.medecins-grid, 
+.consultation-types {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
+    gap: 18px !important;
+}
+
+
+
+/* ============= STYLE POUR LE DOSSIER MÉDICAL ============= */
+
+.medical-details-modal {
+    animation: fadeIn 0.3s ease;
+}
+
+.medical-details-modal > div {
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.consultation-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.consultation-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Style pour les cartes du dossier médical */
+.content-card[data-card-type="dossier"] {
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.content-card[data-card-type="dossier"]::after {
+    content: "📋";
+    position: absolute;
+    right: 15px;
+    bottom: 15px;
+    opacity: 0.3;
+    font-size: 24px;
+    transition: opacity 0.3s ease;
+}
+
+.content-card[data-card-type="dossier"]:hover::after {
+    opacity: 0.6;
+}
+
+/* Badges spécifiques pour le dossier médical */
+.badge-warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-success {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+
+
+/* ============= ORDONNANCES STYLES ============= */
+
+.ordonnances-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.ordonnance-card-dossier {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.ordonnance-card-dossier:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+    border-color: #0d8abc;
+    transform: translateY(-4px);
+}
+
+.ord-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.ord-header h4 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0;
+}
+
+.ord-status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    background-color: #10b981;
+}
+
+.ord-status.expired {
+    background-color: #ef4444;
+}
+
+.ord-info {
+    flex: 1;
+    margin-bottom: 16px;
+}
+
+.ord-info p {
+    font-size: 13px;
+    color: #333;
+    margin: 10px 0;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.ord-info strong {
+    color: #0d8abc;
+    display: block;
+    margin-bottom: 3px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.ord-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-ord-view {
+    flex: 1;
+    padding: 10px 16px;
+    background: #0d8abc;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+}
+
+.btn-ord-view:hover {
+    background: #0a6d9e;
+    transform: scale(1.02);
+}
+
+/* ============= RESPONSIVE ORDONNANCES ============= */
+
+@media (max-width: 768px) {
+    .ordonnances-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .ordonnance-card-dossier {
+        padding: 16px;
+    }
+    
+    .ord-header h4 {
+        font-size: 14px;
     }
 }

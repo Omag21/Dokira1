@@ -2,7 +2,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Date, Text, Enum, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from app.database import Base
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import enum
 
@@ -46,10 +46,12 @@ class StatutDossier(str, enum.Enum):
     ARCHIVE = "Archivé"
 
 class StatutMessage(str, enum.Enum):
-    ENVOYE = "Envoyé"
-    LU = "Lu"
-    REPONDU = "Répondu"
-    ARCHIVE = "Archivé"
+    ENVOYE = "ENVOYE"
+    LU = "LU"
+    REPONDU = "REPONDU"
+    ARCHIVE = "ARCHIVE"
+    NON_LU = "NON_LU"
+
 
 class StatutRendezVous(str, enum.Enum):
     PLANIFIE = "Planifié"
@@ -155,10 +157,13 @@ class RendezVous(Base):
     # Informations du rendez-vous
     date_heure = Column(DateTime, nullable=False, index=True)
     motif = Column(Text, nullable=True)
-    statut = Column(Enum(StatutRendezVous), default=StatutRendezVous.PLANIFIE, index=True)
+    #statut = Column(Enum(StatutRendezVous), default=StatutRendezVous.PLANIFIE, index=True)
+    statut = Column(String(50), nullable=True)
+    specialite: str = Column(String(100), nullable=False)
     
     # Type et lieu de consultation - ✅ IMPORTANT: NE PAS SUPPRIMER
-    type_consultation = Column(Enum(TypeConsultation), default=TypeConsultation.CABINET, nullable=False)
+    #type_consultation = Column(Enum(TypeConsultation), default=TypeConsultation.CABINET, nullable=False)
+    type_consultation = Column(String(20), nullable=False, default="Cabinet")
     lieu = Column(String(500), nullable=True)  # Adresse si domicile, URL vidéo si vidéo
     
     # Métadonnées
@@ -275,12 +280,23 @@ class DossierMedical(Base):
     id = Column(Integer, primary_key=True, index=True)
     medecin_id = Column(Integer, ForeignKey("medecins.id"), nullable=False)
     patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    
+    groupe_sanguin = Column(Enum(GroupeSanguin), nullable=True)
+    allergies = Column(Text, nullable=True)
+    antecedents_medicaux = Column(Text, nullable=True)
+    antecedents_familiaux = Column(Text, nullable=True)
+    numero_securite_sociale = Column(String(15), nullable=True)
+
 
     date_consultation = Column(DateTime, default=datetime.utcnow)
     motif_consultation = Column(String(255))
     diagnostic = Column(Text)
     traitement = Column(Text)
     observations = Column(Text)
+    
+    document_id = Column(Integer, ForeignKey("documents.id"), nullable=True, index=True)
+    ordonnance_id = Column(Integer, ForeignKey("ordonnances.id"), nullable=True, index=True)
+
 
     statut_traitement = Column(Enum(StatutDossier), default=StatutDossier.A_TRAITER)
     date_creation = Column(DateTime, default=datetime.utcnow)
@@ -288,6 +304,13 @@ class DossierMedical(Base):
 
     patient = relationship("Patient", backref="dossiers")
     medecin = relationship("Medecin", back_populates="dossiers")
+    document = relationship("Document", backref="dossier_medical", foreign_keys=[document_id])
+    ordonnance = relationship("Ordonnance", backref="dossier_medical", foreign_keys=[ordonnance_id])
+    
+    def __repr__(self):
+        return f"<DossierMedical(id={self.id}, patient_id={self.patient_id}, medecin_id={self.medecin_id})>"
+
+
 
 class Message(Base):
     __tablename__ = "messages"
@@ -300,7 +323,9 @@ class Message(Base):
     contenu = Column(Text, nullable=False)
     de_medecin = Column(Boolean, default=True) # True si envoyé par médecin, False si par patient
     
-    statut = Column(Enum(StatutMessage), default=StatutMessage.ENVOYE)
+    #statut = Column(Enum(StatutMessage), default=StatutMessage.ENVOYE)
+    statut = Column(Enum( StatutMessage, name="statutmessage", values_callable=lambda enum_cls: [e.value for e in enum_cls] ))
+
     date_envoi = Column(DateTime, default=datetime.utcnow)
     
     patient = relationship("Patient", backref="messages")

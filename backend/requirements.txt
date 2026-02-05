@@ -34,3 +34,6 @@ Pillow==12.1.0
 
 # CORS
 starlette==0.27.0
+
+# Génération de PDF
+reportlab

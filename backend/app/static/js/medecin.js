@@ -9,8 +9,29 @@ let currentMedecin = {
 };
 
 let patientSelectionne = null;
+
 let medecinPatients = [];
 
+let dossiersMedecin = {
+    list: [],
+    filtered: [],
+    selectionne: null
+};
+
+let ordonnancesData = {
+    list: [],
+    patientSelectionne: null,
+    patients: []
+};
+
+
+let messagerie = {
+    conversations: [],
+    patientActuel: null,
+    messagesActuels: [],
+    patients: [],
+    autoRefresh: null
+};
 // ============= INITIALISATION =============
 
 document.addEventListener('DOMContentLoaded', async function () {
@@ -91,15 +112,20 @@ function loadSection(section) {
             break;
         case 'rdv':
             mainContent.innerHTML = getRDVContent();
+            loadRDV();
             break;
         case 'dossiers':
             mainContent.innerHTML = getDossiersContent();
+            loadDossiers();
             break;
         case 'ordonnances':
             mainContent.innerHTML = getOrdonnancesContent();
+            loadOrdonnances();
+            initOrdonnanceModal();
             break;
         case 'messagerie':
             mainContent.innerHTML = getMessagerieContent();
+            loadMessagerie();
             break;
         case 'visio':
             mainContent.innerHTML = getVisioContent();
@@ -109,6 +135,7 @@ function loadSection(section) {
             break;
         case 'profil':
             mainContent.innerHTML = getProfilContent();
+            loadProfilData();
             break;
         case 'parametres':
             mainContent.innerHTML = getParametresContent();
@@ -455,48 +482,637 @@ function getHistoriqueContent() {
     `;
 }
 
+// ============= FONCTION PRINCIPALE - SECTION MON PROFIL =============
+
 function getProfilContent() {
     return `
         <div class="content-section">
             <div class="section-header">
-                <h2 class="section-title">Mon Profil</h2>
+                <h2 class="section-title">
+                    <i class="fas fa-user-circle"></i> Mon Profil
+                </h2>
             </div>
-            <div style="background: white; padding: 30px; border-radius: 12px;">
-                <div style="text-align: center; margin-bottom: 30px;">
-                    <img id="profilAvatar" 
-                        src="https://ui-avatars.com/api/?name=Dr+${currentMedecin.nom}&background=0D8ABC&color=fff&size=120" 
-                        alt="Avatar"
-                        style="width: 120px; height: 120px; border-radius: 50%; border: 3px solid #0D8ABC;">
-                </div>
+            
+            <!-- Conteneur Principal -->
+            <div class="profil-container">
                 
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label"><strong>Prénom</strong></label>
-                        <input type="text" class="form-control" id="profilPrenom" value="${currentMedecin.prenom}" readonly>
+                <!-- Partie Gauche: Avatar et Info Rapide -->
+                <div class="profil-sidebar">
+                    <div class="avatar-section">
+                        <div class="avatar-container">
+                            <img id="profilAvatarImg" 
+                                src="" 
+                                alt="Avatar"
+                                class="avatar-image"
+                                onerror="this.src='https://ui-avatars.com/api/?name=${currentMedecin.prenom}+${currentMedecin.nom}&background=0D8ABC&color=fff&size=200'">
+                            <input type="file" id="photoInput" style="display:none;" accept="image/*">
+                            <button class="btn-change-photo" onclick="document.getElementById('photoInput').click()" title="Changer la photo">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                        </div>
+                        <h3 class="medecin-name">Dr. ${currentMedecin.prenom} ${currentMedecin.nom}</h3>
+                        <p class="medecin-specialite">${currentMedecin.specialite || 'Médecin'}</p>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label"><strong>Nom</strong></label>
-                        <input type="text" class="form-control" id="profilNom" value="${currentMedecin.nom}" readonly>
+                    
+                    <!-- Badges Info Rapides -->
+                    <div class="info-badges">
+                        <div class="badge-item">
+                            <span class="badge-icon">📧</span>
+                            <span class="badge-label">Email</span>
+                            <span class="badge-value" id="badgeEmail">${currentMedecin.email}</span>
+                        </div>
+                        <div class="badge-item">
+                            <span class="badge-icon">📱</span>
+                            <span class="badge-label">Téléphone</span>
+                            <span class="badge-value" id="badgeTelephone">Chargement...</span>
+                        </div>
                     </div>
                 </div>
                 
-                <div class="mb-3">
-                    <label class="form-label"><strong>Email</strong></label>
-                    <input type="email" class="form-control" id="profilEmail" value="${currentMedecin.email}" readonly>
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label"><strong>Spécialité</strong></label>
-                    <input type="text" class="form-control" id="profilSpecialite" value="${currentMedecin.specialite}" readonly>
-                </div>
-                
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> Utilisez la section "Paramètres" pour modifier vos informations
+                <!-- Partie Droite: Informations Détaillées -->
+                <div class="profil-main">
+                    
+                    <!-- Section Personnelles -->
+                    <div class="profil-section">
+                        <div class="section-header-profil">
+                            <h4 class="section-title-profil">
+                                <i class="fas fa-id-card"></i> Informations Personnelles
+                            </h4>
+                            <button class="btn-edit-section" onclick="editPersonnelInfo()" title="Modifier">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="info-grid">
+                            <div class="info-row">
+                                <div class="info-col">
+                                    <label class="info-label">Prénom</label>
+                                    <p class="info-value" id="profilPrenom">${currentMedecin.prenom}</p>
+                                </div>
+                                <div class="info-col">
+                                    <label class="info-label">Nom</label>
+                                    <p class="info-value" id="profilNom">${currentMedecin.nom}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="info-row">
+                                <div class="info-col full-width">
+                                    <label class="info-label">Email</label>
+                                    <p class="info-value" id="profilEmail">${currentMedecin.email}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="info-row">
+                                <div class="info-col">
+                                    <label class="info-label">Téléphone</label>
+                                    <p class="info-value" id="profilTelephone">Chargement...</p>
+                                </div>
+                                <div class="info-col">
+                                    <label class="info-label">Spécialité</label>
+                                    <p class="info-value" id="profilSpecialite">${currentMedecin.specialite || 'Médecin'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Section Professionnelles -->
+                    <div class="profil-section">
+                        <div class="section-header-profil">
+                            <h4 class="section-title-profil">
+                                <i class="fas fa-stethoscope"></i> Informations Professionnelles
+                            </h4>
+                            <button class="btn-edit-section" onclick="editProfessionalInfo()" title="Modifier">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="info-grid">
+                            <div class="info-row">
+                                <div class="info-col">
+                                    <label class="info-label">Numéro d'Ordre</label>
+                                    <p class="info-value" id="profilNumeroOrdre">Chargement...</p>
+                                </div>
+                                <div class="info-col">
+                                    <label class="info-label">Années d'Expérience</label>
+                                    <p class="info-value" id="profilAnneeExperience">Chargement...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="info-row">
+                                <div class="info-col">
+                                    <label class="info-label">Montant de Consultation (FCFA)</label>
+                                    <p class="info-value" id="profilPrixConsultation">Chargement...</p>
+                                </div>
+                                <div class="info-col">
+                                    <label class="info-label">Langues</label>
+                                    <p class="info-value" id="profilLangues">Chargement...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="info-row">
+                                <div class="info-col full-width">
+                                    <label class="info-label">Adresse du Cabinet</label>
+                                    <p class="info-value" id="profilAdresse">Chargement...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="info-row">
+                                <div class="info-col">
+                                    <label class="info-label">Ville</label>
+                                    <p class="info-value" id="profilVille">Chargement...</p>
+                                </div>
+                                <div class="info-col">
+                                    <label class="info-label">Code Postal</label>
+                                    <p class="info-value" id="profilCodePostal">Chargement...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Section Actions -->
+                    <div class="profil-actions">
+                        <button class="btn btn-primary" onclick="goToParametres()">
+                            <i class="fas fa-cog"></i> Modifier mes informations
+                        </button>
+                        <button class="btn btn-outline" onclick="printProfil()">
+                            <i class="fas fa-print"></i> Imprimer
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     `;
 }
+
+// ============= CHARGER DONNÉES PROFIL =============
+
+async function loadProfilData() {
+    try {
+        // Charger les infos personnelles
+        const response = await fetch('/medecin/api/info');
+        const personalData = await response.json();
+        
+        // Charger les infos professionnelles
+        const proResponse = await fetch('/medecin/api/profil/professional-info');
+        const proData = proResponse.ok ? await proResponse.json() : {};
+        
+        // Remplir les informations personnelles
+        document.getElementById('profilPrenom').textContent = personalData.prenom || '';
+        document.getElementById('profilNom').textContent = personalData.nom || '';
+        document.getElementById('profilEmail').textContent = personalData.email || '';
+        document.getElementById('profilTelephone').textContent = personalData.telephone || 'Non renseigné';
+        document.getElementById('profilSpecialite').textContent = personalData.specialite || 'Médecin';
+        document.getElementById('badgeEmail').textContent = personalData.email || '';
+        document.getElementById('badgeTelephone').textContent = personalData.telephone || 'Non renseigné';
+        
+        // Afficher la photo de profil
+        if (personalData.photo_profil_url) {
+            document.getElementById('profilAvatarImg').src = personalData.photo_profil_url;
+        } else {
+            document.getElementById('profilAvatarImg').src = 
+                `https://ui-avatars.com/api/?name=${personalData.prenom}+${personalData.nom}&background=0D8ABC&color=fff&size=200`;
+        }
+        
+        // Remplir les informations professionnelles
+        document.getElementById('profilNumeroOrdre').textContent = proData.numero_ordre || 'Non renseigné';
+        document.getElementById('profilAnneeExperience').textContent = 
+            (proData.annees_experience ? proData.annees_experience + ' ans' : 'Non renseigné');
+        document.getElementById('profilPrixConsultation').textContent = 
+            (proData.prix_consultation ? proData.prix_consultation + ' FCFA' : 'Non renseigné');
+        document.getElementById('profilLangues').textContent = 
+            (Array.isArray(personalData.langues) ? personalData.langues.join(', ') : 'Non renseigné');
+        document.getElementById('profilAdresse').textContent = 
+            (proData.adresse ? proData.adresse : 'Non renseigné');
+        document.getElementById('profilVille').textContent = 
+            (proData.ville ? proData.ville : 'Non renseigné');
+        document.getElementById('profilCodePostal').textContent = 
+            (proData.code_postal ? proData.code_postal : 'Non renseigné');
+        
+        // Setup événement upload photo
+        setupPhotoUpload();
+        
+    } catch (error) {
+        console.error('Erreur chargement profil:', error);
+    }
+}
+
+// ============= UPLOAD PHOTO DE PROFIL =============
+
+function setupPhotoUpload() {
+    const photoInput = document.getElementById('photoInput');
+    if (!photoInput) return;
+    
+    photoInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // Vérifier que c'est une image
+        if (!file.type.startsWith('image/')) {
+            alert('⚠️ Veuillez sélectionner une image');
+            return;
+        }
+        
+        // Vérifier la taille (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('⚠️ L\'image doit faire moins de 5MB');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('photo', file);
+        
+        try {
+            const response = await fetch('/medecin/api/upload-photo', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Mettre à jour l'image
+                document.getElementById('profilAvatarImg').src = data.photo_url;
+                alert('✅ Photo de profil mise à jour avec succès!');
+                
+                // Mettre à jour le profil global
+                currentMedecin.photo = data.photo_url;
+                
+                // Mettre à jour les autres avatars sur la page
+                const profileAvatars = document.querySelectorAll('#profileAvatar');
+                profileAvatars.forEach(avatar => {
+                    avatar.src = data.photo_url;
+                });
+            } else {
+                alert('❌ Erreur lors du téléchargement');
+            }
+        } catch (error) {
+            console.error('Erreur upload:', error);
+            alert('❌ Erreur lors du téléchargement');
+        }
+        
+        // Réinitialiser l'input
+        photoInput.value = '';
+    });
+}
+
+// ============= FONCTIONS ÉDITION =============
+
+function editPersonnelInfo() {
+    alert('Veuillez vous rendre dans la section "Paramètres" pour modifier vos informations personnelles');
+    loadSection('parametres');
+}
+
+function editProfessionalInfo() {
+    alert('Veuillez vous rendre dans la section "Paramètres" pour modifier vos informations professionnelles');
+    loadSection('parametres');
+}
+
+function goToParametres() {
+    loadSection('parametres');
+}
+
+function printProfil() {
+    window.print();
+}
+
+// ============= STYLES CSS POUR MON PROFIL =============
+
+const profilStyles = `
+    <style>
+        .profil-container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 30px;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        .profil-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            border-right: 1px solid #f0f0f0;
+            padding-right: 30px;
+        }
+        
+        .avatar-section {
+            text-align: center;
+        }
+        
+        .avatar-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 15px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
+            box-shadow: 0 4px 16px rgba(13, 139, 188, 0.3);
+        }
+        
+        .avatar-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .btn-change-photo {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(13, 139, 188, 0.4);
+        }
+        
+        .btn-change-photo:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(13, 139, 188, 0.6);
+        }
+        
+        .medecin-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin: 0 0 5px 0;
+        }
+        
+        .medecin-specialite {
+            font-size: 14px;
+            color: #0d8abc;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .info-badges {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .badge-item {
+            background: #f8f9fa;
+            border-left: 4px solid #0d8abc;
+            padding: 12px 15px;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .badge-icon {
+            font-size: 20px;
+        }
+        
+        .badge-label {
+            font-size: 11px;
+            color: #666;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .badge-value {
+            font-size: 13px;
+            color: #1a1a1a;
+            font-weight: 600;
+            word-break: break-word;
+        }
+        
+        .profil-main {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        .profil-section {
+            background: #f9f9f9;
+            border: 1px solid #f0f0f0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .section-header-profil {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .section-title-profil {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: #0d8abc;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-title-profil i {
+            font-size: 18px;
+        }
+        
+        .btn-edit-section {
+            background: #0d8abc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-edit-section:hover {
+            background: #0a6d9e;
+            transform: scale(1.05);
+        }
+        
+        .info-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .info-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .info-row.single {
+            grid-template-columns: 1fr;
+        }
+        
+        .info-col {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .info-col.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .info-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0;
+        }
+        
+        .info-value {
+            font-size: 15px;
+            color: #1a1a1a;
+            margin: 0;
+            font-weight: 500;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .profil-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(13, 139, 188, 0.3);
+        }
+        
+        .btn-outline {
+            background: white;
+            color: #0d8abc;
+            border: 2px solid #0d8abc;
+        }
+        
+        .btn-outline:hover {
+            background: #f0f8ff;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .profil-container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .profil-sidebar {
+                border-right: none;
+                border-bottom: 1px solid #f0f0f0;
+                padding-right: 0;
+                padding-bottom: 20px;
+            }
+            
+            .info-row {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .profil-container {
+                padding: 20px;
+            }
+            
+            .avatar-container {
+                width: 150px;
+                height: 150px;
+            }
+            
+            .medecin-name {
+                font-size: 18px;
+            }
+            
+            .section-header-profil {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .btn-edit-section {
+                width: 32px;
+                height: 32px;
+            }
+            
+            .profil-actions {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+        
+        /* Print Styles */
+        @media print {
+            .btn-change-photo,
+            .btn-edit-section,
+            .profil-actions {
+                display: none;
+            }
+            
+            .profil-container {
+                box-shadow: none;
+                border: 1px solid #ccc;
+            }
+            
+            .info-value {
+                background: white;
+                border: none;
+            }
+        }
+    </style>
+`;
+
+// Injecter les styles
+if (document.head) {
+    document.head.insertAdjacentHTML('beforeend', profilStyles);
+}
+
+// ============= PARAMÈTRES - CONTENU =============
 
 function getParametresContent() {
     return `
@@ -505,8 +1121,12 @@ function getParametresContent() {
                 <h2 class="section-title">Paramètres</h2>
             </div>
             
-            <div style="background: white; padding: 30px; border-radius: 12px;">
-                <h4 class="mb-4">Informations Personnelles</h4>
+            <!-- Section Informations Personnelles -->
+            <div style="background: white; padding: 30px; border-radius: 12px; margin-bottom: 20px;">
+                <h4 class="mb-4">
+                    <i class="fas fa-user-circle" style="color: #0d8abc; margin-right: 10px;"></i>
+                    Informations Personnelles
+                </h4>
                 
                 <form id="parametresForm">
                     <div class="row">
@@ -540,14 +1160,67 @@ function getParametresContent() {
                     </button>
                 </form>
             </div>
+
+            <!-- Section Informations Professionnelles -->
+            <div style="background: white; padding: 30px; border-radius: 12px;">
+                <h4 class="mb-4">
+                    <i class="fas fa-stethoscope" style="color: #10b981; margin-right: 10px;"></i>
+                    Informations Professionnelles
+                </h4>
+                
+                <form id="parametresProfessionnelsForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Années d'expérience</label>
+                            <input type="number" class="form-control" id="paramAnneeExperience" min="0" placeholder="Ex: 10">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Montant de consultation (FCFA)</label>
+                            <input type="number" class="form-control" id="paramPrixConsultation" min="0" step="100" placeholder="Ex: 25000">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Numéro d'ordre</label>
+                        <input type="text" class="form-control" id="paramNumeroOrdre" placeholder="Numéro d'ordre médical">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Nom du cabinet</label>
+                        <input type="text" class="form-control" id="paramNomCabinet" placeholder="Ex: Cabinet Médical du Docteur X">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Adresse du cabinet</label>
+                            <input type="text" class="form-control" id="paramAdresseCabinet" placeholder="Adresse complète">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Ville</label>
+                            <input type="text" class="form-control" id="paramVilleCabinet" placeholder="Ville">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Code postal</label>
+                            <input type="text" class="form-control" id="paramCodePostalCabinet" placeholder="Code postal">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Sauvegarder les informations professionnelles
+                    </button>
+                </form>
+            </div>
         </div>
     `;
 }
 
+// ============= SETUP PARAMÈTRES LISTENERS (MODIFIÉE) =============
+
 function setupParametresListeners() {
-    const form = document.getElementById('parametresForm');
-    if (form) {
-        form.addEventListener('submit', async function(e) {
+    // ===== FORMULAIRE INFORMATIONS PERSONNELLES =====
+    const formPersonnel = document.getElementById('parametresForm');
+    if (formPersonnel) {
+        formPersonnel.addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const formData = new FormData();
@@ -568,19 +1241,110 @@ function setupParametresListeners() {
                 });
                 
                 if (response.ok) {
-                    alert('Profil mis à jour avec succès!');
+                    alert('✅ Profil personnel mis à jour avec succès!');
                     await loadMedecinInfo();
                 } else {
-                    alert('Erreur lors de la mise à jour');
+                    alert('❌ Erreur lors de la mise à jour');
                 }
             } catch (error) {
                 console.error('Erreur:', error);
-                alert('Erreur lors de la mise à jour');
+                alert('❌ Erreur lors de la mise à jour');
+            }
+        });
+    }
+
+    // ===== FORMULAIRE INFORMATIONS PROFESSIONNELLES =====
+    const formProfessionnel = document.getElementById('parametresProfessionnelsForm');
+    if (formProfessionnel) {
+        // Charger les données existantes au chargement du formulaire
+        loadProfessionalInfoData();
+        
+        formProfessionnel.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const anneeExperience = document.getElementById('paramAnneeExperience').value;
+            const prixConsultation = document.getElementById('paramPrixConsultation').value;
+            const numeroOrdre = document.getElementById('paramNumeroOrdre').value;
+            const nomCabinet = document.getElementById('paramNomCabinet').value;
+            const adresseCabinet = document.getElementById('paramAdresseCabinet').value;
+            const villeCabinet = document.getElementById('paramVilleCabinet').value;
+            const codePostalCabinet = document.getElementById('paramCodePostalCabinet').value;
+            
+            // Au moins un champ doit être rempli
+            if (!anneeExperience && !prixConsultation && !numeroOrdre && !nomCabinet && !adresseCabinet && !villeCabinet && !codePostalCabinet) {
+                alert('⚠️ Veuillez remplir au moins un champ');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('annees_experience', anneeExperience || '');
+            formData.append('prix_consultation', prixConsultation || '');
+            formData.append('numero_ordre', numeroOrdre || '');
+            formData.append('cabinet_nom', nomCabinet || '');
+            formData.append('adresse', adresseCabinet || '');
+            formData.append('ville', villeCabinet || '');
+            formData.append('code_postal', codePostalCabinet || '');
+            
+            try {
+                const response = await fetch('/medecin/api/profil/update-professional', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert('✅ ' + (result.message || 'Informations professionnelles mises à jour avec succès!'));
+                    await loadMedecinInfo();
+                } else {
+                    const error = await response.json();
+                    alert('❌ ' + (error.detail || 'Erreur lors de la mise à jour'));
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('❌ Erreur lors de la mise à jour');
             }
         });
     }
 }
 
+// ============= CHARGER DONNÉES PROFESSIONNELLES =============
+
+async function loadProfessionalInfoData() {
+    try {
+        const response = await fetch('/medecin/api/profil/professional-info');
+        if (!response.ok) {
+            console.log('Pas d\'informations professionnelles existantes');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        // Remplir les champs avec les données existantes
+        if (data.annees_experience) {
+            document.getElementById('paramAnneeExperience').value = data.annees_experience;
+        }
+        if (data.prix_consultation) {
+            document.getElementById('paramPrixConsultation').value = data.prix_consultation;
+        }
+        if (data.numero_ordre) {
+            document.getElementById('paramNumeroOrdre').value = data.numero_ordre;
+        }
+        if (data.cabinet_nom) {
+            document.getElementById('paramNomCabinet').value = data.cabinet_nom;
+        }
+        if (data.adresse) {
+            document.getElementById('paramAdresseCabinet').value = data.adresse;
+        }
+        if (data.ville) {
+            document.getElementById('paramVilleCabinet').value = data.ville;
+        }
+        if (data.code_postal) {
+            document.getElementById('paramCodePostalCabinet').value = data.code_postal;
+        }
+    } catch (error) {
+        console.error('Erreur chargement infos professionnelles:', error);
+    }
+}
 // ============= HELPER FUNCTIONS =============
 
 function sendMessageToPatient(patientId) {
@@ -640,6 +1404,55 @@ async function submitOrdonnance() {
     }
 }
 
+
+// ============= CHARGEMENT RDV =============
+async function loadRDV() {
+    const tbody = document.getElementById("rdvBody");
+
+    try {
+        const response = await fetch("/medecin/api/rendez-vous", {
+            credentials: "include"
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || "Erreur chargement RDV");
+        }
+
+        const rdvs = await response.json();
+
+        if (rdvs.length === 0) {
+            tbody.innerHTML = `<tr>
+                <td colspan="5" class="text-center text-muted">Aucun rendez-vous</td>
+            </tr>`;
+            return;
+        }
+
+        tbody.innerHTML = rdvs.map(rdv => `
+            <tr>
+                <td>${rdv.patient.nom_complet}</td>
+                <td>${new Date(rdv.date_heure).toLocaleString()}</td>
+                <td>${rdv.type}</td>
+                <td>${rdv.statut}</td>
+                <td>
+                    <button class="btn-action view" title="Voir">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join("");
+
+    } catch (error) {
+        console.error("Erreur RDV:", error);
+        tbody.innerHTML = `<tr>
+            <td colspan="5" class="text-center text-danger">
+                Erreur de chargement des rendez-vous
+            </td>
+        </tr>`;
+    }
+}
+
+
 // ============= LOGOUT =============
 
 function setupLogout() {
@@ -657,3 +1470,1487 @@ function setupLogout() {
         });
     }
 }
+
+
+
+
+
+// ============= FONCTION PRINCIPALE - MESSAGERIE =============
+
+function getMessagerieContent() {
+    return `
+        <div class="messagerie-container">
+            <!-- Panneau Conversations -->
+            <div class="messagerie-sidebar">
+                <div class="sidebar-header">
+                    <h3>Messagerie</h3>
+                    <button class="btn-new-message" onclick="openNewMessageModal()" title="Nouveau message">
+                        <i class="fas fa-pen"></i> Nouveau
+                    </button>
+                </div>
+                
+                <div class="search-box">
+                    <input type="text" id="searchConversation" placeholder="Rechercher un patient..." class="form-control">
+                </div>
+                
+                <div class="conversations-list" id="conversationsList">
+                    <div class="loading-state">
+                        <p class="text-muted text-center">Chargement des conversations...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Panneau Principal -->
+            <div class="messagerie-main">
+                <div id="emptyState" class="empty-state">
+                    <div class="empty-content">
+                        <i class="fas fa-envelope-open-text"></i>
+                        <h4>Sélectionnez une conversation</h4>
+                        <p>Choisissez un patient dans la liste pour commencer à discuter</p>
+                    </div>
+                </div>
+                
+                <div id="chatContent" class="chat-content" style="display: none;">
+                    <!-- Header Conversation -->
+                    <div class="conversation-header">
+                        <div class="patient-header">
+                            <div class="patient-avatar" id="chatPatientAvatar"></div>
+                            <div class="patient-info">
+                                <h5 id="chatPatientName">Patient</h5>
+                                <p id="chatPatientEmail" class="text-muted"></p>
+                            </div>
+                        </div>
+                        <button class="btn-close-chat" onclick="closeChat()" title="Fermer">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Messages -->
+                    <div class="messages-container" id="messagesContainer">
+                        <p class="text-center text-muted">Aucun message</p>
+                    </div>
+                    
+                    <!-- Formulaire Envoi -->
+                    <div class="message-input-area">
+                        <form id="messageForm" onsubmit="sendMessage(event)">
+                            <div class="form-group">
+                                <input type="text" id="messageSubject" placeholder="Sujet du message..." 
+                                    class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <textarea id="messageContent" placeholder="Écrivez votre message ici..." 
+                                    class="form-control" rows="3" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-send">
+                                <i class="fas fa-paper-plane"></i> Envoyer
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal Nouveau Message -->
+        <div class="modal fade" id="newMessageModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Nouveau Message</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="newMessageForm">
+                            <div class="form-group mb-3">
+                                <label class="form-label"><strong>Destinataire</strong></label>
+                                <select id="newMessagePatient" class="form-control" required>
+                                    <option value="">Sélectionnez un patient...</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label class="form-label"><strong>Sujet</strong></label>
+                                <input type="text" id="newMessageSubject" class="form-control" required>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label class="form-label"><strong>Message</strong></label>
+                                <textarea id="newMessageContent" class="form-control" rows="5" required></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <button type="button" class="btn btn-primary" onclick="submitNewMessage()">Envoyer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ============= CHARGEMENT MESSAGERIE =============
+
+async function loadMessagerie() {
+    const mainContent = document.getElementById('mainContent');
+    mainContent.innerHTML = getMessagerieContent();
+    
+    // Charger les données
+    await Promise.all([
+        loadConversations(),
+        loadPatientsForMessaging()
+    ]);
+    
+    setupMessagerieListeners();
+    
+    // Rafraîchissement auto toutes les 30 secondes
+    if (messagerie.autoRefresh) clearInterval(messagerie.autoRefresh);
+    messagerie.autoRefresh = setInterval(loadConversations, 30000);
+}
+
+async function loadConversations() {
+    try {
+        const response = await fetch('/medecin/api/messagerie/conversations');
+        if (!response.ok) throw new Error('Erreur chargement conversations');
+        
+        messagerie.conversations = await response.json();
+        displayConversations(messagerie.conversations);
+        updateUnreadBadge();
+    } catch (error) {
+        console.error('Erreur chargement conversations:', error);
+        document.getElementById('conversationsList').innerHTML = 
+            '<p class="text-center text-danger">Erreur chargement conversations</p>';
+    }
+}
+
+async function loadPatientsForMessaging() {
+    try {
+        const response = await fetch('/medecin/api/messagerie/patients-list');
+        if (!response.ok) throw new Error('Erreur chargement patients');
+        
+        messagerie.patients = await response.json();
+        populatePatientsSelect();
+    } catch (error) {
+        console.error('Erreur chargement patients:', error);
+    }
+}
+
+// ============= AFFICHAGE CONVERSATIONS =============
+
+function displayConversations(conversations) {
+    const container = document.getElementById('conversationsList');
+    
+    if (!conversations || conversations.length === 0) {
+        container.innerHTML = '<p class="text-center text-muted p-3">Aucune conversation</p>';
+        return;
+    }
+    
+    const html = conversations.map(conv => {
+        const nonLus = conv.non_lus > 0 ? `<span class="badge">${conv.non_lus}</span>` : '';
+        const classe = messagerie.patientActuel?.id === conv.patient_id ? 'active' : '';
+        const dernierMsg = conv.derniere_date ? new Date(conv.derniere_date).toLocaleDateString('fr-FR') : '';
+        
+        return `
+            <div class="conversation-item ${classe}" onclick="openConversation(${conv.patient_id}, '${conv.nom_complet}', '${conv.email}')">
+                <div class="conversation-avatar">
+                    ${conv.nom_complet.charAt(0).toUpperCase()}${conv.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || ''}
+                </div>
+                <div class="conversation-info">
+                    <div class="conversation-header-row">
+                        <h6>${conv.nom_complet}</h6>
+                        <span class="date-small">${dernierMsg}</span>
+                    </div>
+                    <p class="text-muted text-truncate">${conv.email}</p>
+                </div>
+                ${nonLus}
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = html;
+}
+
+function updateUnreadBadge() {
+    const totalNonLus = messagerie.conversations.reduce((sum, conv) => sum + (conv.non_lus || 0), 0);
+    const messagerieBadge = document.querySelector('[data-section="messagerie"] .badge');
+    
+    if (messagerieBadge) {
+        if (totalNonLus > 0) {
+            messagerieBadge.textContent = totalNonLus;
+            messagerieBadge.style.display = 'block';
+        } else {
+            messagerieBadge.style.display = 'none';
+        }
+    }
+}
+
+// ============= OUVERTURE CONVERSATION =============
+
+async function openConversation(patientId, patientName, patientEmail) {
+    try {
+        messagerie.patientActuel = {
+            id: patientId,
+            nom_complet: patientName,
+            email: patientEmail
+        };
+        
+        // Fetch messages
+        const response = await fetch(`/medecin/api/messagerie/conversation/${patientId}`);
+        if (!response.ok) throw new Error('Erreur chargement conversation');
+        
+        const data = await response.json();
+        messagerie.messagesActuels = data.messages;
+        
+        // Afficher le chat
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('chatContent').style.display = 'flex';
+        
+        // Remplir les infos du patient
+        document.getElementById('chatPatientName').textContent = data.patient.nom_complet;
+        document.getElementById('chatPatientEmail').textContent = data.patient.email;
+        document.getElementById('chatPatientAvatar').textContent = 
+            data.patient.nom_complet.charAt(0).toUpperCase() + 
+            (data.patient.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || '');
+        
+        // Afficher les messages
+        displayMessages(data.messages);
+        
+        // Mise à jour visuelle
+        document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
+        event.target.closest('.conversation-item')?.classList.add('active');
+        
+        // Reset form
+        document.getElementById('messageForm').reset();
+    } catch (error) {
+        console.error('Erreur ouverture conversation:', error);
+        alert('Erreur lors de l\'ouverture de la conversation');
+    }
+}
+
+// ============= AFFICHAGE MESSAGES =============
+
+function displayMessages(messages) {
+    const container = document.getElementById('messagesContainer');
+    
+    if (!messages || messages.length === 0) {
+        container.innerHTML = '<p class="text-center text-muted p-3">Aucun message dans cette conversation</p>';
+        return;
+    }
+    
+    const html = messages.map(msg => {
+        const fromClass = msg.de_medecin ? 'from-medecin' : 'from-patient';
+        const dateObj = new Date(msg.date_envoi);
+        const timeStr = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const dateStr = dateObj.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
+        
+        return `
+            <div class="message-group ${fromClass}">
+                <div class="message-bubble">
+                    <div class="message-subject"><strong>${msg.sujet}</strong></div>
+                    <div class="message-content">${msg.contenu}</div>
+                    <div class="message-time">${dateStr} à ${timeStr}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = html;
+    
+    // Scroll au dernier message
+    setTimeout(() => {
+        container.scrollTop = container.scrollHeight;
+    }, 100);
+}
+
+// ============= ENVOI MESSAGE =============
+
+async function sendMessage(event) {
+    event.preventDefault();
+    
+    const sujet = document.getElementById('messageSubject').value;
+    const contenu = document.getElementById('messageContent').value;
+    
+    if (!sujet.trim() || !contenu.trim()) {
+        alert('Veuillez remplir tous les champs');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('patient_id', messagerie.patientActuel.id);
+    formData.append('sujet', sujet);
+    formData.append('contenu', contenu);
+    
+    try {
+        const response = await fetch('/medecin/api/messagerie/send', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Erreur envoi message');
+        }
+        
+        const result = await response.json();
+        
+        // Ajouter le message à la liste
+        messagerie.messagesActuels.push({
+            id: result.message_id,
+            sujet: sujet,
+            contenu: contenu,
+            de_medecin: true,
+            date_envoi: result.date_envoi,
+            statut: 'Envoyé'
+        });
+        
+        displayMessages(messagerie.messagesActuels);
+        document.getElementById('messageForm').reset();
+        
+        // Recharger les conversations
+        await loadConversations();
+    } catch (error) {
+        console.error('Erreur envoi message:', error);
+        alert('Erreur lors de l\'envoi: ' + error.message);
+    }
+}
+
+// ============= NOUVEAU MESSAGE MODAL =============
+
+function openNewMessageModal() {
+    const modal = new bootstrap.Modal(document.getElementById('newMessageModal'));
+    modal.show();
+}
+
+function populatePatientsSelect() {
+    const select = document.getElementById('newMessagePatient');
+    select.innerHTML = '<option value="">Sélectionnez un patient...</option>';
+    
+    messagerie.patients.forEach(patient => {
+        const option = document.createElement('option');
+        option.value = patient.id;
+        option.textContent = `${patient.nom_complet} (${patient.email})`;
+        select.appendChild(option);
+    });
+}
+
+async function submitNewMessage() {
+    const patientId = document.getElementById('newMessagePatient').value;
+    const sujet = document.getElementById('newMessageSubject').value;
+    const contenu = document.getElementById('newMessageContent').value;
+    
+    if (!patientId || !sujet.trim() || !contenu.trim()) {
+        alert('Veuillez remplir tous les champs');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('patient_id', patientId);
+    formData.append('sujet', sujet);
+    formData.append('contenu', contenu);
+    
+    try {
+        const response = await fetch('/medecin/api/messagerie/send', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Erreur envoi message');
+        }
+        
+        // Fermer modal et recharger
+        bootstrap.Modal.getInstance(document.getElementById('newMessageModal')).hide();
+        document.getElementById('newMessageForm').reset();
+        
+        // Ouvrir la conversation du patient
+        const patient = messagerie.patients.find(p => p.id == patientId);
+        await loadConversations();
+        
+        // Afficher la conversation
+        setTimeout(() => {
+            const conv = messagerie.conversations.find(c => c.patient_id == patientId);
+            if (conv) {
+                openConversation(patientId, patient.nom_complet, patient.email);
+            }
+        }, 500);
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur: ' + error.message);
+    }
+}
+
+// ============= FERMETURE CHAT =============
+
+function closeChat() {
+    messagerie.patientActuel = null;
+    messagerie.messagesActuels = [];
+    document.getElementById('emptyState').style.display = 'flex';
+    document.getElementById('chatContent').style.display = 'none';
+    document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
+}
+
+// ============= EVENT LISTENERS =============
+
+function setupMessagerieListeners() {
+    // Recherche conversation
+    const searchInput = document.getElementById('searchConversation');
+    if (searchInput) {
+        searchInput.addEventListener('input', function(e) {
+            const term = e.target.value.toLowerCase();
+            const filtered = messagerie.conversations.filter(c =>
+                c.nom_complet.toLowerCase().includes(term) ||
+                c.email.toLowerCase().includes(term)
+            );
+            displayConversations(filtered);
+        });
+    }
+}   
+
+
+
+
+// ============= FONCTION PRINCIPALE DOSSIERS =============
+
+function getDossiersContent() {
+    return `
+        <div class="content-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <i class="fas fa-folder-medical"></i> Dossiers Médicaux
+                </h2>
+                <div class="section-actions">
+                    <input type="text" 
+                        class="form-control search-input" 
+                        placeholder="Rechercher un dossier..." 
+                        onkeyup="searchDossiers(this.value)"
+                        style="max-width: 300px;">
+                </div>
+            </div>
+            
+            <div class="filters-bar" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-sm btn-outline-primary active" onclick="filterDossiersByStatut('tous')">
+                    Tous
+                </button>
+                <button class="btn btn-sm btn-outline-warning" onclick="filterDossiersByStatut('À traiter')">
+                    À traiter
+                </button>
+                <button class="btn btn-sm btn-outline-info" onclick="filterDossiersByStatut('En cours de traitement')">
+                    En cours
+                </button>
+                <button class="btn btn-sm btn-outline-success" onclick="filterDossiersByStatut('Traité')">
+                    Traité
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="filterDossiersByStatut('Archivé')">
+                    Archivé
+                </button>
+            </div>
+            
+            <div class="custom-table" id="dossiersTable">
+                <p class="text-center text-muted">Chargement des dossiers...</p>
+            </div>
+        </div>
+    `;
+}
+
+// ============= CHARGER DOSSIERS =============
+
+async function loadDossiers() {
+    try {
+        const response = await fetch('/medecin/api/dossiers-medicaux', {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error("Erreur serveur: " + response.status);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error("Réponse invalide de l'API");
+        }
+        
+        dossiersMedecin.list = data.dossiers || [];
+        dossiersMedecin.filtered = dossiersMedecin.list;
+        
+        displayDossiers(dossiersMedecin.list);
+        
+    } catch (error) {
+        console.error('Erreur chargement dossiers:', error);
+        document.getElementById('dossiersTable').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle"></i> 
+                Erreur lors du chargement des dossiers: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// ============= AFFICHER DOSSIERS EN TABLEAU =============
+
+function displayDossiers(dossiers) {
+    const container = document.getElementById('dossiersTable');
+    
+    if (!dossiers || dossiers.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-folder-open"></i>
+                <p>Aucun dossier médical</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const html = `
+        <table class="table-dossiers">
+            <thead>
+                <tr>
+                    <th>Patient</th>
+                    <th>Age</th>
+                    <th>Date Consultation</th>
+                    <th>Motif</th>
+                    <th>Diagnostic</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${dossiers.map(d => `
+                    <tr class="dossier-row" data-dossier-id="${d.id}">
+                        <td>
+                            <div class="patient-cell">
+                                <div class="patient-avatar">${getInitials(d.patient.nom_complet)}</div>
+                                <div class="patient-info-cell">
+                                    <div class="patient-name">${d.patient.nom_complet}</div>
+                                    <div class="patient-email">${d.patient.email}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>${d.patient.age ? d.patient.age + ' ans' : 'N/A'}</td>
+                        <td>${d.date_consultation}</td>
+                        <td class="motif-cell" title="${d.motif_consultation}">
+                            ${truncateText(d.motif_consultation, 30)}
+                        </td>
+                        <td class="diagnostic-cell" title="${d.diagnostic}">
+                            ${truncateText(d.diagnostic, 30)}
+                        </td>
+                        <td>
+                            <span class="status-badge status-${d.statut_traitement.toLowerCase().replace(/ /g, '-')}">
+                                ${d.statut_traitement}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn-action view" onclick="viewDossierDetail(${d.id})" title="Voir détails">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn-action edit" onclick="editDossier(${d.id})" title="Modifier">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn-action" onclick="downloadDossier(${d.id})" title="Télécharger">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    container.innerHTML = html;
+    setupDossierListeners();
+}
+
+// ============= VOIR DÉTAILS DOSSIER =============
+
+async function viewDossierDetail(dossierId) {
+    try {
+        const response = await fetch(`/medecin/api/dossiers-medicaux/${dossierId}`, {
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error("Dossier non trouvé");
+        }
+        
+        const data = await response.json();
+        const d = data.dossier;
+        
+        dossiersMedecin.selectionne = d;
+        
+        // Créer la modale détail
+        const modalHTML = createDossierModal(d);
+        
+        // Ajouter au DOM
+        let existingModal = document.getElementById('dossierDetailModal');
+        if (existingModal) existingModal.remove();
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = modalHTML;
+        document.body.appendChild(tempDiv.firstElementChild);
+        
+        // Afficher la modale
+        const modal = new bootstrap.Modal(document.getElementById('dossierDetailModal'));
+        modal.show();
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur: ' + error.message);
+    }
+}
+
+// ============= CRÉER MODALE DÉTAIL DOSSIER =============
+
+function createDossierModal(d) {
+    return `
+        <div class="modal fade" id="dossierDetailModal" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-file-medical"></i> Dossier Medical - ${d.patient.nom_complet}
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="dossier-detail-container">
+                            <!-- Infos Patient -->
+                            <div class="detail-section">
+                                <h6 class="section-title">
+                                    <i class="fas fa-user"></i> Informations Patient
+                                </h6>
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <span class="label">Nom Complet:</span>
+                                        <span class="value">${d.patient.nom_complet}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="label">Age:</span>
+                                        <span class="value">${d.patient.age || 'N/A'} ans</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="label">Genre:</span>
+                                        <span class="value">${d.patient.genre || 'N/A'}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="label">Email:</span>
+                                        <span class="value">${d.patient.email}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="label">Téléphone:</span>
+                                        <span class="value">${d.patient.telephone}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="label">Adresse:</span>
+                                        <span class="value">${d.patient.adresse || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Infos Médicales -->
+                            <div class="detail-section">
+                                <h6 class="section-title">
+                                    <i class="fas fa-heartbeat"></i> Informations Médicales
+                                </h6>
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <span class="label">Groupe Sanguin:</span>
+                                        <span class="value">${d.groupe_sanguin || 'Non renseigné'}</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <span class="label">Numéro Sécu:</span>
+                                        <span class="value">${d.numero_securite_sociale || 'Non renseigné'}</span>
+                                    </div>
+                                </div>
+                                
+                                ${d.allergies ? `
+                                    <div class="info-item full-width alert alert-warning mt-2">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <strong>⚠️ Allergies:</strong> ${d.allergies}
+                                    </div>
+                                ` : ''}
+                                
+                                ${d.antecedents_medicaux ? `
+                                    <div class="info-item full-width mt-2">
+                                        <strong>📋 Antécédents Médicaux:</strong>
+                                        <p>${d.antecedents_medicaux}</p>
+                                    </div>
+                                ` : ''}
+                                
+                                ${d.antecedents_familiaux ? `
+                                    <div class="info-item full-width mt-2">
+                                        <strong>👨‍👩‍👧 Antécédents Familiaux:</strong>
+                                        <p>${d.antecedents_familiaux}</p>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            
+                            <!-- Consultation -->
+                            <div class="detail-section">
+                                <h6 class="section-title">
+                                    <i class="fas fa-stethoscope"></i> Consultation du ${d.date_consultation}
+                                </h6>
+                                <div class="consultation-info">
+                                    <div class="info-item full-width">
+                                        <strong>Motif:</strong>
+                                        <p>${d.motif_consultation || 'Non renseigné'}</p>
+                                    </div>
+                                    <div class="info-item full-width">
+                                        <strong>Diagnostic:</strong>
+                                        <p>${d.diagnostic || 'Non renseigné'}</p>
+                                    </div>
+                                    <div class="info-item full-width">
+                                        <strong>Traitement:</strong>
+                                        <p>${d.traitement || 'Non renseigné'}</p>
+                                    </div>
+                                    <div class="info-item full-width">
+                                        <strong>Observations:</strong>
+                                        <p>${d.observations || 'Aucune'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Statut -->
+                            <div class="detail-section">
+                                <h6 class="section-title">
+                                    <i class="fas fa-clipboard-list"></i> Statut
+                                </h6>
+                                <span class="status-badge status-${d.statut_traitement.toLowerCase().replace(/ /g, '-')}">
+                                    ${d.statut_traitement}
+                                </span>
+                            </div>
+                            
+                            <!-- Document -->
+                            ${d.document ? `
+                                <div class="detail-section">
+                                    <h6 class="section-title">
+                                        <i class="fas fa-file"></i> Document Associé
+                                    </h6>
+                                    <div class="document-info">
+                                        <div class="doc-icon">
+                                            <i class="fas fa-file-pdf"></i>
+                                        </div>
+                                        <div class="doc-details">
+                                            <p class="doc-title">${d.document.titre}</p>
+                                            <p class="doc-type">${d.document.type_document}</p>
+                                            <p class="doc-date">📅 ${d.document.date_upload}</p>
+                                        </div>
+                                        <a href="${d.document.fichier_url}" target="_blank" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-download"></i> Voir
+                                        </a>
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            <!-- Ordonnance -->
+                            ${d.ordonnance ? `
+                                <div class="detail-section">
+                                    <h6 class="section-title">
+                                        <i class="fas fa-prescription-bottle"></i> Ordonnance
+                                    </h6>
+                                    <div class="ordonnance-info">
+                                        <div class="info-grid">
+                                            <div class="info-item">
+                                                <span class="label">Médecin:</span>
+                                                <span class="value">${d.ordonnance.medecin_nom}</span>
+                                            </div>
+                                            <div class="info-item">
+                                                <span class="label">Date Émission:</span>
+                                                <span class="value">${d.ordonnance.date_emission}</span>
+                                            </div>
+                                            <div class="info-item">
+                                                <span class="label">Statut:</span>
+                                                <span class="value">${d.ordonnance.statut}</span>
+                                            </div>
+                                        </div>
+                                        <div class="info-item full-width">
+                                            <strong>💊 Médicaments:</strong>
+                                            <p>${d.ordonnance.medicaments}</p>
+                                        </div>
+                                        <div class="info-item full-width">
+                                            <strong>📋 Posologie:</strong>
+                                            <p>${d.ordonnance.posologie}</p>
+                                        </div>
+                                        ${d.ordonnance.fichier_url ? `
+                                            <a href="${d.ordonnance.fichier_url}" target="_blank" class="btn btn-sm btn-primary mt-2">
+                                                <i class="fas fa-download"></i> Télécharger
+                                            </a>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                        <button type="button" class="btn btn-primary" onclick="editDossier(${d.id})">
+                            <i class="fas fa-edit"></i> Modifier
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ============= FILTRER ET RECHERCHER =============
+
+function filterDossiersByStatut(statut) {
+    if (statut === 'tous') {
+        dossiersMedecin.filtered = dossiersMedecin.list;
+    } else {
+        dossiersMedecin.filtered = dossiersMedecin.list.filter(d => 
+            d.statut_traitement === statut
+        );
+    }
+    displayDossiers(dossiersMedecin.filtered);
+}
+
+function searchDossiers(searchTerm) {
+    const term = searchTerm.toLowerCase();
+    dossiersMedecin.filtered = dossiersMedecin.list.filter(d =>
+        d.patient.nom_complet.toLowerCase().includes(term) ||
+        d.patient.email.toLowerCase().includes(term) ||
+        d.motif_consultation.toLowerCase().includes(term) ||
+        d.diagnostic.toLowerCase().includes(term)
+    );
+    displayDossiers(dossiersMedecin.filtered);
+}
+
+// ============= ACTIONS =============
+
+function editDossier(dossierId) {
+    alert('Fonction modification en développement pour dossier ' + dossierId);
+}
+
+function downloadDossier(dossierId) {
+    const dossier = dossiersMedecin.list.find(d => d.id === dossierId);
+    if (!dossier) return;
+    alert('Téléchargement du dossier ' + dossier.patient.nom_complet);
+}
+
+// ============= HELPERS =============
+
+function getInitials(nom_complet) {
+    const parts = nom_complet.split(' ');
+    return (parts[0]?.charAt(0) || '') + (parts[1]?.charAt(0) || '');
+}
+
+function truncateText(text, length) {
+    if (!text) return 'N/A';
+    return text.length > length ? text.substring(0, length) + '...' : text;
+}
+
+function setupDossierListeners() {
+    // Double-clic pour ouvrir
+    document.querySelectorAll('.dossier-row').forEach(row => {
+        row.addEventListener('dblclick', function() {
+            const dossierId = this.getAttribute('data-dossier-id');
+            viewDossierDetail(parseInt(dossierId));
+        });
+    });
+}
+
+
+
+// ============= INITIALISATION ORDONNANCE =============
+
+async function initOrdonnanceModal() {
+    // Charger la liste des patients
+    await chargerPatientsOrdonnance();
+    
+    // Setup event listeners
+    setupOrdonnanceListeners();
+}
+
+async function chargerPatientsOrdonnance() {
+    try {
+        const response = await fetch('/medecin/api/patients');
+        if (!response.ok) throw new Error('Erreur chargement patients');
+        
+        ordonnancesData.patients = await response.json();
+        
+        // Remplir le select
+        const select = document.getElementById('ordonnancePatientSelect');
+        select.innerHTML = '<option value="">-- Sélectionner un patient --</option>';
+        
+        ordonnancesData.patients.forEach(patient => {
+            const option = document.createElement('option');
+            option.value = patient.id;
+            option.textContent = `${patient.nom_complet} (${patient.age} ans)`;
+            option.dataset.patient = JSON.stringify(patient);
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Erreur chargement patients:', error);
+    }
+}
+
+function setupOrdonnanceListeners() {
+    // Sélection du patient
+    const patientSelect = document.getElementById('ordonnancePatientSelect');
+    if (patientSelect) {
+        patientSelect.addEventListener('change', function() {
+            if (this.value) {
+                const option = this.options[this.selectedIndex];
+                const patient = JSON.parse(option.dataset.patient);
+                
+                ordonnancesData.patientSelectionne = patient;
+                
+                // Afficher les infos du patient
+                document.getElementById('patientInfoDisplay').style.display = 'block';
+                document.getElementById('displayPatientNom').textContent = patient.nom_complet;
+                document.getElementById('displayPatientAge').textContent = patient.age + ' ans';
+                document.getElementById('displayPatientEmail').textContent = patient.email;
+                document.getElementById('displayPatientTel').textContent = patient.telephone || 'N/A';
+                
+                // Mettre à jour les champs cachés
+                document.getElementById('ordonnancePatientId').value = patient.id;
+                document.getElementById('ordonnancePatientName').value = patient.nom_complet;
+            } else {
+                document.getElementById('patientInfoDisplay').style.display = 'none';
+            }
+        });
+    }
+    
+    // Soumettre ordonnance
+    const submitBtn = document.getElementById('submitOrdonnanceBtn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', submitOrdonnance);
+    }
+}
+
+// ============= OUVRIR MODAL CRÉATION ORDONNANCE =============
+
+function openNouvelleOrdonnance() {
+    const modal = new bootstrap.Modal(document.getElementById('ordonnanceModal'));
+    
+    // Réinitialiser le formulaire
+    document.getElementById('ordonnanceForm').reset();
+    document.getElementById('patientInfoDisplay').style.display = 'none';
+    document.getElementById('ordonnancePatientSelect').value = '';
+    
+    // Charger les patients frais
+    chargerPatientsOrdonnance();
+    
+    modal.show();
+}
+
+// ============= SOUMETTRE ORDONNANCE =============
+
+async function submitOrdonnance() {
+    // Validation
+    const patientId = document.getElementById('ordonnancePatientId').value;
+    const medicaments = document.getElementById('ordonnanceMedicaments').value.trim();
+    const posologie = document.getElementById('ordonnancePosologie').value.trim();
+    const duree = document.getElementById('ordonnanceDuree').value.trim();
+    
+    if (!patientId) {
+        alert('⚠️ Veuillez sélectionner un patient');
+        return;
+    }
+    
+    if (!medicaments) {
+        alert('⚠️ Veuillez renseigner les médicaments');
+        return;
+    }
+    
+    if (!posologie) {
+        alert('⚠️ Veuillez renseigner la posologie');
+        return;
+    }
+    
+    if (!duree) {
+        alert('⚠️ Veuillez renseigner la durée du traitement');
+        return;
+    }
+    
+    // Afficher un loading
+    const submitBtn = document.getElementById('submitOrdonnanceBtn');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Création en cours...';
+    
+    try {
+        const formData = new FormData();
+        formData.append('patient_id', patientId);
+        formData.append('medicaments', medicaments);
+        formData.append('posologie', posologie);
+        formData.append('duree_traitement', duree);
+        
+        const response = await fetch('/medecin/api/ordonnances/creer', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Erreur création ordonnance');
+        }
+        
+        const result = await response.json();
+        
+        // Succès
+        alert('✅ Ordonnance créée et PDF généré avec succès!');
+        
+        // Fermer la modale
+        const modal = bootstrap.Modal.getInstance(document.getElementById('ordonnanceModal'));
+        modal.hide();
+        
+        // Recharger la liste des ordonnances
+        if (typeof loadOrdonnances === 'function') {
+            loadOrdonnances();
+        }
+        
+        // Télécharger le PDF automatiquement (optionnel)
+        downloadOrdonnancePDF(result.ordonnance_id);
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur: ' + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }
+}
+
+// ============= CHARGER ORDONNANCES =============
+
+async function loadOrdonnances() {
+    const mainContent = document.getElementById('mainContent');
+    
+    try {
+        const response = await fetch('/medecin/api/ordonnances');
+        if (!response.ok) throw new Error("Erreur serveur");
+        
+        const data = await response.json();
+        ordonnancesData.list = data.ordonnances || [];
+        
+        displayOrdonnances(ordonnancesData.list);
+        
+    } catch (error) {
+        console.error('Erreur chargement ordonnances:', error);
+        mainContent.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle"></i>
+                Erreur lors du chargement des ordonnances
+            </div>
+        `;
+    }
+}
+
+// ============= AFFICHER ORDONNANCES =============
+
+function displayOrdonnances(ordonnances) {
+    const container = document.getElementById('ordonnancesTable');
+    
+    if (!ordonnances || ordonnances.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-prescription-bottle"></i>
+                <p>Aucune ordonnance créée</p>
+                <button class="btn btn-primary mt-3" onclick="openNouvelleOrdonnance()">
+                    <i class="fas fa-plus"></i> Créer une ordonnance
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    const html = `
+        <table class="table-ordonnances">
+            <thead>
+                <tr>
+                    <th>Patient</th>
+                    <th>Date d'émission</th>
+                    <th>Médicaments</th>
+                    <th>Durée</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${ordonnances.map(ord => `
+                    <tr class="ordonnance-row">
+                        <td>
+                            <div class="patient-info">
+                                <span class="patient-avatar">
+                                    ${ord.patient.nom_complet.charAt(0).toUpperCase()}${ord.patient.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || ''}
+                                </span>
+                                <span class="patient-name">${ord.patient.nom_complet}</span>
+                            </div>
+                        </td>
+                        <td>${ord.date_emission}</td>
+                        <td>
+                            <span title="${ord.medicaments}" class="truncate">
+                                ${ord.medicaments.substring(0, 40)}${ord.medicaments.length > 40 ? '...' : ''}
+                            </span>
+                        </td>
+                        <td>${ord.duree_traitement}</td>
+                        <td>
+                            <span class="status-badge status-${ord.statut.toLowerCase()}">
+                                ${ord.statut}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn-action view" onclick="viewOrdonnanceDetail(${ord.id})" title="Voir">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <a href="/medecin/api/ordonnances/telecharger/${ord.id}" class="btn-action download" title="Télécharger">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                                <button class="btn-action delete" onclick="deleteOrdonnance(${ord.id})" title="Supprimer">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    container.innerHTML = html;
+}
+
+// ============= VOIR DÉTAILS ORDONNANCE =============
+
+function viewOrdonnanceDetail(ordonnanceId) {
+    const ordonnance = ordonnancesData.list.find(o => o.id === ordonnanceId);
+    if (!ordonnance) return;
+    
+    const modalHTML = `
+        <div class="modal fade" id="detailOrdonnanceModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%); color: white;">
+                        <h5 class="modal-title">
+                            <i class="fas fa-file-prescription"></i> Ordonnance Détails
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="detail-section">
+                            <h6 class="section-title">
+                                <i class="fas fa-user"></i> Patient
+                            </h6>
+                            <p><strong>${ordonnance.patient.nom_complet}</strong></p>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h6 class="section-title">
+                                <i class="fas fa-pills"></i> Prescription
+                            </h6>
+                            <p><strong>Médicaments:</strong></p>
+                            <p>${ordonnance.medicaments.replace(/\n/g, '<br>')}</p>
+                            <p style="margin-top: 12px;"><strong>Posologie:</strong></p>
+                            <p>${ordonnance.posologie.replace(/\n/g, '<br>')}</p>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h6 class="section-title">
+                                <i class="fas fa-calendar"></i> Infos
+                            </h6>
+                            <p><strong>Date d'émission:</strong> ${ordonnance.date_emission}</p>
+                            <p><strong>Durée:</strong> ${ordonnance.duree_traitement}</p>
+                            <p><strong>Médecin:</strong> ${ordonnance.medecin_nom}</p>
+                            <p><strong>Statut:</strong> <span class="status-badge status-${ordonnance.statut.toLowerCase()}">${ordonnance.statut}</span></p>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                        <a href="/medecin/api/ordonnances/telecharger/${ordonnanceId}" class="btn btn-primary">
+                            <i class="fas fa-download"></i> Télécharger PDF
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Ajouter et afficher la modale
+    let existingModal = document.getElementById('detailOrdonnanceModal');
+    if (existingModal) existingModal.remove();
+    
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = modalHTML;
+    document.body.appendChild(tempDiv.firstElementChild);
+    
+    const modal = new bootstrap.Modal(document.getElementById('detailOrdonnanceModal'));
+    modal.show();
+}
+
+// ============= TÉLÉCHARGER PDF =============
+
+function downloadOrdonnancePDF(ordonnanceId) {
+    const link = document.createElement('a');
+    link.href = `/medecin/api/ordonnances/telecharger/${ordonnanceId}`;
+    link.download = `ordonnance_${ordonnanceId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// ============= SUPPRIMER ORDONNANCE =============
+
+function deleteOrdonnance(ordonnanceId) {
+    const confirmed = confirm('Êtes-vous sûr de vouloir supprimer cette ordonnance?');
+    if (!confirmed) return;
+    
+    alert('Fonction suppression en développement');
+    // À implémenter: route DELETE /api/ordonnances/{id}
+}
+
+// ============= GET ORDONNANCES CONTENT =============
+
+function getOrdonnancesContent() {
+    return `
+        <div class="content-section">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <i class="fas fa-prescription-bottle"></i> Ordonnances
+                </h2>
+                <div class="section-actions">
+                    <button class="btn btn-primary" onclick="openNouvelleOrdonnance()">
+                        <i class="fas fa-plus-circle"></i> Nouvelle Ordonnance
+                    </button>
+                </div>
+            </div>
+            
+            <div class="custom-table" id="ordonnancesTable">
+                <p class="text-center text-muted">Chargement des ordonnances...</p>
+            </div>
+        </div>
+    `;
+}
+
+// ============= CSS STYLES ORDONNANCES =============
+
+const ordonnanceStyles = `
+    <style>
+        .table-ordonnances {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .table-ordonnances thead {
+            background: linear-gradient(135deg, #0d8abc 0%, #0a6d9e 100%);
+            color: white;
+        }
+        
+        .table-ordonnances thead th {
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .table-ordonnances tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+            transition: all 0.3s ease;
+        }
+        
+        .table-ordonnances tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .table-ordonnances tbody td {
+            padding: 14px 16px;
+            vertical-align: middle;
+            font-size: 14px;
+        }
+        
+        .patient-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .patient-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0d8abc, #00bcd4);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 16px;
+        }
+        
+        .patient-name {
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-active {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-inactive {
+            background-color: #e5e7eb;
+            color: #374151;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-action {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            color: white;
+            text-decoration: none;
+            background-color: #0d8abc;
+        }
+        
+        .btn-action:hover {
+            background-color: #0a6d9e;
+            transform: scale(1.1);
+        }
+        
+        .btn-action.download {
+            background-color: #10b981;
+        }
+        
+        .btn-action.download:hover {
+            background-color: #059669;
+        }
+        
+        .btn-action.delete {
+            background-color: #ef4444;
+        }
+        
+        .btn-action.delete:hover {
+            background-color: #dc2626;
+        }
+        
+        .truncate {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: #ccc;
+        }
+        
+        .empty-state p {
+            font-size: 16px;
+            margin: 0;
+            color: #666;
+        }
+        
+        .detail-section {
+            background: #f9f9f9;
+            border-left: 4px solid #0d8abc;
+            padding: 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+        
+        .section-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0d8abc;
+            margin: 0 0 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .detail-section p {
+            margin: 8px 0;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        @media (max-width: 768px) {
+            .table-ordonnances {
+                font-size: 12px;
+            }
+            
+            .table-ordonnances thead th,
+            .table-ordonnances tbody td {
+                padding: 10px 8px;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .btn-action {
+                width: 28px;
+                height: 28px;
+            }
+        }
+    </style>
+`;
+
+// Injecter les styles
+if (document.head) {
+    document.head.insertAdjacentHTML('beforeend', ordonnanceStyles);
+}
+
+// ============= UPLOAD PHOTO PROFIL =============
+document.getElementById("profileAvatar").addEventListener("click", () => {
+    document.getElementById("photoInput").click();
+});
+
+document.getElementById("photoInput").addEventListener("change", async (e) => {
+
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("photo", file);
+
+    const res = await fetch("/medecin/api/upload-photo", {
+        method: "POST",
+        body: formData
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+        document.getElementById("profileAvatar").src = data.photo_url;
+    } else {
+        alert("Erreur upload");
+    }
+});
