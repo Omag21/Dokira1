@@ -194,9 +194,10 @@ def get_current_user_from_cookie(request: Request, db: Session) -> Patient:
 # ============= ROUTES HTML - PAGES =============
 
 @router.get("/", response_class=HTMLResponse)
-def home(request: Request):
+def home(request: Request, db: Session = Depends(get_db)):
     """Page d'accueil principale"""
-    return templates.TemplateResponse("main.html", {"request": request})
+    medecins = db.query(Medecin).filter(Medecin.est_actif == True).all()
+    return templates.TemplateResponse("main.html", {"request": request, "medecins": medecins})
 
 
 @router.get("/main", response_class=HTMLResponse)
@@ -593,35 +594,57 @@ async def get_patient_rendez_vous(request: Request, db: Session = Depends(get_db
         )
     
     try:
-        rendez_vous = db.query(RendezVous).filter(
+        rendez_vous = db.query(
+            RendezVous,
+            Medecin.nom,
+            Medecin.prenom,
+            Medecin.specialite,
+            Medecin.annees_experience,
+            Medecin.prix_consultation
+        ).join(
+            Medecin, RendezVous.medecin_id == Medecin.id
+        ).filter(
             RendezVous.patient_id == current_user.id
-        ).order_by(RendezVous.date_heure.desc()).all()
+        ).order_by(
+            RendezVous.date_heure.desc()
+        ).all()
         
         result = []
-        for rv in rendez_vous:
+        for rv, medecin_nom, medecin_prenom, medecin_specialite, medecin_exp, medecin_prix in rendez_vous:
+            
+            specialite_value = medecin_specialite
+            if hasattr(medecin_specialite, 'value'):
+                specialite_value = medecin_specialite.value
+            
             result.append({
                 "id": rv.id,
                 "medecin_id": rv.medecin_id,
+                "medecin_nom": f"Dr. {medecin_prenom} {medecin_nom}",
+                "medecin_prenom": medecin_prenom,
+                "medecin_nom_famille": medecin_nom,
+                "medecin_specialite": specialite_value or "Non spécifié",
+                "medecin_experience": medecin_exp or 0,
+                "medecin_prix": medecin_prix or None,
                 "date_heure": rv.date_heure.isoformat(),
-                "motif": rv.motif,
-                "statut": rv.statut.value,
-                "type_consultation": rv.type_consultation.value if rv.type_consultation else "Cabinet",
-                "lieu": rv.lieu,
+                "motif": rv.motif or "",
+                "statut": rv.statut or "Planifié",  # ← Déjà une string
+                "type_consultation": rv.type_consultation or "Cabinet",  # ← Déjà une string
+                "lieu": rv.lieu or "",
                 "date_creation": rv.date_creation.isoformat() if rv.date_creation else None
             })
         
         return result
         
     except Exception as e:
-        print(f"❌ Erreur: {e}")
+        print(f"❌ Erreur dans get_patient_rendez_vous: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
-        )
-
-
-# ============= PATIENT - CRÉER UN NOUVEAU RENDEZ-VOUS =============
-
+        )     
+           
+           
 @router.post("/api/rendez-vous/creer")
 async def creer_rendez_vous(
     request: Request,
@@ -638,19 +661,11 @@ async def creer_rendez_vous(
         raise HTTPException(status_code=401, detail="Non authentifié")
 
     try:
-        # ✅ VÉRIFICATION 1: Vérifier que le médecin existe (UNE SEULE FOIS)
         medecin = db.query(Medecin).filter(Medecin.id == medecin_id).first()
         if not medecin:
             raise HTTPException(status_code=404, detail="Médecin non trouvé")
 
-        # ✅ VÉRIFICATION 2: Vérifier que le médecin a une spécialité
-        if not medecin.specialite:
-            raise HTTPException(
-                status_code=400,
-                detail="Le médecin sélectionné n'a pas de spécialité définie. Veuillez contacter le support."
-            )
-
-        # ✅ VÉRIFICATION 3: Vérifier type de consultation
+        # ✅ Vérifier avec l'Enum mais stocker comme string
         types_valides = [t.value for t in TypeConsultation]
         if type_consultation not in types_valides:
             raise HTTPException(
@@ -658,14 +673,12 @@ async def creer_rendez_vous(
                 detail=f"Type de consultation invalide. Acceptés: {types_valides}"
             )
 
-        # ✅ VÉRIFICATION 4: Lieu obligatoire pour Domicile
         if type_consultation == "Domicile" and not lieu:
             raise HTTPException(
                 status_code=400,
                 detail="Le lieu est obligatoire pour une consultation à domicile"
             )
 
-        # ✅ VÉRIFICATION 5: Parser date avec sécurité
         try:
             date_heure_obj = datetime.fromisoformat(date_heure.replace("Z", ""))
         except ValueError:
@@ -674,18 +687,17 @@ async def creer_rendez_vous(
                 detail="Format de date invalide. Utilisez: 2026-01-25T14:30"
             )
 
-       
-        specialite_final = medecin.specialite.value
+        specialite_final = medecin.specialite.value if hasattr(medecin.specialite, 'value') else medecin.specialite
 
-        # ✅ Création du rendez-vous avec tous les paramètres validés
+        # ✅ Création du rendez-vous avec STRINGS
         nouveau_rdv = RendezVous(
             patient_id=current_user.id,
             medecin_id=medecin_id,
             date_heure=date_heure_obj,
             motif=motif,
-            type_consultation=TypeConsultation(type_consultation),
+            type_consultation=type_consultation,  # ← String
             lieu=lieu if lieu else None,
-            statut=StatutRendezVous.PLANIFIE,
+            statut="Planifié",  # ← String
             specialite=specialite_final
         )
 
@@ -699,7 +711,7 @@ async def creer_rendez_vous(
             "rendez_vous": {
                 "id": nouveau_rdv.id,
                 "date_heure": nouveau_rdv.date_heure.isoformat(),
-                "type_consultation": nouveau_rdv.type_consultation,
+                "type_consultation": nouveau_rdv.type_consultation,  # ← String
                 "lieu": nouveau_rdv.lieu
             }
         }
@@ -715,11 +727,14 @@ async def creer_rendez_vous(
             status_code=500,
             detail=f"Erreur interne serveur: {str(e)}"
         )
+        
+        
 # ================== MODIFIER RENDEZ-VOUS ==================
 @router.put("/api/rendez-vous/{rdv_id}")
 async def modifier_rendez_vous(
     rdv_id: int,
     request: Request,
+    medecin_id: int = Body(None),
     date_heure: str = Body(None),
     motif: str = Body(None),
     type_consultation: str = Body(None),
@@ -733,6 +748,7 @@ async def modifier_rendez_vous(
         raise HTTPException(status_code=401, detail="Non authentifié")
 
     try:
+        # Récupérer le rendez-vous
         rdv = db.query(RendezVous).filter(
             RendezVous.id == rdv_id,
             RendezVous.patient_id == current_user.id
@@ -740,6 +756,20 @@ async def modifier_rendez_vous(
 
         if not rdv:
             raise HTTPException(status_code=404, detail="Rendez-vous non trouvé")
+
+        # Modifier le médecin
+        if medecin_id is not None:
+            medecin = db.query(Medecin).filter(Medecin.id == medecin_id).first()
+            if not medecin:
+                raise HTTPException(status_code=404, detail="Médecin non trouvé")
+            rdv.medecin_id = medecin_id
+
+        # Récupérer les infos du médecin pour la réponse
+        medecin = db.query(Medecin).filter(Medecin.id == rdv.medecin_id).first()
+        medecin_nom = f"Dr. {medecin.prenom} {medecin.nom}" if medecin else "Médecin"
+        medecin_specialite = medecin.specialite.value if medecin and medecin.specialite else "Non spécifié"
+        medecin_experience = medecin.annees_experience if medecin else 0
+        medecin_prix = medecin.prix_consultation if medecin else None
 
         # Modifier date
         if date_heure:
@@ -755,21 +785,22 @@ async def modifier_rendez_vous(
         if motif:
             rdv.motif = motif
 
-        # Modifier type_consultation
+        # ✅ CORRECTION : type_consultation est STRING dans la base
         if type_consultation:
+            # Vérifier que la valeur est valide selon l'Enum
             types_valides = [t.value for t in TypeConsultation]
             if type_consultation not in types_valides:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Type invalide. Acceptés: {types_valides}"
                 )
-            rdv.type_consultation = TypeConsultation(type_consultation)
+            rdv.type_consultation = type_consultation  # ← Stocker comme string
 
         # Modifier lieu
         if lieu is not None:
             rdv.lieu = lieu
 
-        # Modifier statut
+        # ✅ CORRECTION : statut est STRING dans la base
         if statut:
             statuts_valides = [s.value for s in StatutRendezVous]
             if statut not in statuts_valides:
@@ -777,20 +808,27 @@ async def modifier_rendez_vous(
                     status_code=400,
                     detail=f"Statut invalide. Acceptés: {statuts_valides}"
                 )
-            rdv.statut = StatutRendezVous(statut)
+            rdv.statut = statut  # ← Stocker comme string
 
         db.commit()
         db.refresh(rdv)
 
+        # ✅ Retourner les données (sans .value car ce sont des strings)
         return {
             "success": True,
             "message": "Rendez-vous modifié avec succès",
             "rendez_vous": {
                 "id": rdv.id,
+                "medecin_id": rdv.medecin_id,
+                "medecin_nom": medecin_nom,
+                "medecin_specialite": medecin_specialite,
+                "medecin_experience": medecin_experience,
+                "medecin_prix": medecin_prix,
                 "date_heure": rdv.date_heure.isoformat(),
-                "type_consultation": rdv.type_consultation.value,
-                "lieu": rdv.lieu,
-                "statut": rdv.statut.value
+                "motif": rdv.motif or "",
+                "type_consultation": rdv.type_consultation,  # ← Déjà une string
+                "lieu": rdv.lieu or "",
+                "statut": rdv.statut or "Planifié"  # ← Déjà une string
             }
         }
 
@@ -804,8 +842,10 @@ async def modifier_rendez_vous(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur interne serveur: {str(e)}"
-        )
-
+        )     
+        
+        
+        
 # ============= PATIENT - SUPPRIMER UN RENDEZ-VOUS =============
 @router.delete("/api/rendez-vous/{rdv_id}")
 async def supprimer_rendez_vous(

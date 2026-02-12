@@ -516,6 +516,442 @@ async function loadPatientData() {
     return null;
 }
 
+
+
+// ============= AFFICHER LE RÉSUMÉ DU PROFIL =============
+async function showProfilResume() {
+    try {
+        const response = await fetch('/api/patient/full-info');
+        if (!response.ok) throw new Error('Erreur chargement profil');
+        
+        const patient = await response.json();
+        
+        // Formater la date de naissance
+        let dateNaissance = 'Non renseignée';
+        if (patient.date_naissance) {
+            const date = new Date(patient.date_naissance);
+            dateNaissance = date.toLocaleDateString('fr-FR', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+        }
+
+        // Calculer l'âge
+        let age = '';
+        if (patient.date_naissance) {
+            const today = new Date();
+            const birthDate = new Date(patient.date_naissance);
+            let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                calculatedAge--;
+            }
+            age = `(${calculatedAge} ans)`;
+        }
+
+        // Déterminer le niveau de complétion du profil
+        let completedFields = 0;
+        let totalFields = 7; // Nom, Prénom, Email, Téléphone, Adresse, Date naissance, Genre
+        
+        if (patient.nom) completedFields++;
+        if (patient.prenom) completedFields++;
+        if (patient.email) completedFields++;
+        if (patient.telephone) completedFields++;
+        if (patient.adresse) completedFields++;
+        if (patient.date_naissance) completedFields++;
+        if (patient.genre) completedFields++;
+        
+        const completionPercent = Math.round((completedFields / totalFields) * 100);
+        
+        // Déterminer le statut de sécurité
+        let securityStatus = 'Standard';
+        let securityIcon = 'fa-shield';
+        let securityColor = 'orange';
+        
+        // Vérifier si l'email est vérifié (simulé)
+        const isEmailVerified = patient.est_email_verifie || false;
+        
+        if (isEmailVerified) {
+            securityStatus = 'Protégé';
+            securityIcon = 'fa-shield-alt';
+            securityColor = 'green';
+        }
+
+        // Informations médicales - compter les champs remplis
+        let medicalCount = 0;
+        if (patient.groupe_sanguin) medicalCount++;
+        if (patient.allergies && patient.allergies.trim() !== '') medicalCount++;
+        if (patient.antecedents_medicaux && patient.antecedents_medicaux.trim() !== '') medicalCount++;
+        if (patient.traitements_en_cours && patient.traitements_en_cours.trim() !== '') medicalCount++;
+
+        // ✅ CONSTRUCTION DU HTML DE RÉSUMÉ
+        let html = `
+            <div class="profil-resume-container">
+                <!-- EN-TÊTE DU PROFIL -->
+                <div class="profil-header-card">
+                    <div class="profil-avatar-large">
+                        <img src="${patient.photo_profil_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(patient.prenom + ' ' + patient.nom) + '&background=0D8ABC&color=fff&size=128'}" 
+                             alt="Photo de profil"
+                             id="profilAvatarLarge"
+                             onerror="this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent('${patient.prenom || ''} ${patient.nom || ''}') + '&background=0D8ABC&color=fff&size=128'">
+                    </div>
+                    <div class="profil-header-info">
+                        <h1>${patient.prenom || ''} ${patient.nom || ''}</h1>
+                        <p class="profil-email">${patient.email || 'Email non renseigné'}</p>
+                        <div class="profil-completion">
+                            <div class="completion-bar-container">
+                                <div class="completion-bar" style="width: ${completionPercent}%;"></div>
+                            </div>
+                            <span class="completion-text">Profil complété à ${completionPercent}%</span>
+                        </div>
+                    </div>
+                    <div class="profil-header-actions">
+                        <button class="btn btn-primary" onclick="showParametresInterface()">
+                            <i class="fas fa-edit"></i> Modifier le profil
+                        </button>
+                    </div>
+                </div>
+
+                <!-- GRILLE DES INFORMATIONS -->
+                <div class="profil-grid">
+                    <!-- CARTE INFORMATIONS PERSONNELLES -->
+                    <div class="profil-card">
+                        <div class="profil-card-header">
+                            <div class="card-icon blue">
+                                <i class="fas fa-id-card"></i>
+                            </div>
+                            <h2>Informations Personnelles</h2>
+                            <a href="#" onclick="showParametresInterface(); return false;" class="card-edit-btn">
+                                <i class="fas fa-pencil-alt"></i> Modifier
+                            </a>
+                        </div>
+                        <div class="profil-card-body">
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-user"></i> Nom complet:</span>
+                                <span class="info-value">${patient.prenom || ''} ${patient.nom || ''} <span class="info-age">${age}</span></span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-calendar"></i> Date de naissance:</span>
+                                <span class="info-value">${dateNaissance}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-venus-mars"></i> Genre:</span>
+                                <span class="info-value">${patient.genre || 'Non renseigné'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-phone"></i> Téléphone:</span>
+                                <span class="info-value">${patient.telephone || 'Non renseigné'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-map-marker-alt"></i> Adresse:</span>
+                                <span class="info-value">${patient.adresse || 'Non renseignée'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-city"></i> Ville / CP:</span>
+                                <span class="info-value">${patient.ville || ''} ${patient.code_postal || ''}</span>
+                            </div>
+                        </div>
+                        <div class="profil-card-footer">
+                            <span class="status-badge ${completedFields === totalFields ? 'success' : 'warning'}">
+                                ${completedFields === totalFields ? '✓ Complet' : '⚠️ À compléter'}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- CARTE SÉCURITÉ DU COMPTE -->
+                    <div class="profil-card">
+                        <div class="profil-card-header">
+                            <div class="card-icon ${securityColor}">
+                                <i class="fas ${securityIcon}"></i>
+                            </div>
+                            <h2>Sécurité du Compte</h2>
+                            <a href="#" onclick="showParametresInterface(); return false;" class="card-edit-btn">
+                                <i class="fas fa-pencil-alt"></i> Modifier
+                            </a>
+                        </div>
+                        <div class="profil-card-body">
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-envelope"></i> Email:</span>
+                                <span class="info-value">${patient.email || 'Non renseigné'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-check-circle"></i> Email vérifié:</span>
+                                <span class="info-value">
+                                    ${isEmailVerified ? 
+                                        '<span class="badge-success"><i class="fas fa-check"></i> Vérifié</span>' : 
+                                        '<span class="badge-warning"><i class="fas fa-clock"></i> Non vérifié</span>'}
+                                </span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-lock"></i> Mot de passe:</span>
+                                <span class="info-value">••••••••</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-shield-alt"></i> Authentification:</span>
+                                <span class="info-value">Standard</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-history"></i> Dernière connexion:</span>
+                                <span class="info-value">${patient.derniere_connexion ? new Date(patient.derniere_connexion).toLocaleDateString('fr-FR') : 'Première connexion'}</span>
+                            </div>
+                        </div>
+                        <div class="profil-card-footer">
+                            <span class="status-badge success">
+                                <i class="fas fa-shield-alt"></i> ${securityStatus}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- CARTE INFORMATIONS MÉDICALES -->
+                    <div class="profil-card">
+                        <div class="profil-card-header">
+                            <div class="card-icon orange">
+                                <i class="fas fa-heartbeat"></i>
+                            </div>
+                            <h2>Informations Médicales</h2>
+                            <a href="#" onclick="displaySection('dossier'); return false;" class="card-edit-btn">
+                                <i class="fas fa-folder-medical"></i> Voir dossier
+                            </a>
+                        </div>
+                        <div class="profil-card-body">
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-tint"></i> Groupe sanguin:</span>
+                                <span class="info-value"><strong>${patient.groupe_sanguin || 'Non renseigné'}</strong></span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-allergies"></i> Allergies:</span>
+                                <span class="info-value">${patient.allergies ? patient.allergies.split(',').map(a => a.trim()).join(', ') : 'Aucune'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-history"></i> Antécédents:</span>
+                                <span class="info-value">${patient.antecedents_medicaux ? 'Renseignés' : 'Aucun'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-prescription-bottle"></i> Traitements:</span>
+                                <span class="info-value">${patient.traitements_en_cours ? 'En cours' : 'Aucun'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-id-card"></i> N° Sécurité sociale:</span>
+                                <span class="info-value">${patient.numero_securite_sociale ? '••••' + patient.numero_securite_sociale.slice(-4) : 'Non renseigné'}</span>
+                            </div>
+                        </div>
+                        <div class="profil-card-footer">
+                            <span class="status-badge ${medicalCount > 0 ? 'info' : 'warning'}">
+                                ${medicalCount} information${medicalCount > 1 ? 's' : ''} médicale${medicalCount > 1 ? 's' : ''}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Ajouter le CSS directement dans le head s'il n'existe pas déjà
+        if (!document.getElementById('profil-resume-css')) {
+            const style = document.createElement('style');
+            style.id = 'profil-resume-css';
+            style.textContent = `
+                .profil-resume-container {
+                    padding: 20px;
+                }
+                .profil-header-card {
+                    display: flex;
+                    align-items: center;
+                    gap: 24px;
+                    background: white;
+                    border-radius: 16px;
+                    padding: 24px;
+                    margin-bottom: 24px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                }
+                .profil-avatar-large {
+                    width: 100px;
+                    height: 100px;
+                    border-radius: 50%;
+                    overflow: hidden;
+                    border: 3px solid #0D8ABC;
+                }
+                .profil-avatar-large img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+                .profil-header-info {
+                    flex: 1;
+                }
+                .profil-header-info h1 {
+                    margin: 0 0 8px 0;
+                    font-size: 28px;
+                    color: #1a2b3c;
+                }
+                .profil-email {
+                    color: #6b7280;
+                    margin: 0 0 12px 0;
+                }
+                .profil-completion {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+                .completion-bar-container {
+                    width: 200px;
+                    height: 8px;
+                    background: #e5e7eb;
+                    border-radius: 4px;
+                    overflow: hidden;
+                }
+                .completion-bar {
+                    height: 100%;
+                    background: #0D8ABC;
+                    border-radius: 4px;
+                    transition: width 0.3s ease;
+                }
+                .completion-text {
+                    font-size: 14px;
+                    color: #6b7280;
+                }
+                .profil-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+                    gap: 24px;
+                }
+                .profil-card {
+                    background: white;
+                    border-radius: 16px;
+                    padding: 20px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                    display: flex;
+                    flex-direction: column;
+                }
+                .profil-card-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    margin-bottom: 20px;
+                    padding-bottom: 16px;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                .card-icon {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 12px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                }
+                .card-icon.blue { background: #0D8ABC; }
+                .card-icon.green { background: #10b981; }
+                .card-icon.orange { background: #f59e0b; }
+                .card-icon.red { background: #ef4444; }
+                .profil-card-header h2 {
+                    flex: 1;
+                    margin: 0;
+                    font-size: 18px;
+                    color: #1a2b3c;
+                }
+                .card-edit-btn {
+                    color: #0D8ABC;
+                    text-decoration: none;
+                    font-size: 14px;
+                }
+                .card-edit-btn:hover {
+                    text-decoration: underline;
+                }
+                .profil-card-body {
+                    flex: 1;
+                }
+                .info-row {
+                    display: flex;
+                    margin-bottom: 12px;
+                    font-size: 15px;
+                }
+                .info-label {
+                    width: 140px;
+                    color: #6b7280;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .info-label i {
+                    width: 16px;
+                    color: #9ca3af;
+                }
+                .info-value {
+                    flex: 1;
+                    color: #1a2b3c;
+                    font-weight: 500;
+                }
+                .info-age {
+                    color: #6b7280;
+                    font-size: 14px;
+                    font-weight: normal;
+                }
+                .profil-card-footer {
+                    margin-top: 20px;
+                    padding-top: 16px;
+                    border-top: 1px solid #e5e7eb;
+                    display: flex;
+                    justify-content: flex-end;
+                }
+                .status-badge {
+                    padding: 4px 12px;
+                    border-radius: 20px;
+                    font-size: 13px;
+                    font-weight: 500;
+                }
+                .status-badge.success {
+                    background: #d1fae5;
+                    color: #065f46;
+                }
+                .status-badge.warning {
+                    background: #fef3c7;
+                    color: #92400e;
+                }
+                .status-badge.info {
+                    background: #dbeafe;
+                    color: #1e40af;
+                }
+                .badge-success {
+                    color: #10b981;
+                }
+                .badge-warning {
+                    color: #f59e0b;
+                }
+                @media (max-width: 768px) {
+                    .profil-header-card {
+                        flex-direction: column;
+                        text-align: center;
+                    }
+                    .profil-completion {
+                        flex-direction: column;
+                    }
+                    .info-row {
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .info-label {
+                        width: 100%;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        document.getElementById('mainContent').innerHTML = html;
+
+    } catch (error) {
+        console.error('Erreur chargement résumé profil:', error);
+        document.getElementById('mainContent').innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Erreur lors du chargement du profil</p>
+            </div>
+        `;
+    }
+}
+
+
 // Charger les statistiques du dashboard
 async function loadDashboardStats() {
     try {
@@ -577,7 +1013,7 @@ async function loadMedecinsList() {
                 color: 'blue',
                 title: `Dr. ${medecin.prenom} ${medecin.nom}`,
                 subtitle: medecin.specialite || "Non spécifié",
-                description: `${medecin.annees_experience || 0} ans d'expérience • ${medecin.prix_consultation || 'N/A'}€`,
+                description: `${medecin.annees_experience || 0} ans d'expérience • ${medecin.prix_consultation || 'N/A'}CFA`,
                 meta: [
                     { icon: 'fa-envelope', text: medecin.email || 'Email non disponible' },
                     { icon: 'fa-phone', text: medecin.telephone || 'Téléphone non disponible' }
@@ -952,7 +1388,7 @@ async function selectConversation(medecinId, element) {
                               class="message-textarea" 
                               placeholder="Écrivez votre message..."
                               rows="1"></textarea>
-                    <button type="submit" class="message-send-btn" title="Envoyer">
+                    <button type="button" class="message-send-btn" title="Envoyer" onclick="sendMessage(event, ${medecinId})">
                         <i class="fas fa-paper-plane"></i>
                     </button>
                 </form>
@@ -962,7 +1398,10 @@ async function selectConversation(medecinId, element) {
         const conversationMain = document.getElementById('conversationMain');
         if (conversationMain) {
             conversationMain.innerHTML = html;
-            
+            setTimeout(() => {
+            setupMessageForm(medecinId);
+               }, 0);
+                    
             // Auto-resize textarea
             const textarea = document.getElementById('messageInput');
             if (textarea) {
@@ -998,6 +1437,50 @@ async function selectConversation(medecinId, element) {
             </div>
         `;
     }
+}
+
+
+
+function setupMessageForm(medecinId) {
+    const textarea = document.getElementById('messageInput');
+    const form = document.getElementById('messageForm');
+    const sendBtn = document.querySelector('.message-send-btn');
+    
+    if (!textarea || !form || !sendBtn) {
+        console.error('❌ Éléments du formulaire non trouvés');
+        return;
+    }
+    
+    // ✅ Auto-resize textarea
+    textarea.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+    });
+    
+    // ✅ Gestion du clique du bouton ENVOYER
+    sendBtn.addEventListener('click', async function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    await sendMessage(medecinId); // Ne pas passer l'événement
+    });
+    
+    // ✅ Gestion de la soumission du formulaire (Enter)
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        await sendMessage(medecinId);
+    });
+    
+    // ✅ Shift+Enter pour nouvelle ligne, Enter seul pour envoyer
+    textarea.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            sendMessage(medecinId);
+        }
+    });
+    
+    textarea.focus();
 }
 
 
@@ -1284,6 +1767,12 @@ function showConversationList() {
 // ============= ENVOYER UN MESSAGE =============
 
 async function sendMessage(e, medecinId) {
+
+     if (typeof e === 'number' || (e && typeof e === 'object' && e.preventDefault === undefined)) {
+        // Cas où le premier paramètre est medecinId
+        medecinId = e;
+        e = { preventDefault: () => {} }; 
+     }
     e.preventDefault();
     
     const textarea = document.getElementById('messageInput');
@@ -1379,85 +1868,6 @@ async function sendNewMessage(medecinId, content) {
     }
 }
 
-// Envoyer un message dans une conversation
-async function sendMessage(medecinId) {
-    const content = document.getElementById('newMessageText').value;
-    
-    if (!content.trim()) {
-        alert('Le message ne peut pas être vide');
-        return;
-    }
-    
-    try {
-        // Ajouter temporairement le message localement
-        const messagesList = document.querySelector('.messages-list');
-        const time = new Date().toLocaleTimeString('fr-FR', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-        });
-        
-        const tempMessageHTML = `
-            <div class="message message-sent">
-                <div class="message-content">${content}</div>
-                <div class="message-time">
-                    ${time}
-                    <span class="message-status">
-                        <i class="fas fa-clock"></i> Envoi...
-                    </span>
-                </div>
-            </div>
-        `;
-        
-        messagesList.innerHTML += tempMessageHTML;
-        scrollToBottom();
-        
-        // Vider le champ
-        document.getElementById('newMessageText').value = '';
-        
-        const response = await fetch('/api/messagerie/send', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                medecin_id: parseInt(medecinId),
-                contenu: content.trim()
-            })
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-                // Mettre à jour le statut du message
-                const lastMessage = messagesList.lastElementChild;
-                const statusSpan = lastMessage.querySelector('.message-status');
-                statusSpan.innerHTML = '<i class="fas fa-check"></i> Envoyé';
-                statusSpan.style.color = '#28a745';
-                
-                // Rafraîchir la conversation pour avoir l'ID du message
-                setTimeout(() => {
-                    loadConversation(medecinId);
-                }, 500);
-                
-                // Mettre à jour les notifications
-                await refreshNotifications();
-            }
-        }
-    } catch (error) {
-        console.error('Erreur envoi message:', error);
-        
-        // Afficher une notification d'erreur
-        const errorHTML = `
-            <div class="message-error" style="text-align: center; padding: 10px; color: #dc3545; font-size: 14px;">
-                <i class="fas fa-exclamation-circle"></i> Échec de l'envoi. Vérifiez votre connexion.
-            </div>
-        `;
-        
-        const messagesList = document.querySelector('.messages-list');
-        messagesList.innerHTML += errorHTML;
-        scrollToBottom();
-    }
-}
 
 // Afficher le formulaire de message à un médecin spécifique
 async function showMessageToMedecin(medecinId) {
@@ -1483,7 +1893,7 @@ async function showMessageToMedecin(medecinId) {
                         <p><i class="fas fa-stethoscope"></i> ${medecin.specialite}</p>
                         <p><i class="fas fa-graduation-cap"></i> ${medecin.annees_experience} ans d'expérience</p>
                         <p><i class="fas fa-envelope"></i> ${medecin.email}</p>
-                        <p><i class="fas fa-euro-sign"></i> ${medecin.prix_consultation}€</p>
+                        <p><i class="fas fa-euro-sign"></i> ${medecin.prix_consultation}CFA</p>
                         <p><i class="fas fa-phone"></i> ${medecin.telephone || 'Non disponible'}</p>
                     </div>
                 </div>
@@ -2427,7 +2837,12 @@ async function displaySection(sectionName) {
         showMessagerieInterface();
         return;
     }
-    
+
+    if (sectionName === 'profil') {
+    showProfilResume();  
+    return;
+   }
+
     if (sectionName === 'documents') {
         await loadDocumentsList();
         showDocumentsInterface();
@@ -2939,16 +3354,27 @@ async function loadMesRendezVous() {
                     'Domicile': '🏠'
                 }[rdv.type_consultation] || '📅';
 
+                // ✅ AJOUT: Affichage des infos du médecin
+                const medecinInfo = `
+                    <div class="rdv-medecin-info">
+                        <p><strong>👨‍⚕️ Médecin:</strong> ${rdv.medecin_nom || 'Médecin'}</p>
+                        <p><strong>🔬 Spécialité:</strong> ${rdv.medecin_specialite || 'Non spécifiée'}</p>
+                        <p><strong>⭐ Expérience:</strong> ${rdv.medecin_experience || 0} ans</p>
+                        ${rdv.medecin_prix ? `<p><strong>💰 Consultation:</strong> ${rdv.medecin_prix}CFA</p>` : ''}
+                    </div>
+                `;
+
                 html += `
                     <div class="rdv-card">
                         <div class="rdv-header">
                             <h3>${dateFormatée}</h3>
-                            <span class="rdv-status ${rdv.statut.toLowerCase()}">${rdv.statut}</span>
+                            <span class="rdv-status ${rdv.statut ? rdv.statut.toLowerCase() : 'planifie'}">${rdv.statut || 'Planifié'}</span>
                         </div>
                         <div class="rdv-body">
-                            <p><strong>Motif:</strong> ${rdv.motif}</p>
-                            <p><strong>Type:</strong> ${typeIcon} ${rdv.type_consultation}</p>
-                            ${rdv.lieu ? `<p><strong>Lieu:</strong> ${rdv.lieu}</p>` : ''}
+                            ${medecinInfo}
+                            <p><strong>📝 Motif:</strong> ${rdv.motif || 'Non spécifié'}</p>
+                            <p><strong>📍 Type:</strong> ${typeIcon} ${rdv.type_consultation || 'Cabinet'}</p>
+                            ${rdv.lieu ? `<p><strong>🏠 Lieu:</strong> ${rdv.lieu}</p>` : ''}
                         </div>
                         <div class="rdv-actions">
                             <button class="btn btn-sm btn-secondary" onclick="modifierRendezVous(${rdv.id})">
@@ -2972,6 +3398,8 @@ async function loadMesRendezVous() {
     }
 }
 
+
+
 async function supprimerRendezVous(rdvId) {
     if (!confirm('Êtes-vous sûr de vouloir annuler ce rendez-vous?')) {
         return;
@@ -2992,6 +3420,7 @@ async function supprimerRendezVous(rdvId) {
     }
 }
 
+
 // Mesure le temps de chaque appel API au chargement
 async function timedFetch(url, opts) {
     const start = performance.now();
@@ -2999,6 +3428,218 @@ async function timedFetch(url, opts) {
     const end = performance.now();
     console.log(`[API] ${url} : ${(end - start).toFixed(1)} ms`);
     return response;
+}
+
+
+// ============= MODIFIER UN RENDEZ-VOUS =============
+
+async function modifierRendezVous(rdvId) {
+    try {
+        // 1. Récupérer les détails du rendez-vous
+        const response = await fetch(`/api/rendez-vous`);
+        const rdvs = await response.json();
+        const rdv = rdvs.find(r => r.id === rdvId);
+        
+        if (!rdv) {
+            alert('Rendez-vous non trouvé');
+            return;
+        }
+
+        // 2. Récupérer la liste des médecins
+        const medecinsResponse = await fetch('/api/medecins');
+        const medecinsList = await medecinsResponse.json();
+
+        // 3. Formater la date pour datetime-local
+        const date = new Date(rdv.date_heure);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const dateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+        // 4. Générer les options des médecins
+        let medecinOptions = medecinsList.map(m => {
+            const selected = m.id === rdv.medecin_id ? 'selected' : '';
+            return `<option value="${m.id}" ${selected}>Dr. ${m.prenom} ${m.nom} - ${m.specialite} (${m.annees_experience} ans exp.)</option>`;
+        }).join('');
+
+        // 5. Afficher le formulaire de modification
+        let html = `
+            <div class="rendez-vous-interface">
+                <div class="section-header">
+                    <h2 class="section-title">Modifier le Rendez-vous</h2>
+                    <button class="btn btn-secondary" onclick="annulerModification()">
+                        <i class="fas fa-arrow-left"></i> Retour
+                    </button>
+                </div>
+
+                <form id="modifierRdvForm" class="rdv-form">
+                    <!-- Sélection du médecin -->
+                    <div class="form-section">
+                        <h3>Étape 1: Choisir un médecin</h3>
+                        <div class="form-group">
+                            <select id="modif_medecin_id" class="form-control" required>
+                                <option value="">Sélectionnez un médecin</option>
+                                ${medecinOptions}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Type de consultation -->
+                    <div class="form-section">
+                        <h3>Étape 2: Type de consultation</h3>
+                        <div class="consultation-types">
+                            <div class="type-option">
+                                <input type="radio" id="modif_cabinet" name="modif_type_consultation" value="Cabinet" ${rdv.type_consultation === 'Cabinet' ? 'checked' : ''}>
+                                <label for="modif_cabinet">
+                                    <i class="fas fa-hospital"></i>
+                                    <span>En Cabinet</span>
+                                </label>
+                            </div>
+                            <div class="type-option">
+                                <input type="radio" id="modif_video" name="modif_type_consultation" value="Vidéo" ${rdv.type_consultation === 'Vidéo' ? 'checked' : ''}>
+                                <label for="modif_video">
+                                    <i class="fas fa-video"></i>
+                                    <span>En Ligne (Vidéo)</span>
+                                </label>
+                            </div>
+                            <div class="type-option">
+                                <input type="radio" id="modif_domicile" name="modif_type_consultation" value="Domicile" ${rdv.type_consultation === 'Domicile' ? 'checked' : ''}>
+                                <label for="modif_domicile">
+                                    <i class="fas fa-home"></i>
+                                    <span>À Domicile</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Lieu (si domicile) -->
+                        <div id="modif_lieu-container" style="display: ${rdv.type_consultation === 'Domicile' ? 'block' : 'none'}; margin-top: 15px;">
+                            <label for="modif_lieu">Adresse du rendez-vous</label>
+                            <input type="text" id="modif_lieu" name="modif_lieu" class="form-control" placeholder="Votre adresse complète" value="${rdv.lieu || ''}">
+                        </div>
+                    </div>
+
+                    <!-- Date et heure -->
+                    <div class="form-section">
+                        <h3>Étape 3: Date et heure</h3>
+                        <div class="form-group">
+                            <label for="modif_date_heure">Date et heure du rendez-vous</label>
+                            <input type="datetime-local" id="modif_date_heure" name="modif_date_heure" class="form-control" value="${dateFormatted}" required>
+                        </div>
+                    </div>
+
+                    <!-- Motif -->
+                    <div class="form-section">
+                        <h3>Étape 4: Motif de la visite</h3>
+                        <div class="form-group">
+                            <label for="modif_motif">Décrivez brièvement le motif</label>
+                            <textarea id="modif_motif" name="modif_motif" class="form-control" rows="4" required>${rdv.motif || ''}</textarea>
+                        </div>
+                    </div>
+
+                    <!-- Boutons -->
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-save"></i> Enregistrer les modifications
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-lg" onclick="loadMesRendezVous(); document.querySelector('[data-tab=\\'mes-rdv\\']').click();">
+                            <i class="fas fa-times"></i> Annuler
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        // Remplacer le contenu principal
+        document.getElementById('mainContent').innerHTML = html;
+
+        // Gérer l'affichage du champ lieu
+        document.querySelectorAll('input[name="modif_type_consultation"]').forEach(input => {
+            input.addEventListener('change', function() {
+                const lieuContainer = document.getElementById('modif_lieu-container');
+                if (this.value === 'Domicile') {
+                    lieuContainer.style.display = 'block';
+                } else {
+                    lieuContainer.style.display = 'none';
+                }
+            });
+        });
+
+        // Soumission du formulaire
+        document.getElementById('modifierRdvForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await saveModifiedRendezVous(rdvId,e);
+        });
+
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors du chargement du rendez-vous');
+    }
+}
+
+// ============= SAUVEGARDER LA MODIFICATION =============
+
+async function saveModifiedRendezVous(rdvId) {
+    try {
+        const medecin_id = document.getElementById('modif_medecin_id').value;
+        const type_consultation = document.querySelector('input[name="modif_type_consultation"]:checked')?.value;
+        const date_heure = document.getElementById('modif_date_heure').value;
+        const motif = document.getElementById('modif_motif').value;
+        const lieu = document.getElementById('modif_lieu').value || null;
+
+        // Vérifications
+        if (!medecin_id || !date_heure || !motif || !type_consultation) {
+            alert('Veuillez remplir tous les champs obligatoires');
+            return;
+        }
+
+        const response = await fetch(`/api/rendez-vous/${rdvId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                medecin_id: parseInt(medecin_id),
+                date_heure: date_heure,
+                motif: motif,
+                type_consultation: type_consultation,
+                lieu: lieu
+            })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                alert('✅ Rendez-vous modifié avec succès!');
+                
+                // ✅ SOLUTION : Recharger proprement sans double appel
+                showRendezVousInterface();
+                setTimeout(() => {
+                    loadMesRendezVous();
+                    document.querySelector('[data-tab="mes-rdv"]').click();
+                }, 100);
+            } else {
+                alert('Erreur: ' + result.detail);
+            }
+        } else {
+            const error = await response.json();
+            alert('Erreur: ' + error.detail);
+        }
+
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de la modification du rendez-vous');
+    }
+}
+
+// ============= ANNULER LA MODIFICATION =============
+function annulerModification() {
+    showRendezVousInterface();
+    setTimeout(() => {
+        loadMesRendezVous();
+        document.querySelector('[data-tab="mes-rdv"]').click();
+    }, 100);
 }
 
 

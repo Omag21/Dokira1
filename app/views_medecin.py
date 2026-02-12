@@ -19,6 +19,9 @@ from reportlab.pdfgen import canvas
 from io import BytesIO
 import tempfile
 import os
+from app.models import Photo, StatutPhoto
+from sqlalchemy.orm import joinedload
+import uuid
 from dotenv import load_dotenv
 
 
@@ -1354,6 +1357,235 @@ async def upload_photo_profil(
 
 
 
+
+
+# ============= API - PROFIL PERSONNEL =============
+
+
+@router.post("/api/profil/update")
+async def update_personal_info(
+    request: Request,
+    nom: str = Form(...),
+    prenom: str = Form(...),
+    email: str = Form(...),
+    telephone: str = Form(...),
+    photo: UploadFile = File(None),
+    db: Session = Depends(get_db)
+):
+    """Met à jour les informations personnelles du médecin (nom, prénom, email, téléphone, photo)"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    if not current_medecin:
+        return JSONResponse(status_code=401, content={"success": False, "error": "Non authentifié"})
+
+    # Vérification email unique
+    if email.strip().lower() != current_medecin.email:
+        existing = db.query(Medecin).filter(Medecin.email == email.strip().lower()).first()
+        if existing:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Cet email est déjà utilisé"})
+
+    # Mise à jour des champs
+    current_medecin.nom = nom.strip().capitalize()
+    current_medecin.prenom = prenom.strip().capitalize()
+    current_medecin.email = email.strip().lower()
+    current_medecin.telephone = telephone.strip()
+
+    # Gestion de la photo professionnelle
+    if photo is not None:
+        if not photo.content_type.startswith("image/"):
+            return JSONResponse(status_code=400, content={"success": False, "error": "Fichier image invalide"})
+        # Sauvegarde du fichier
+        upload_dir = Path("app/static/uploads/medecins")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        ext = photo.filename.split(".")[-1]
+        unique_name = f"medecin_{current_medecin.id}_{uuid.uuid4().hex}.{ext}"
+        file_path = upload_dir / unique_name
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(photo.file, buffer)
+        photo_url = f"/static/uploads/medecins/{unique_name}"
+        # Création de l'entrée Photo
+        new_photo = Photo(
+            nom_original=photo.filename,
+            nom_stocke=unique_name,
+            chemin_fichier=str(file_path),
+            url_fichier=photo_url,
+            type_mime=photo.content_type,
+            taille_bytes=file_path.stat().st_size,
+            type_photo="profil",
+            statut=StatutPhoto.ACTIVE,
+            medecin_id=current_medecin.id,
+            date_upload=datetime.utcnow()
+        )
+        db.add(new_photo)
+        db.flush()  # Pour obtenir l'ID
+        # Mise à jour du medecin
+        current_medecin.photo_profil_url = photo_url
+
+    try:
+        db.commit()
+        return {"success": True, "message": "Profil mis à jour"}
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Erreur mise à jour profil personnel: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "error": "Erreur lors de la mise à jour"})
+
+@router.get("/api/profil/professional-info")
+async def get_professional_info(request: Request, db: Session = Depends(get_db)):
+    """Récupère les informations professionnelles du médecin"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    return {
+        "annees_experience": current_medecin.annees_experience,
+        "prix_consultation": current_medecin.prix_consultation,
+        "numero_ordre": current_medecin.numero_ordre,
+        "cabinet_nom": None,  # À ajouter au modèle si nécessaire
+        "adresse": current_medecin.adresse,
+        "ville": current_medecin.ville,
+        "code_postal": current_medecin.code_postal
+    }
+
+
+@router.post("/api/profil/update-professional")
+async def update_professional_info(
+    request: Request,
+    annees_experience: str = Form(default=None),
+    prix_consultation: str = Form(default=None),
+    numero_ordre: str = Form(default=None),
+    cabinet_nom: str = Form(default=None),
+    adresse: str = Form(default=None),
+    ville: str = Form(default=None),
+    code_postal: str = Form(default=None),
+    db: Session = Depends(get_db)
+):
+    """Met à jour les informations professionnelles du médecin"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    try:
+        # Mettre à jour les champs non-vides
+        if annees_experience:
+            try:
+                current_medecin.annees_experience = int(annees_experience)
+            except ValueError:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Les années d'expérience doivent être un nombre"}
+                )
+        
+        if prix_consultation:
+            try:
+                current_medecin.prix_consultation = float(prix_consultation)
+            except ValueError:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Le montant de consultation doit être un nombre"}
+                )
+        
+        if numero_ordre:
+            current_medecin.numero_ordre = numero_ordre.strip()
+        
+        if adresse:
+            current_medecin.adresse = adresse.strip()
+        
+        if ville:
+            current_medecin.ville = ville.strip()
+        
+        if code_postal:
+            current_medecin.code_postal = code_postal.strip()
+        
+        # Note: cabinet_nom n'existe pas dans le modèle actuel
+        # À ajouter si nécessaire dans le modèle Medecin
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Informations professionnelles mises à jour avec succès"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Erreur mise à jour profil professionnel: {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la mise à jour")
+
+
+@router.get("/api/profil/complete")
+async def get_complete_medecin_info(request: Request, db: Session = Depends(get_db)):
+    """Récupère toutes les informations du médecin (personnelles et professionnelles)"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Non authentifié"
+        )
+    
+    return {
+        # Informations personnelles
+        "id": current_medecin.id,
+        "prenom": current_medecin.prenom,
+        "nom": current_medecin.nom,
+        "email": current_medecin.email,
+        "telephone": current_medecin.telephone or "Non renseigné",
+        "specialite": current_medecin.specialite.value if current_medecin.specialite else "Médecin",
+        "photo_profil_url": current_medecin.photo_profil_url,
+        "langues": current_medecin.langues_liste,
+        
+        # Informations professionnelles
+        "numero_ordre": current_medecin.numero_ordre or "Non renseigné",
+        "annees_experience": current_medecin.annees_experience or 0,
+        "prix_consultation": current_medecin.prix_consultation,
+        "adresse": current_medecin.adresse or "Non renseigné",
+        "ville": current_medecin.ville or "Non renseigné",
+        "code_postal": current_medecin.code_postal or "Non renseigné",
+        
+        # Dates
+        "date_creation": current_medecin.date_creation.isoformat() if current_medecin.date_creation else None,
+        "derniere_connexion": current_medecin.derniere_connexion.isoformat() if current_medecin.derniere_connexion else None
+    }
+
+
+
+# ============= API - HISTORIQUE DES CONSULTATIONS DU MOIS =============
+
+@router.get("/api/historique/mois")
+async def historique_consultations_mois(request: Request, db: Session = Depends(get_db)):
+    """Retourne l'historique des consultations du mois en cours pour le médecin connecté"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    if not current_medecin:
+        return JSONResponse(status_code=401, content={"success": False, "error": "Non authentifié"})
+
+    today = datetime.now()
+    start_month = datetime(today.year, today.month, 1)
+    # Récupérer tous les rendez-vous du mois
+    rdvs = db.query(RendezVous).filter(
+        RendezVous.medecin_id == current_medecin.id,
+        RendezVous.date_heure >= start_month,
+        RendezVous.date_heure < (start_month.replace(month=today.month+1) if today.month < 12 else datetime(today.year+1, 1, 1))
+    ).order_by(RendezVous.date_heure.desc()).all()
+
+    result = []
+    for rdv in rdvs:
+        patient = rdv.patient
+        result.append({
+            "id": rdv.id,
+            "date_heure": rdv.date_heure.strftime("%d/%m/%Y %H:%M"),
+            "motif": rdv.motif,
+            "type": rdv.type_consultation,
+            "statut": rdv.statut,
+            "patient": {
+                "id": patient.id if patient else None,
+                "nom_complet": patient.nom_complet if patient else "Patient supprimé",
+                "email": patient.email if patient else None,
+                "telephone": patient.telephone if patient else None
+            }
+        })
+
+    return {"success": True, "total": len(result), "consultations": result}
 
 # Charger les variables d'environnement
 load_dotenv()

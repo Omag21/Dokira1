@@ -135,6 +135,7 @@ function loadSection(section) {
             break;
         case 'profil':
             mainContent.innerHTML = getProfilContent();
+            loadProfilData();
             break;
         case 'parametres':
             mainContent.innerHTML = getParametresContent();
@@ -481,48 +482,637 @@ function getHistoriqueContent() {
     `;
 }
 
+// ============= FONCTION PRINCIPALE - SECTION MON PROFIL =============
+
 function getProfilContent() {
     return `
         <div class="content-section">
             <div class="section-header">
-                <h2 class="section-title">Mon Profil</h2>
+                <h2 class="section-title">
+                    <i class="fas fa-user-circle"></i> Mon Profil
+                </h2>
             </div>
-            <div style="background: white; padding: 30px; border-radius: 12px;">
-                <div style="text-align: center; margin-bottom: 30px;">
-                    <img id="profilAvatar" 
-                        src="https://ui-avatars.com/api/?name=Dr+${currentMedecin.nom}&background=0D8ABC&color=fff&size=120" 
-                        alt="Avatar"
-                        style="width: 120px; height: 120px; border-radius: 50%; border: 3px solid #0D8ABC;">
-                </div>
+            
+            <!-- Conteneur Principal -->
+            <div class="profil-container">
                 
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label"><strong>Prénom</strong></label>
-                        <input type="text" class="form-control" id="profilPrenom" value="${currentMedecin.prenom}" readonly>
+                <!-- Partie Gauche: Avatar et Info Rapide -->
+                <div class="profil-sidebar">
+                    <div class="avatar-section">
+                        <div class="avatar-container">
+                            <img id="profilAvatarImg" 
+                                src="" 
+                                alt="Avatar"
+                                class="avatar-image"
+                                onerror="this.src='https://ui-avatars.com/api/?name=${currentMedecin.prenom}+${currentMedecin.nom}&background=0D8ABC&color=fff&size=200'">
+                            <input type="file" id="photoInput" style="display:none;" accept="image/*">
+                            <button class="btn-change-photo" onclick="document.getElementById('photoInput').click()" title="Changer la photo">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                        </div>
+                        <h3 class="medecin-name">Dr. ${currentMedecin.prenom} ${currentMedecin.nom}</h3>
+                        <p class="medecin-specialite">${currentMedecin.specialite || 'Médecin'}</p>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label"><strong>Nom</strong></label>
-                        <input type="text" class="form-control" id="profilNom" value="${currentMedecin.nom}" readonly>
+                    
+                    <!-- Badges Info Rapides -->
+                    <div class="info-badges">
+                        <div class="badge-item">
+                            <span class="badge-icon">📧</span>
+                            <span class="badge-label">Email</span>
+                            <span class="badge-value" id="badgeEmail">${currentMedecin.email}</span>
+                        </div>
+                        <div class="badge-item">
+                            <span class="badge-icon">📱</span>
+                            <span class="badge-label">Téléphone</span>
+                            <span class="badge-value" id="badgeTelephone">Chargement...</span>
+                        </div>
                     </div>
                 </div>
                 
-                <div class="mb-3">
-                    <label class="form-label"><strong>Email</strong></label>
-                    <input type="email" class="form-control" id="profilEmail" value="${currentMedecin.email}" readonly>
-                </div>
-                
-                <div class="mb-3">
-                    <label class="form-label"><strong>Spécialité</strong></label>
-                    <input type="text" class="form-control" id="profilSpecialite" value="${currentMedecin.specialite}" readonly>
-                </div>
-                
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> Utilisez la section "Paramètres" pour modifier vos informations
+                <!-- Partie Droite: Informations Détaillées -->
+                <div class="profil-main">
+                    
+                    <!-- Section Personnelles -->
+                    <div class="profil-section">
+                        <div class="section-header-profil">
+                            <h4 class="section-title-profil">
+                                <i class="fas fa-id-card"></i> Informations Personnelles
+                            </h4>
+                            <button class="btn-edit-section" onclick="editPersonnelInfo()" title="Modifier">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="info-grid">
+                            <div class="info-row">
+                                <div class="info-col">
+                                    <label class="info-label">Prénom</label>
+                                    <p class="info-value" id="profilPrenom">${currentMedecin.prenom}</p>
+                                </div>
+                                <div class="info-col">
+                                    <label class="info-label">Nom</label>
+                                    <p class="info-value" id="profilNom">${currentMedecin.nom}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="info-row">
+                                <div class="info-col full-width">
+                                    <label class="info-label">Email</label>
+                                    <p class="info-value" id="profilEmail">${currentMedecin.email}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="info-row">
+                                <div class="info-col">
+                                    <label class="info-label">Téléphone</label>
+                                    <p class="info-value" id="profilTelephone">Chargement...</p>
+                                </div>
+                                <div class="info-col">
+                                    <label class="info-label">Spécialité</label>
+                                    <p class="info-value" id="profilSpecialite">${currentMedecin.specialite || 'Médecin'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Section Professionnelles -->
+                    <div class="profil-section">
+                        <div class="section-header-profil">
+                            <h4 class="section-title-profil">
+                                <i class="fas fa-stethoscope"></i> Informations Professionnelles
+                            </h4>
+                            <button class="btn-edit-section" onclick="editProfessionalInfo()" title="Modifier">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="info-grid">
+                            <div class="info-row">
+                                <div class="info-col">
+                                    <label class="info-label">Numéro d'Ordre</label>
+                                    <p class="info-value" id="profilNumeroOrdre">Chargement...</p>
+                                </div>
+                                <div class="info-col">
+                                    <label class="info-label">Années d'Expérience</label>
+                                    <p class="info-value" id="profilAnneeExperience">Chargement...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="info-row">
+                                <div class="info-col">
+                                    <label class="info-label">Montant de Consultation (FCFA)</label>
+                                    <p class="info-value" id="profilPrixConsultation">Chargement...</p>
+                                </div>
+                                <div class="info-col">
+                                    <label class="info-label">Langues</label>
+                                    <p class="info-value" id="profilLangues">Chargement...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="info-row">
+                                <div class="info-col full-width">
+                                    <label class="info-label">Adresse du Cabinet</label>
+                                    <p class="info-value" id="profilAdresse">Chargement...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="info-row">
+                                <div class="info-col">
+                                    <label class="info-label">Ville</label>
+                                    <p class="info-value" id="profilVille">Chargement...</p>
+                                </div>
+                                <div class="info-col">
+                                    <label class="info-label">Code Postal</label>
+                                    <p class="info-value" id="profilCodePostal">Chargement...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Section Actions -->
+                    <div class="profil-actions">
+                        <button class="btn btn-primary" onclick="goToParametres()">
+                            <i class="fas fa-cog"></i> Modifier mes informations
+                        </button>
+                        <button class="btn btn-outline" onclick="printProfil()">
+                            <i class="fas fa-print"></i> Imprimer
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     `;
 }
+
+// ============= CHARGER DONNÉES PROFIL =============
+
+async function loadProfilData() {
+    try {
+        // Charger les infos personnelles
+        const response = await fetch('/medecin/api/info');
+        const personalData = await response.json();
+        
+        // Charger les infos professionnelles
+        const proResponse = await fetch('/medecin/api/profil/professional-info');
+        const proData = proResponse.ok ? await proResponse.json() : {};
+        
+        // Remplir les informations personnelles
+        document.getElementById('profilPrenom').textContent = personalData.prenom || '';
+        document.getElementById('profilNom').textContent = personalData.nom || '';
+        document.getElementById('profilEmail').textContent = personalData.email || '';
+        document.getElementById('profilTelephone').textContent = personalData.telephone || 'Non renseigné';
+        document.getElementById('profilSpecialite').textContent = personalData.specialite || 'Médecin';
+        document.getElementById('badgeEmail').textContent = personalData.email || '';
+        document.getElementById('badgeTelephone').textContent = personalData.telephone || 'Non renseigné';
+        
+        // Afficher la photo de profil
+        if (personalData.photo_profil_url) {
+            document.getElementById('profilAvatarImg').src = personalData.photo_profil_url;
+        } else {
+            document.getElementById('profilAvatarImg').src = 
+                `https://ui-avatars.com/api/?name=${personalData.prenom}+${personalData.nom}&background=0D8ABC&color=fff&size=200`;
+        }
+        
+        // Remplir les informations professionnelles
+        document.getElementById('profilNumeroOrdre').textContent = proData.numero_ordre || 'Non renseigné';
+        document.getElementById('profilAnneeExperience').textContent = 
+            (proData.annees_experience ? proData.annees_experience + ' ans' : 'Non renseigné');
+        document.getElementById('profilPrixConsultation').textContent = 
+            (proData.prix_consultation ? proData.prix_consultation + ' FCFA' : 'Non renseigné');
+        document.getElementById('profilLangues').textContent = 
+            (Array.isArray(personalData.langues) ? personalData.langues.join(', ') : 'Non renseigné');
+        document.getElementById('profilAdresse').textContent = 
+            (proData.adresse ? proData.adresse : 'Non renseigné');
+        document.getElementById('profilVille').textContent = 
+            (proData.ville ? proData.ville : 'Non renseigné');
+        document.getElementById('profilCodePostal').textContent = 
+            (proData.code_postal ? proData.code_postal : 'Non renseigné');
+        
+        // Setup événement upload photo
+        setupPhotoUpload();
+        
+    } catch (error) {
+        console.error('Erreur chargement profil:', error);
+    }
+}
+
+// ============= UPLOAD PHOTO DE PROFIL =============
+
+function setupPhotoUpload() {
+    const photoInput = document.getElementById('photoInput');
+    if (!photoInput) return;
+    
+    photoInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // Vérifier que c'est une image
+        if (!file.type.startsWith('image/')) {
+            alert('⚠️ Veuillez sélectionner une image');
+            return;
+        }
+        
+        // Vérifier la taille (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('⚠️ L\'image doit faire moins de 5MB');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('photo', file);
+        
+        try {
+            const response = await fetch('/medecin/api/upload-photo', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Mettre à jour l'image
+                document.getElementById('profilAvatarImg').src = data.photo_url;
+                alert('✅ Photo de profil mise à jour avec succès!');
+                
+                // Mettre à jour le profil global
+                currentMedecin.photo = data.photo_url;
+                
+                // Mettre à jour les autres avatars sur la page
+                const profileAvatars = document.querySelectorAll('#profileAvatar');
+                profileAvatars.forEach(avatar => {
+                    avatar.src = data.photo_url;
+                });
+            } else {
+                alert('❌ Erreur lors du téléchargement');
+            }
+        } catch (error) {
+            console.error('Erreur upload:', error);
+            alert('❌ Erreur lors du téléchargement');
+        }
+        
+        // Réinitialiser l'input
+        photoInput.value = '';
+    });
+}
+
+// ============= FONCTIONS ÉDITION =============
+
+function editPersonnelInfo() {
+    alert('Veuillez vous rendre dans la section "Paramètres" pour modifier vos informations personnelles');
+    loadSection('parametres');
+}
+
+function editProfessionalInfo() {
+    alert('Veuillez vous rendre dans la section "Paramètres" pour modifier vos informations professionnelles');
+    loadSection('parametres');
+}
+
+function goToParametres() {
+    loadSection('parametres');
+}
+
+function printProfil() {
+    window.print();
+}
+
+// ============= STYLES CSS POUR MON PROFIL =============
+
+const profilStyles = `
+    <style>
+        .profil-container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 30px;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        .profil-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+            border-right: 1px solid #f0f0f0;
+            padding-right: 30px;
+        }
+        
+        .avatar-section {
+            text-align: center;
+        }
+        
+        .avatar-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 15px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
+            box-shadow: 0 4px 16px rgba(13, 139, 188, 0.3);
+        }
+        
+        .avatar-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .btn-change-photo {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(13, 139, 188, 0.4);
+        }
+        
+        .btn-change-photo:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(13, 139, 188, 0.6);
+        }
+        
+        .medecin-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin: 0 0 5px 0;
+        }
+        
+        .medecin-specialite {
+            font-size: 14px;
+            color: #0d8abc;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .info-badges {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .badge-item {
+            background: #f8f9fa;
+            border-left: 4px solid #0d8abc;
+            padding: 12px 15px;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .badge-icon {
+            font-size: 20px;
+        }
+        
+        .badge-label {
+            font-size: 11px;
+            color: #666;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .badge-value {
+            font-size: 13px;
+            color: #1a1a1a;
+            font-weight: 600;
+            word-break: break-word;
+        }
+        
+        .profil-main {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        .profil-section {
+            background: #f9f9f9;
+            border: 1px solid #f0f0f0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .section-header-profil {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .section-title-profil {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: #0d8abc;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-title-profil i {
+            font-size: 18px;
+        }
+        
+        .btn-edit-section {
+            background: #0d8abc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-edit-section:hover {
+            background: #0a6d9e;
+            transform: scale(1.05);
+        }
+        
+        .info-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .info-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .info-row.single {
+            grid-template-columns: 1fr;
+        }
+        
+        .info-col {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .info-col.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .info-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0;
+        }
+        
+        .info-value {
+            font-size: 15px;
+            color: #1a1a1a;
+            margin: 0;
+            font-weight: 500;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .profil-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(13, 139, 188, 0.3);
+        }
+        
+        .btn-outline {
+            background: white;
+            color: #0d8abc;
+            border: 2px solid #0d8abc;
+        }
+        
+        .btn-outline:hover {
+            background: #f0f8ff;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .profil-container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .profil-sidebar {
+                border-right: none;
+                border-bottom: 1px solid #f0f0f0;
+                padding-right: 0;
+                padding-bottom: 20px;
+            }
+            
+            .info-row {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .profil-container {
+                padding: 20px;
+            }
+            
+            .avatar-container {
+                width: 150px;
+                height: 150px;
+            }
+            
+            .medecin-name {
+                font-size: 18px;
+            }
+            
+            .section-header-profil {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .btn-edit-section {
+                width: 32px;
+                height: 32px;
+            }
+            
+            .profil-actions {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+        
+        /* Print Styles */
+        @media print {
+            .btn-change-photo,
+            .btn-edit-section,
+            .profil-actions {
+                display: none;
+            }
+            
+            .profil-container {
+                box-shadow: none;
+                border: 1px solid #ccc;
+            }
+            
+            .info-value {
+                background: white;
+                border: none;
+            }
+        }
+    </style>
+`;
+
+// Injecter les styles
+if (document.head) {
+    document.head.insertAdjacentHTML('beforeend', profilStyles);
+}
+
+// ============= PARAMÈTRES - CONTENU =============
 
 function getParametresContent() {
     return `
@@ -531,8 +1121,12 @@ function getParametresContent() {
                 <h2 class="section-title">Paramètres</h2>
             </div>
             
-            <div style="background: white; padding: 30px; border-radius: 12px;">
-                <h4 class="mb-4">Informations Personnelles</h4>
+            <!-- Section Informations Personnelles -->
+            <div style="background: white; padding: 30px; border-radius: 12px; margin-bottom: 20px;">
+                <h4 class="mb-4">
+                    <i class="fas fa-user-circle" style="color: #0d8abc; margin-right: 10px;"></i>
+                    Informations Personnelles
+                </h4>
                 
                 <form id="parametresForm">
                     <div class="row">
@@ -566,14 +1160,67 @@ function getParametresContent() {
                     </button>
                 </form>
             </div>
+
+            <!-- Section Informations Professionnelles -->
+            <div style="background: white; padding: 30px; border-radius: 12px;">
+                <h4 class="mb-4">
+                    <i class="fas fa-stethoscope" style="color: #10b981; margin-right: 10px;"></i>
+                    Informations Professionnelles
+                </h4>
+                
+                <form id="parametresProfessionnelsForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Années d'expérience</label>
+                            <input type="number" class="form-control" id="paramAnneeExperience" min="0" placeholder="Ex: 10">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Montant de consultation (FCFA)</label>
+                            <input type="number" class="form-control" id="paramPrixConsultation" min="0" step="100" placeholder="Ex: 25000">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Numéro d'ordre</label>
+                        <input type="text" class="form-control" id="paramNumeroOrdre" placeholder="Numéro d'ordre médical">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Nom du cabinet</label>
+                        <input type="text" class="form-control" id="paramNomCabinet" placeholder="Ex: Cabinet Médical du Docteur X">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Adresse du cabinet</label>
+                            <input type="text" class="form-control" id="paramAdresseCabinet" placeholder="Adresse complète">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Ville</label>
+                            <input type="text" class="form-control" id="paramVilleCabinet" placeholder="Ville">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Code postal</label>
+                            <input type="text" class="form-control" id="paramCodePostalCabinet" placeholder="Code postal">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Sauvegarder les informations professionnelles
+                    </button>
+                </form>
+            </div>
         </div>
     `;
 }
 
+// ============= SETUP PARAMÈTRES LISTENERS (MODIFIÉE) =============
+
 function setupParametresListeners() {
-    const form = document.getElementById('parametresForm');
-    if (form) {
-        form.addEventListener('submit', async function(e) {
+    // ===== FORMULAIRE INFORMATIONS PERSONNELLES =====
+    const formPersonnel = document.getElementById('parametresForm');
+    if (formPersonnel) {
+        formPersonnel.addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const formData = new FormData();
@@ -594,19 +1241,110 @@ function setupParametresListeners() {
                 });
                 
                 if (response.ok) {
-                    alert('Profil mis à jour avec succès!');
+                    alert('✅ Profil personnel mis à jour avec succès!');
                     await loadMedecinInfo();
                 } else {
-                    alert('Erreur lors de la mise à jour');
+                    alert('❌ Erreur lors de la mise à jour');
                 }
             } catch (error) {
                 console.error('Erreur:', error);
-                alert('Erreur lors de la mise à jour');
+                alert('❌ Erreur lors de la mise à jour');
+            }
+        });
+    }
+
+    // ===== FORMULAIRE INFORMATIONS PROFESSIONNELLES =====
+    const formProfessionnel = document.getElementById('parametresProfessionnelsForm');
+    if (formProfessionnel) {
+        // Charger les données existantes au chargement du formulaire
+        loadProfessionalInfoData();
+        
+        formProfessionnel.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const anneeExperience = document.getElementById('paramAnneeExperience').value;
+            const prixConsultation = document.getElementById('paramPrixConsultation').value;
+            const numeroOrdre = document.getElementById('paramNumeroOrdre').value;
+            const nomCabinet = document.getElementById('paramNomCabinet').value;
+            const adresseCabinet = document.getElementById('paramAdresseCabinet').value;
+            const villeCabinet = document.getElementById('paramVilleCabinet').value;
+            const codePostalCabinet = document.getElementById('paramCodePostalCabinet').value;
+            
+            // Au moins un champ doit être rempli
+            if (!anneeExperience && !prixConsultation && !numeroOrdre && !nomCabinet && !adresseCabinet && !villeCabinet && !codePostalCabinet) {
+                alert('⚠️ Veuillez remplir au moins un champ');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('annees_experience', anneeExperience || '');
+            formData.append('prix_consultation', prixConsultation || '');
+            formData.append('numero_ordre', numeroOrdre || '');
+            formData.append('cabinet_nom', nomCabinet || '');
+            formData.append('adresse', adresseCabinet || '');
+            formData.append('ville', villeCabinet || '');
+            formData.append('code_postal', codePostalCabinet || '');
+            
+            try {
+                const response = await fetch('/medecin/api/profil/update-professional', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert('✅ ' + (result.message || 'Informations professionnelles mises à jour avec succès!'));
+                    await loadMedecinInfo();
+                } else {
+                    const error = await response.json();
+                    alert('❌ ' + (error.detail || 'Erreur lors de la mise à jour'));
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('❌ Erreur lors de la mise à jour');
             }
         });
     }
 }
 
+// ============= CHARGER DONNÉES PROFESSIONNELLES =============
+
+async function loadProfessionalInfoData() {
+    try {
+        const response = await fetch('/medecin/api/profil/professional-info');
+        if (!response.ok) {
+            console.log('Pas d\'informations professionnelles existantes');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        // Remplir les champs avec les données existantes
+        if (data.annees_experience) {
+            document.getElementById('paramAnneeExperience').value = data.annees_experience;
+        }
+        if (data.prix_consultation) {
+            document.getElementById('paramPrixConsultation').value = data.prix_consultation;
+        }
+        if (data.numero_ordre) {
+            document.getElementById('paramNumeroOrdre').value = data.numero_ordre;
+        }
+        if (data.cabinet_nom) {
+            document.getElementById('paramNomCabinet').value = data.cabinet_nom;
+        }
+        if (data.adresse) {
+            document.getElementById('paramAdresseCabinet').value = data.adresse;
+        }
+        if (data.ville) {
+            document.getElementById('paramVilleCabinet').value = data.ville;
+        }
+        if (data.code_postal) {
+            document.getElementById('paramCodePostalCabinet').value = data.code_postal;
+        }
+    } catch (error) {
+        console.error('Erreur chargement infos professionnelles:', error);
+    }
+}
 // ============= HELPER FUNCTIONS =============
 
 function sendMessageToPatient(patientId) {
