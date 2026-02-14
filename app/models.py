@@ -198,6 +198,24 @@ class RendezVous(Base):
         }
         return types_affichage.get(self.type_consultation.value if self.type_consultation else "Cabinet", "Cabinet")
 
+
+class Consultation(Base):
+    __tablename__ = "consultations"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    medecin_id = Column(Integer, ForeignKey("medecins.id"), nullable=False, index=True)
+    medecin_nom = Column(String(150), nullable=False)
+
+    visiteur_nom = Column(String(100), nullable=False)
+    visiteur_prenom = Column(String(100), nullable=False)
+    visiteur_email = Column(String(255), nullable=False, index=True)
+    visiteur_telephone = Column(String(20), nullable=False)
+
+    motif_consultation = Column(Text, nullable=False)
+    date_heure = Column(DateTime, nullable=False, index=True)
+    statut = Column(String(50), nullable=False, default="Demandee")
+    date_creation = Column(DateTime, default=datetime.utcnow, nullable=False)
+
 class Document(Base):
     __tablename__ = "documents"
     

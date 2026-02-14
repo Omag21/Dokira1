@@ -1,3 +1,5 @@
+
+
 // ============= DONNÉES STRUCTURÉES POUR CHAQUE SECTION =============
 const sectionsData = {
     dashboard: {
@@ -482,6 +484,14 @@ const sectionsData = {
 //============ VARIABLES GLOBALES =============
 let medecins = [];
 let dossierMedicalCache = null;
+let ordonnancesCache = [];
+let patientSession = {
+    id: null,
+    nomComplet: 'Patient'
+};
+let activeConversationMedecin = null;
+let activeConversationMedecinId = null;
+let patientPresencePoller = null;
 
 
 // ============= FONCTIONS POUR CHARGER LES DONNÉES DYNAMIQUES =============
@@ -492,6 +502,8 @@ async function loadPatientData() {
         const response = await timedFetch('/api/patient/info');
         if (response.ok) {
             const data = await response.json();
+            patientSession.id = data.id || null;
+            patientSession.nomComplet = data.nom_complet || `${data.prenom || ''} ${data.nom || ''}`.trim() || 'Patient';
             
             // Mettre à jour le nom dans la barre de navigation
             const profileName = document.querySelector('.profile-name');
@@ -515,442 +527,6 @@ async function loadPatientData() {
     }
     return null;
 }
-
-
-
-// ============= AFFICHER LE RÉSUMÉ DU PROFIL =============
-async function showProfilResume() {
-    try {
-        const response = await fetch('/api/patient/full-info');
-        if (!response.ok) throw new Error('Erreur chargement profil');
-        
-        const patient = await response.json();
-        
-        // Formater la date de naissance
-        let dateNaissance = 'Non renseignée';
-        if (patient.date_naissance) {
-            const date = new Date(patient.date_naissance);
-            dateNaissance = date.toLocaleDateString('fr-FR', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-            });
-        }
-
-        // Calculer l'âge
-        let age = '';
-        if (patient.date_naissance) {
-            const today = new Date();
-            const birthDate = new Date(patient.date_naissance);
-            let calculatedAge = today.getFullYear() - birthDate.getFullYear();
-            const m = today.getMonth() - birthDate.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-                calculatedAge--;
-            }
-            age = `(${calculatedAge} ans)`;
-        }
-
-        // Déterminer le niveau de complétion du profil
-        let completedFields = 0;
-        let totalFields = 7; // Nom, Prénom, Email, Téléphone, Adresse, Date naissance, Genre
-        
-        if (patient.nom) completedFields++;
-        if (patient.prenom) completedFields++;
-        if (patient.email) completedFields++;
-        if (patient.telephone) completedFields++;
-        if (patient.adresse) completedFields++;
-        if (patient.date_naissance) completedFields++;
-        if (patient.genre) completedFields++;
-        
-        const completionPercent = Math.round((completedFields / totalFields) * 100);
-        
-        // Déterminer le statut de sécurité
-        let securityStatus = 'Standard';
-        let securityIcon = 'fa-shield';
-        let securityColor = 'orange';
-        
-        // Vérifier si l'email est vérifié (simulé)
-        const isEmailVerified = patient.est_email_verifie || false;
-        
-        if (isEmailVerified) {
-            securityStatus = 'Protégé';
-            securityIcon = 'fa-shield-alt';
-            securityColor = 'green';
-        }
-
-        // Informations médicales - compter les champs remplis
-        let medicalCount = 0;
-        if (patient.groupe_sanguin) medicalCount++;
-        if (patient.allergies && patient.allergies.trim() !== '') medicalCount++;
-        if (patient.antecedents_medicaux && patient.antecedents_medicaux.trim() !== '') medicalCount++;
-        if (patient.traitements_en_cours && patient.traitements_en_cours.trim() !== '') medicalCount++;
-
-        // ✅ CONSTRUCTION DU HTML DE RÉSUMÉ
-        let html = `
-            <div class="profil-resume-container">
-                <!-- EN-TÊTE DU PROFIL -->
-                <div class="profil-header-card">
-                    <div class="profil-avatar-large">
-                        <img src="${patient.photo_profil_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(patient.prenom + ' ' + patient.nom) + '&background=0D8ABC&color=fff&size=128'}" 
-                             alt="Photo de profil"
-                             id="profilAvatarLarge"
-                             onerror="this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent('${patient.prenom || ''} ${patient.nom || ''}') + '&background=0D8ABC&color=fff&size=128'">
-                    </div>
-                    <div class="profil-header-info">
-                        <h1>${patient.prenom || ''} ${patient.nom || ''}</h1>
-                        <p class="profil-email">${patient.email || 'Email non renseigné'}</p>
-                        <div class="profil-completion">
-                            <div class="completion-bar-container">
-                                <div class="completion-bar" style="width: ${completionPercent}%;"></div>
-                            </div>
-                            <span class="completion-text">Profil complété à ${completionPercent}%</span>
-                        </div>
-                    </div>
-                    <div class="profil-header-actions">
-                        <button class="btn btn-primary" onclick="showParametresInterface()">
-                            <i class="fas fa-edit"></i> Modifier le profil
-                        </button>
-                    </div>
-                </div>
-
-                <!-- GRILLE DES INFORMATIONS -->
-                <div class="profil-grid">
-                    <!-- CARTE INFORMATIONS PERSONNELLES -->
-                    <div class="profil-card">
-                        <div class="profil-card-header">
-                            <div class="card-icon blue">
-                                <i class="fas fa-id-card"></i>
-                            </div>
-                            <h2>Informations Personnelles</h2>
-                            <a href="#" onclick="showParametresInterface(); return false;" class="card-edit-btn">
-                                <i class="fas fa-pencil-alt"></i> Modifier
-                            </a>
-                        </div>
-                        <div class="profil-card-body">
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-user"></i> Nom complet:</span>
-                                <span class="info-value">${patient.prenom || ''} ${patient.nom || ''} <span class="info-age">${age}</span></span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-calendar"></i> Date de naissance:</span>
-                                <span class="info-value">${dateNaissance}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-venus-mars"></i> Genre:</span>
-                                <span class="info-value">${patient.genre || 'Non renseigné'}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-phone"></i> Téléphone:</span>
-                                <span class="info-value">${patient.telephone || 'Non renseigné'}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-map-marker-alt"></i> Adresse:</span>
-                                <span class="info-value">${patient.adresse || 'Non renseignée'}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-city"></i> Ville / CP:</span>
-                                <span class="info-value">${patient.ville || ''} ${patient.code_postal || ''}</span>
-                            </div>
-                        </div>
-                        <div class="profil-card-footer">
-                            <span class="status-badge ${completedFields === totalFields ? 'success' : 'warning'}">
-                                ${completedFields === totalFields ? '✓ Complet' : '⚠️ À compléter'}
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- CARTE SÉCURITÉ DU COMPTE -->
-                    <div class="profil-card">
-                        <div class="profil-card-header">
-                            <div class="card-icon ${securityColor}">
-                                <i class="fas ${securityIcon}"></i>
-                            </div>
-                            <h2>Sécurité du Compte</h2>
-                            <a href="#" onclick="showParametresInterface(); return false;" class="card-edit-btn">
-                                <i class="fas fa-pencil-alt"></i> Modifier
-                            </a>
-                        </div>
-                        <div class="profil-card-body">
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-envelope"></i> Email:</span>
-                                <span class="info-value">${patient.email || 'Non renseigné'}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-check-circle"></i> Email vérifié:</span>
-                                <span class="info-value">
-                                    ${isEmailVerified ? 
-                                        '<span class="badge-success"><i class="fas fa-check"></i> Vérifié</span>' : 
-                                        '<span class="badge-warning"><i class="fas fa-clock"></i> Non vérifié</span>'}
-                                </span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-lock"></i> Mot de passe:</span>
-                                <span class="info-value">••••••••</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-shield-alt"></i> Authentification:</span>
-                                <span class="info-value">Standard</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-history"></i> Dernière connexion:</span>
-                                <span class="info-value">${patient.derniere_connexion ? new Date(patient.derniere_connexion).toLocaleDateString('fr-FR') : 'Première connexion'}</span>
-                            </div>
-                        </div>
-                        <div class="profil-card-footer">
-                            <span class="status-badge success">
-                                <i class="fas fa-shield-alt"></i> ${securityStatus}
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- CARTE INFORMATIONS MÉDICALES -->
-                    <div class="profil-card">
-                        <div class="profil-card-header">
-                            <div class="card-icon orange">
-                                <i class="fas fa-heartbeat"></i>
-                            </div>
-                            <h2>Informations Médicales</h2>
-                            <a href="#" onclick="displaySection('dossier'); return false;" class="card-edit-btn">
-                                <i class="fas fa-folder-medical"></i> Voir dossier
-                            </a>
-                        </div>
-                        <div class="profil-card-body">
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-tint"></i> Groupe sanguin:</span>
-                                <span class="info-value"><strong>${patient.groupe_sanguin || 'Non renseigné'}</strong></span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-allergies"></i> Allergies:</span>
-                                <span class="info-value">${patient.allergies ? patient.allergies.split(',').map(a => a.trim()).join(', ') : 'Aucune'}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-history"></i> Antécédents:</span>
-                                <span class="info-value">${patient.antecedents_medicaux ? 'Renseignés' : 'Aucun'}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-prescription-bottle"></i> Traitements:</span>
-                                <span class="info-value">${patient.traitements_en_cours ? 'En cours' : 'Aucun'}</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label"><i class="fas fa-id-card"></i> N° Sécurité sociale:</span>
-                                <span class="info-value">${patient.numero_securite_sociale ? '••••' + patient.numero_securite_sociale.slice(-4) : 'Non renseigné'}</span>
-                            </div>
-                        </div>
-                        <div class="profil-card-footer">
-                            <span class="status-badge ${medicalCount > 0 ? 'info' : 'warning'}">
-                                ${medicalCount} information${medicalCount > 1 ? 's' : ''} médicale${medicalCount > 1 ? 's' : ''}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Ajouter le CSS directement dans le head s'il n'existe pas déjà
-        if (!document.getElementById('profil-resume-css')) {
-            const style = document.createElement('style');
-            style.id = 'profil-resume-css';
-            style.textContent = `
-                .profil-resume-container {
-                    padding: 20px;
-                }
-                .profil-header-card {
-                    display: flex;
-                    align-items: center;
-                    gap: 24px;
-                    background: white;
-                    border-radius: 16px;
-                    padding: 24px;
-                    margin-bottom: 24px;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                }
-                .profil-avatar-large {
-                    width: 100px;
-                    height: 100px;
-                    border-radius: 50%;
-                    overflow: hidden;
-                    border: 3px solid #0D8ABC;
-                }
-                .profil-avatar-large img {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                }
-                .profil-header-info {
-                    flex: 1;
-                }
-                .profil-header-info h1 {
-                    margin: 0 0 8px 0;
-                    font-size: 28px;
-                    color: #1a2b3c;
-                }
-                .profil-email {
-                    color: #6b7280;
-                    margin: 0 0 12px 0;
-                }
-                .profil-completion {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                }
-                .completion-bar-container {
-                    width: 200px;
-                    height: 8px;
-                    background: #e5e7eb;
-                    border-radius: 4px;
-                    overflow: hidden;
-                }
-                .completion-bar {
-                    height: 100%;
-                    background: #0D8ABC;
-                    border-radius: 4px;
-                    transition: width 0.3s ease;
-                }
-                .completion-text {
-                    font-size: 14px;
-                    color: #6b7280;
-                }
-                .profil-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-                    gap: 24px;
-                }
-                .profil-card {
-                    background: white;
-                    border-radius: 16px;
-                    padding: 20px;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                    display: flex;
-                    flex-direction: column;
-                }
-                .profil-card-header {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    margin-bottom: 20px;
-                    padding-bottom: 16px;
-                    border-bottom: 1px solid #e5e7eb;
-                }
-                .card-icon {
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 12px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: white;
-                }
-                .card-icon.blue { background: #0D8ABC; }
-                .card-icon.green { background: #10b981; }
-                .card-icon.orange { background: #f59e0b; }
-                .card-icon.red { background: #ef4444; }
-                .profil-card-header h2 {
-                    flex: 1;
-                    margin: 0;
-                    font-size: 18px;
-                    color: #1a2b3c;
-                }
-                .card-edit-btn {
-                    color: #0D8ABC;
-                    text-decoration: none;
-                    font-size: 14px;
-                }
-                .card-edit-btn:hover {
-                    text-decoration: underline;
-                }
-                .profil-card-body {
-                    flex: 1;
-                }
-                .info-row {
-                    display: flex;
-                    margin-bottom: 12px;
-                    font-size: 15px;
-                }
-                .info-label {
-                    width: 140px;
-                    color: #6b7280;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-                .info-label i {
-                    width: 16px;
-                    color: #9ca3af;
-                }
-                .info-value {
-                    flex: 1;
-                    color: #1a2b3c;
-                    font-weight: 500;
-                }
-                .info-age {
-                    color: #6b7280;
-                    font-size: 14px;
-                    font-weight: normal;
-                }
-                .profil-card-footer {
-                    margin-top: 20px;
-                    padding-top: 16px;
-                    border-top: 1px solid #e5e7eb;
-                    display: flex;
-                    justify-content: flex-end;
-                }
-                .status-badge {
-                    padding: 4px 12px;
-                    border-radius: 20px;
-                    font-size: 13px;
-                    font-weight: 500;
-                }
-                .status-badge.success {
-                    background: #d1fae5;
-                    color: #065f46;
-                }
-                .status-badge.warning {
-                    background: #fef3c7;
-                    color: #92400e;
-                }
-                .status-badge.info {
-                    background: #dbeafe;
-                    color: #1e40af;
-                }
-                .badge-success {
-                    color: #10b981;
-                }
-                .badge-warning {
-                    color: #f59e0b;
-                }
-                @media (max-width: 768px) {
-                    .profil-header-card {
-                        flex-direction: column;
-                        text-align: center;
-                    }
-                    .profil-completion {
-                        flex-direction: column;
-                    }
-                    .info-row {
-                        flex-direction: column;
-                        gap: 4px;
-                    }
-                    .info-label {
-                        width: 100%;
-                    }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-
-        document.getElementById('mainContent').innerHTML = html;
-
-    } catch (error) {
-        console.error('Erreur chargement résumé profil:', error);
-        document.getElementById('mainContent').innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-exclamation-triangle"></i>
-                <p>Erreur lors du chargement du profil</p>
-            </div>
-        `;
-    }
-}
-
 
 // Charger les statistiques du dashboard
 async function loadDashboardStats() {
@@ -1013,7 +589,7 @@ async function loadMedecinsList() {
                 color: 'blue',
                 title: `Dr. ${medecin.prenom} ${medecin.nom}`,
                 subtitle: medecin.specialite || "Non spécifié",
-                description: `${medecin.annees_experience || 0} ans d'expérience • ${medecin.prix_consultation || 'N/A'}CFA`,
+                description: `${medecin.annees_experience || 0} ans d'expérience • ${medecin.prix_consultation || 'N/A'}€`,
                 meta: [
                     { icon: 'fa-envelope', text: medecin.email || 'Email non disponible' },
                     { icon: 'fa-phone', text: medecin.telephone || 'Téléphone non disponible' }
@@ -1059,19 +635,157 @@ async function loadOrdonnancesList() {
         const response = await timedFetch('/api/ordonnances');
         if (response.ok) {
             const ordonnances = await response.json();
-            
-            // Mettre à jour le nombre d'ordonnances
-            sectionsData.ordonnances.cards[0].subtitle = `${ordonnances.length} prescriptions en cours`;
-            sectionsData.ordonnances.cards[0].badge.text = ordonnances.length > 0 ? 'Active' : 'Vérifier';
-            
+            ordonnancesCache = Array.isArray(ordonnances) ? ordonnances : [];
+            updateOrdonnancesCards(ordonnancesCache);
             return ordonnances;
         }
     } catch (error) {
         console.error('Erreur chargement ordonnances:', error);
     }
+    ordonnancesCache = [];
+    updateOrdonnancesCards(ordonnancesCache);
     return [];
 }
 
+
+function formatOrdonnanceDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return dateString;
+    return date.toLocaleDateString('fr-FR');
+}
+
+function normalizeOrdonnanceStatus(statut) {
+    return String(statut || '').toLowerCase();
+}
+
+function isOrdonnanceActive(ordonnance) {
+    const status = normalizeOrdonnanceStatus(ordonnance?.statut);
+    return status === 'active' || status === 'actif';
+}
+
+function truncateOrdonnanceText(text, max = 70) {
+    const value = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!value) return 'N/A';
+    return value.length > max ? `${value.slice(0, max)}...` : value;
+}
+
+function updateOrdonnancesCards(ordonnances) {
+    const cards = sectionsData.ordonnances.cards;
+    if (!cards || cards.length < 3) return;
+
+    const latest = ordonnances.length > 0 ? ordonnances[0] : null;
+    const activeOrdonnances = ordonnances.filter(isOrdonnanceActive);
+    const archivedOrdonnances = ordonnances.filter(ord => !isOrdonnanceActive(ord));
+
+    const firstCard = cards[0];
+    if (latest) {
+        firstCard.subtitle = `Prescription du ${formatOrdonnanceDate(latest.date_emission)}`;
+        firstCard.description = `Medicaments: ${truncateOrdonnanceText(latest.medicaments, 90)}`;
+        firstCard.meta = [
+            { icon: 'fa-user-md', text: latest.medecin_nom || 'Medecin non renseigne' },
+            { icon: 'fa-notes-medical', text: `Posologie: ${truncateOrdonnanceText(latest.posologie, 70)}` },
+            { icon: 'fa-clock', text: `Duree: ${latest.duree_traitement || 'N/A'}` }
+        ];
+        firstCard.badge = {
+            type: isOrdonnanceActive(latest) ? 'success' : 'warning',
+            text: latest.pdf_disponible ? 'Telecharger PDF' : (latest.statut || 'Prescription')
+        };
+        firstCard.onclick = latest.pdf_disponible
+            ? `downloadPatientOrdonnancePdf(${latest.id})`
+            : '';
+    } else {
+        firstCard.subtitle = 'Aucune ordonnance active';
+        firstCard.description = 'Consultez vos ordonnances actives';
+        firstCard.meta = [{ icon: 'fa-pills', text: 'Aucune prescription disponible' }];
+        firstCard.badge = { type: 'info', text: 'Verifier' };
+        firstCard.onclick = '';
+    }
+
+    const secondCard = cards[1];
+    secondCard.subtitle = `${ordonnances.length} ordonnance(s) au total`;
+    secondCard.description = 'Historique complet de toutes vos prescriptions';
+    secondCard.meta = [
+        { icon: 'fa-folder-open', text: `${archivedOrdonnances.length} archivees` },
+        { icon: 'fa-check-circle', text: `${activeOrdonnances.length} active(s)` }
+    ];
+    secondCard.badge = { type: 'primary', text: `${ordonnances.length} fichier(s)` };
+    secondCard.onclick = ordonnances.length > 0 ? 'showOrdonnancesHistoriqueModal()' : '';
+
+    const thirdCard = cards[2];
+    const rappelsParJour = activeOrdonnances.length;
+    thirdCard.subtitle = activeOrdonnances.length > 0
+        ? `${activeOrdonnances.length} traitement(s) quotidien(s)`
+        : 'Aucun traitement actif';
+    thirdCard.description = 'Recevez des rappels pour la prise de vos medicaments';
+    thirdCard.meta = [
+        { icon: 'fa-clock', text: `${rappelsParJour} rappel(s)/jour` },
+        { icon: 'fa-calendar-day', text: activeOrdonnances.length > 0 ? 'Rappel quotidien actif' : 'A activer' }
+    ];
+    thirdCard.badge = {
+        type: activeOrdonnances.length > 0 ? 'success' : 'info',
+        text: activeOrdonnances.length > 0 ? 'Actif' : 'A activer'
+    };
+    thirdCard.onclick = '';
+}
+
+function downloadPatientOrdonnancePdf(ordonnanceId) {
+    const link = document.createElement('a');
+    link.href = `/api/ordonnances/telecharger/${ordonnanceId}`;
+    link.download = `ordonnance_${ordonnanceId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function showOrdonnancesHistoriqueModal() {
+    if (!ordonnancesCache || ordonnancesCache.length === 0) {
+        alert('Aucune ordonnance disponible');
+        return;
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'medical-modal';
+
+    let content = '<div style="max-height: 420px; overflow-y: auto;">';
+    ordonnancesCache.forEach((ord, index) => {
+        content += `
+            <div style="margin-bottom: 14px; padding: 12px; background: #f9f9f9; border-left: 4px solid #0d8abc; border-radius: 6px;">
+                <p style="margin: 0 0 8px 0;"><strong>Ordonnance ${index + 1}</strong></p>
+                <p style="margin: 4px 0; font-size: 13px;">Date: ${formatOrdonnanceDate(ord.date_emission)}</p>
+                <p style="margin: 4px 0; font-size: 13px;">Medecin: ${escapeHtml(ord.medecin_nom || 'Medecin')}</p>
+                <p style="margin: 4px 0; font-size: 13px;">Medicaments: ${escapeHtml(ord.medicaments || 'N/A')}</p>
+                <p style="margin: 4px 0; font-size: 13px;">Posologie: ${escapeHtml(ord.posologie || 'N/A')}</p>
+                <p style="margin: 4px 0; font-size: 13px;">Duree: ${escapeHtml(ord.duree_traitement || 'N/A')}</p>
+                <p style="margin: 6px 0 0 0;">
+                    <span style="background: #e3f2fd; padding: 3px 8px; border-radius: 12px; color: #0d8abc; font-size: 12px;">
+                        ${escapeHtml(ord.statut || 'Active')}
+                    </span>
+                </p>
+                ${ord.pdf_disponible ? `
+                    <button style="margin-top: 10px; border: none; background: #0d8abc; color: white; padding: 8px 12px; border-radius: 6px; cursor: pointer;"
+                        onclick="downloadPatientOrdonnancePdf(${ord.id})">
+                        <i class="fas fa-file-pdf"></i> Telecharger PDF
+                    </button>
+                ` : ''}
+            </div>
+        `;
+    });
+    content += '</div>';
+
+    modal.innerHTML = `
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <h3>Historique des Ordonnances</h3>
+            <div class="modal-body">${content}</div>
+            <button id="closeOrdonnanceHistoriqueModal">Fermer</button>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    modal.querySelector('.modal-overlay')?.addEventListener('click', () => modal.remove());
+    document.getElementById('closeOrdonnanceHistoriqueModal')?.addEventListener('click', () => modal.remove());
+}
 // Mettre à jour les badges de navigation
 function updateNavBadges(stats) {
     if (!stats) return;
@@ -1102,10 +816,157 @@ function updateNotificationBadge(count) {
     }
 }
 
+function getPatientCallRoomId() {
+    const patientId = patientSession.id || 0;
+    const today = new Date().toISOString().slice(0, 10);
+    return `dokira-${patientId}-${today}`;
+}
+
+function openPatientInAppCall(medecin, mode = 'video', targetId = 'patientChatCallPanel') {
+    const panel = document.getElementById(targetId);
+    if (!panel) return;
+
+    const room = getPatientCallRoomId();
+    const audioOnly = mode === 'audio';
+    const displayName = encodeURIComponent(patientSession.nomComplet || 'Patient');
+    const title = audioOnly ? 'Appel vocal en cours' : 'Appel video en cours';
+    const medecinNom = `Dr. ${(medecin?.prenom || '').trim()} ${(medecin?.nom || '').trim()}`.trim() || 'Medecin';
+    const jitsiUrl = `https://meet.jit.si/${room}#userInfo.displayName=\"${displayName}\"&config.startWithVideoMuted=${audioOnly}`;
+
+    panel.innerHTML = `
+        <div class="patient-call-header">
+            <div class="patient-call-header-info">
+                <strong>${title}</strong>
+                <span>${medecinNom}</span>
+            </div>
+            <button class="patient-end-call-btn" onclick="closePatientInAppCall('${targetId}')">
+                <i class="fas fa-phone-slash"></i> Terminer
+            </button>
+        </div>
+        <iframe class="patient-call-frame" src="${jitsiUrl}" allow="camera; microphone; fullscreen; display-capture" title="Appel Dokira"></iframe>
+    `;
+
+    panel.style.display = 'block';
+}
+
+function closePatientInAppCall(targetId = 'patientChatCallPanel') {
+    const panel = document.getElementById(targetId);
+    if (!panel) return;
+    panel.innerHTML = '';
+    panel.style.display = 'none';
+}
+
+function startPatientVideoCall(medecinId) {
+    if (!activeConversationMedecin || Number(activeConversationMedecin.id) !== Number(medecinId)) {
+        return;
+    }
+    openPatientInAppCall(activeConversationMedecin, 'video', 'patientChatCallPanel');
+}
+
+function startPatientVoiceCall(medecinId) {
+    if (!activeConversationMedecin || Number(activeConversationMedecin.id) !== Number(medecinId)) {
+        return;
+    }
+    openPatientInAppCall(activeConversationMedecin, 'audio', 'patientChatCallPanel');
+}
+
+function togglePatientChatActionsMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('patientChatActionsMenu');
+    if (!menu) return;
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+function closePatientChatActionsMenu() {
+    const menu = document.getElementById('patientChatActionsMenu');
+    if (menu) menu.style.display = 'none';
+}
+
+function sendMedecinEmailFromChat() {
+    if (!activeConversationMedecin) return;
+    const medecinEmail = (activeConversationMedecin.email || '').trim();
+    if (!medecinEmail) {
+        alert('Email du medecin indisponible');
+        return;
+    }
+    const subject = encodeURIComponent('Suivi medical Dokira');
+    window.location.href = `mailto:${medecinEmail}?subject=${subject}`;
+}
+
+function applyMedecinPresenceInConversation(isOnline) {
+    const status = document.querySelector('.header-status');
+    if (status) {
+        status.innerHTML = isOnline
+            ? '<span class="status-online">En ligne</span>'
+            : '<span class="status-offline">Hors ligne</span>';
+    }
+
+    const avatar = document.querySelector('.conversation-header-professional .header-avatar');
+    if (avatar) {
+        const existingBadge = avatar.querySelector('.online-badge');
+        if (isOnline && !existingBadge) {
+            avatar.insertAdjacentHTML('beforeend', '<span class="online-badge"></span>');
+        }
+        if (!isOnline && existingBadge) {
+            existingBadge.remove();
+        }
+    }
+}
+
+function applyMedecinPresenceInList(medecinId, isOnline) {
+    const item = document.querySelector(`.conversation-item[data-medecin-id="${medecinId}"]`);
+    if (!item) return;
+
+    const avatar = item.querySelector('.conversation-avatar');
+    if (!avatar) return;
+
+    const existingBadge = avatar.querySelector('.online-badge');
+    if (isOnline && !existingBadge) {
+        avatar.insertAdjacentHTML('beforeend', '<span class="online-badge"></span>');
+    }
+    if (!isOnline && existingBadge) {
+        existingBadge.remove();
+    }
+}
+
+function stopPatientPresencePolling() {
+    if (patientPresencePoller) {
+        clearInterval(patientPresencePoller);
+        patientPresencePoller = null;
+    }
+}
+
+async function refreshActiveMedecinPresence() {
+    if (!activeConversationMedecinId) return;
+    try {
+        const response = await fetch(`/api/messagerie/medecin-presence/${activeConversationMedecinId}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        const isOnline = !!data.is_online;
+
+        if (activeConversationMedecin) {
+            activeConversationMedecin.is_online = isOnline;
+        }
+        applyMedecinPresenceInConversation(isOnline);
+        applyMedecinPresenceInList(activeConversationMedecinId, isOnline);
+    } catch (error) {
+        console.error('Erreur rafraichissement statut medecin:', error);
+    }
+}
+
+function startPatientPresencePolling(medecinId) {
+    activeConversationMedecinId = medecinId;
+    stopPatientPresencePolling();
+    refreshActiveMedecinPresence();
+    patientPresencePoller = setInterval(refreshActiveMedecinPresence, 5000);
+}
+
 // ============= INTERFACE MESSAGERIE =============
 
 async function showMessagerieInterface() {
     try {
+        stopPatientPresencePolling();
+        activeConversationMedecinId = null;
         // Charger les conversations
         const response = await fetch('/api/messagerie/conversations');
 
@@ -1261,6 +1122,8 @@ async function showMessagerieInterface() {
 
 async function selectConversation(medecinId, element) {
     try {
+        closePatientInAppCall('patientChatCallPanel');
+        closePatientChatActionsMenu();
         // Mettre à jour la sélection visuelle
         document.querySelectorAll('.conversation-item').forEach(item => {
             item.classList.remove('active');
@@ -1287,6 +1150,8 @@ async function selectConversation(medecinId, element) {
         
         const messages = conversationData.messages || [];
         const medecin = conversationData.medecin || {};
+        activeConversationMedecin = medecin;
+        activeConversationMedecinId = medecinId;
         
         // Données du médecin sécurisées
         const medecinName = `Dr. ${medecin.prenom || ''} ${medecin.nom || ''}`.trim() || 'Médecin';
@@ -1341,9 +1206,7 @@ async function selectConversation(medecinId, element) {
             messages.forEach(msg => {
                 if (!msg) return;
                 
-                const messageDate = msg.date_envoi 
-                    ? new Date(msg.date_envoi).toLocaleDateString('fr-FR')
-                    : new Date().toLocaleDateString('fr-FR');
+                const messageDate = formatMessageDate(msg.date_envoi);
                 
                 // Afficher le séparateur de date si elle change
                 if (messageDate !== currentDate) {
@@ -1356,12 +1219,7 @@ async function selectConversation(medecinId, element) {
                 }
                 
                 const isPatient = msg.expediteur_type === 'patient';
-                const time = msg.date_envoi 
-                    ? new Date(msg.date_envoi).toLocaleTimeString('fr-FR', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })
-                    : new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                const time = formatMessageTime(msg.date_envoi);
                 
                 const safeContent = escapeHtml(msg.contenu || '');
                 
@@ -1383,50 +1241,92 @@ async function selectConversation(medecinId, element) {
             </div>
             
             <div class="message-input-area">
-                <form id="messageForm" class="message-form" onsubmit="sendMessage(event, ${medecinId})">
+                <form id="messageForm" class="message-form">
                     <textarea id="messageInput" 
                               class="message-textarea" 
                               placeholder="Écrivez votre message..."
                               rows="1"></textarea>
-                    <button type="button" class="message-send-btn" title="Envoyer" onclick="sendMessage(event, ${medecinId})">
+                    <button type="button" class="message-send-btn" title="Envoyer">
                         <i class="fas fa-paper-plane"></i>
                     </button>
                 </form>
             </div>
         `;
         
-        const conversationMain = document.getElementById('conversationMain');
-        if (conversationMain) {
-            conversationMain.innerHTML = html;
-            setTimeout(() => {
-            setupMessageForm(medecinId);
-               }, 0);
-                    
-            // Auto-resize textarea
-            const textarea = document.getElementById('messageInput');
-            if (textarea) {
-                textarea.addEventListener('input', function() {
-                    this.style.height = 'auto';
-                    this.style.height = Math.min(this.scrollHeight, 150) + 'px';
-                });
-                
-                // Shift+Enter pour nouvelle ligne, Enter seul pour envoyer
-                textarea.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        document.getElementById('messageForm').dispatchEvent(new Event('submit'));
-                    }
-                });
-                
-                textarea.focus();
+ // Dans selectConversation(), vers la fin de la fonction
+const conversationMain = document.getElementById('conversationMain');
+if (conversationMain) {
+    conversationMain.innerHTML = html;
+    applyMedecinPresenceInConversation(isOnline);
+    applyMedecinPresenceInList(medecinId, isOnline);
+    startPatientPresencePolling(medecinId);
+
+    const headerActions = conversationMain.querySelector('.header-actions');
+    if (headerActions) {
+        headerActions.innerHTML = `
+            <button class="header-action-btn" title="Appel video" onclick="startPatientVideoCall(${medecinId})">
+                <i class="fas fa-video"></i>
+            </button>
+            <button class="header-action-btn" title="Appel audio" onclick="startPatientVoiceCall(${medecinId})">
+                <i class="fas fa-phone"></i>
+            </button>
+            <button class="header-action-btn" title="Plus d'options" onclick="togglePatientChatActionsMenu(event)">
+                <i class="fas fa-ellipsis-v"></i>
+            </button>
+            <div id="patientChatActionsMenu" class="patient-chat-actions-menu">
+                <button type="button" class="patient-chat-menu-item" onclick="sendMedecinEmailFromChat()">
+                    <i class="fas fa-envelope"></i> Envoyer un mail
+                </button>
+            </div>
+        `;
+    }
+
+    const header = conversationMain.querySelector('.conversation-header-professional');
+    if (header && !document.getElementById('patientChatCallPanel')) {
+        const callPanel = document.createElement('div');
+        callPanel.id = 'patientChatCallPanel';
+        callPanel.className = 'patient-call-panel';
+        callPanel.style.display = 'none';
+        header.insertAdjacentElement('afterend', callPanel);
+    }
+    
+    // Auto-resize textarea
+    const textarea = document.getElementById('messageInput');
+    if (textarea) {
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+        });
+        
+        // Shift+Enter pour envoyer
+        textarea.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage(e, medecinId);
             }
-            
-            // Scroller vers le bas
-            scrollMessagesToBottom();
-        }
+        });
+        
+        textarea.focus();
+    }
+    
+    // SOLUTION : Attacher l'événement au clic du bouton
+    const sendButton = document.querySelector('.message-send-btn');
+    if (sendButton) {
+        sendButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            sendMessage(e, medecinId);
+            return false;
+        });
+    }
+    
+    // Scroller vers le bas
+    scrollMessagesToBottom();
+}
         
     } catch (error) {
         console.error('Erreur chargement conversation:', error);
+        stopPatientPresencePolling();
         document.getElementById('conversationMain').innerHTML = `
             <div class="error-state">
                 <div class="error-icon">
@@ -1440,259 +1340,6 @@ async function selectConversation(medecinId, element) {
 }
 
 
-
-function setupMessageForm(medecinId) {
-    const textarea = document.getElementById('messageInput');
-    const form = document.getElementById('messageForm');
-    const sendBtn = document.querySelector('.message-send-btn');
-    
-    if (!textarea || !form || !sendBtn) {
-        console.error('❌ Éléments du formulaire non trouvés');
-        return;
-    }
-    
-    // ✅ Auto-resize textarea
-    textarea.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = Math.min(this.scrollHeight, 150) + 'px';
-    });
-    
-    // ✅ Gestion du clique du bouton ENVOYER
-    sendBtn.addEventListener('click', async function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    await sendMessage(medecinId); // Ne pas passer l'événement
-    });
-    
-    // ✅ Gestion de la soumission du formulaire (Enter)
-    form.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        await sendMessage(medecinId);
-    });
-    
-    // ✅ Shift+Enter pour nouvelle ligne, Enter seul pour envoyer
-    textarea.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            e.stopPropagation();
-            sendMessage(medecinId);
-        }
-    });
-    
-    textarea.focus();
-}
-
-
-// Charger une conversation spécifique
-async function loadConversation(medecinId, clickedElement = null) {
-    try {
-        // Vérifier que medecinId est valide
-        if (!medecinId || medecinId <= 0) {
-            throw new Error('ID médecin invalide');
-        }
-        
-        const response = await fetch(`/api/messagerie/conversation/${medecinId}`);
-        
-        if (!response.ok) {
-            if (response.status === 404) {
-                throw new Error('Conversation non trouvée');
-            }
-            throw new Error(`Erreur HTTP ${response.status}`);
-        }
-        
-        const conversationData = await response.json();
-        
-        // VALIDATION: Vérifier la structure des données
-        if (!conversationData || typeof conversationData !== 'object') {
-            throw new Error('Format de données invalide');
-        }
-        
-        const messages = conversationData.messages || [];
-        const medecin = conversationData.medecin || {};
-        
-        // CORRECTION: Données par défaut pour le médecin
-        const medecinName = `Dr. ${medecin.prenom || ''} ${medecin.nom || ''}`.trim() || 'Médecin';
-        const medecinSpecialite = medecin.specialite || 'Spécialité non spécifiée';
-        const medecinPhoto = medecin.photo || '';
-        const isOnline = medecin.is_online || false;
-        
-        // CORRECTION: URL d'avatar sécurisée
-        const avatarUrl = medecinPhoto && medecinPhoto.trim() !== ''
-            ? medecinPhoto
-            : `https://ui-avatars.com/api/?name=${encodeURIComponent(medecinName)}&background=0066cc&color=fff`;
-        
-        // Mettre à jour la sélection visuelle
-        if (clickedElement) {
-            document.querySelectorAll('.conversation-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            clickedElement.classList.add('active');
-        } else {
-            // Trouver l'élément correspondant au médecin
-            const conversationItem = document.querySelector(`.conversation-item[data-medecin-id="${medecinId}"]`);
-            if (conversationItem) {
-                document.querySelectorAll('.conversation-item').forEach(item => {
-                    item.classList.remove('active');
-                });
-                conversationItem.classList.add('active');
-            }
-        }
-        
-       let html = `
-            <div class="conversation-detail">
-                <div class="chat-header">
-                    <div class="chat-header-left">
-                        <button class="btn-back" onclick="showConversationList()">
-                            <i class="fas fa-arrow-left"></i>
-                        </button>
-                        <div class="doctor-avatar-wrapper">
-                            <img class="doctor-avatar" src="${avatarUrl}" alt="${medecinName}" onerror="this.src='https://ui-avatars.com/api/?name=M&background=075e54&color=fff'">
-                            ${isOnline ? 
-                                '<span class="online-indicator"></span>' : 
-                                '<span class="offline-indicator"></span>'}
-                        </div>
-                        <div class="doctor-info">
-                            <span class="doctor-name">${medecinName}</span>
-                            <span class="doctor-specialite">${medecinSpecialite}</span>
-                        </div>
-                    </div>
-                    <div class="chat-header-actions">
-                        <button class="chat-header-btn" title="Rechercher">
-                            <i class="fas fa-search"></i>
-                        </button>
-                        <button class="chat-header-btn" title="Plus d'options">
-                            <i class="fas fa-ellipsis-v"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="messages-list">
-        `;
-
-        // --- End of chat header and start of JS logic ---
-        if (messages.length === 0) {
-            html += `
-                <div class="empty-conversation" style="text-align: center; padding: 40px;">
-                    <div style="font-size: 48px; color: #e0e0e0; margin-bottom: 16px;">
-                        <i class="fas fa-comment-slash"></i>
-                    </div>
-                    <p style="color: #666; margin: 0;">Aucun message dans cette conversation</p>
-                    <p style="color: #999; font-size: 14px; margin-top: 8px;">Envoyez votre premier message</p>
-                </div>
-            `;
-        } else {
-            let currentDate = null;
-            
-            messages.forEach(msg => {
-                // CORRECTION: Validation des données du message
-                if (!msg) return;
-                
-                const messageDate = msg.date_envoi 
-                    ? new Date(msg.date_envoi).toLocaleDateString('fr-FR')
-                    : new Date().toLocaleDateString('fr-FR');
-                
-                // Afficher la date si elle change
-                if (messageDate !== currentDate) {
-                    currentDate = messageDate;
-                    html += `
-                        <div class="date-indicator">
-                            <span>${messageDate}</span>
-                        </div>
-                    `;
-                }
-                
-                const isPatient = msg.expediteur_type === 'patient';
-                const time = msg.date_envoi 
-                    ? new Date(msg.date_envoi).toLocaleTimeString('fr-FR', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })
-                    : new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-                
-                // Échapper le contenu pour la sécurité
-                const safeContent = escapeHtml(msg.contenu || '');
-                
-                html += `
-                    <div class="message ${isPatient ? 'message-sent' : 'message-received'} animate-in">
-                        <div class="message-content">${safeContent}</div>
-                        <div class="message-time">
-                            ${time}
-                            ${isPatient ? 
-                                `<span class="message-status">
-                                    <i class="fas fa-check"></i> Envoyé
-                                </span>` : ''}
-                        </div>
-                    </div>
-                `;
-            });
-        }
-        
-        html += `
-                </div>
-                <div class="message-input">
-                    <textarea id="newMessageText" placeholder="Écrivez votre message... (Appuyez sur Maj+Entrée pour une nouvelle ligne)" rows="3"></textarea>
-                    <button class="btn-send" onclick="sendMessage(${medecinId})">
-                        <i class="fas fa-paper-plane"></i> Envoyer
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        const conversationArea = document.getElementById('conversation-area');
-        if (conversationArea) {
-            conversationArea.innerHTML = html;
-            conversationArea.classList.remove('empty-state');
-            
-            // Focus sur le champ de message
-            setTimeout(() => {
-                const textarea = document.getElementById('newMessageText');
-                if (textarea) {
-                    textarea.focus();
-                    
-                    // Gestion du textarea
-                    textarea.addEventListener('keydown', function(e) {
-                        if (e.key === 'Enter' && e.shiftKey) {
-                            // Shift+Enter pour nouvelle ligne
-                            return;
-                        } else if (e.key === 'Enter') {
-                            // Enter seul pour envoyer
-                            e.preventDefault();
-                            sendMessage(medecinId);
-                        }
-                        
-                        // Auto-resize
-                        this.style.height = 'auto';
-                        this.style.height = Math.min(this.scrollHeight, 150) + 'px';
-                    });
-                }
-            }, 100);
-            
-            // Scroller vers le bas
-            scrollToBottom();
-        }
-        
-    } catch (error) {
-        console.error('Erreur chargement conversation:', error);
-        const conversationArea = document.getElementById('conversation-area');
-        if (conversationArea) {
-            conversationArea.innerHTML = `
-                <div class="error-state">
-                    <div class="error-icon">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
-                    <div class="error-title">Erreur de chargement</div>
-                    <div class="error-text">Impossible de charger la conversation</div>
-                    <div class="error-details" style="margin-top: 10px; font-size: 12px; color: #888;">
-                        ${error.message}
-                    </div>
-                    <button class="btn-retry" onclick="loadConversation(${medecinId})" style="margin-top: 16px;">
-                        <i class="fas fa-redo"></i> Réessayer
-                    </button>
-                </div>
-            `;
-        }
-    }
-}
 // Afficher le formulaire de nouveau message
 async function showNewMessageForm() {
     try {
@@ -1750,38 +1397,32 @@ async function showNewMessageForm() {
     }
 }
 
-function showConversationList() {
-    const conversationArea = document.getElementById('conversation-area');
-    conversationArea.innerHTML = `
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <i class="fas fa-comment-medical"></i>
-            </div>
-            <div class="empty-state-title">Sélectionnez une conversation</div>
-            <div class="empty-state-text">Choisissez un médecin pour commencer à discuter</div>
-        </div>
-    `;
-}
-
 
 // ============= ENVOYER UN MESSAGE =============
 
-async function sendMessage(e, medecinId) {
-
-     if (typeof e === 'number' || (e && typeof e === 'object' && e.preventDefault === undefined)) {
-        // Cas où le premier paramètre est medecinId
-        medecinId = e;
-        e = { preventDefault: () => {} }; 
-     }
-    e.preventDefault();
+async function sendMessage(event, medecinId) {
+    // Empêcher la soumission du formulaire
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
     
     const textarea = document.getElementById('messageInput');
+    if (!textarea) return;
+    
     const content = textarea.value.trim();
     
     if (!content) return;
     
     const messagesContainer = document.getElementById('messagesContainer');
+    if (!messagesContainer) return;
+    
     const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    
+    // Désactiver temporairement le textarea
+    textarea.disabled = true;
+    const sendButton = document.querySelector('.message-send-btn');
+    if (sendButton) sendButton.disabled = true;
     
     // Ajouter le message temporaire
     const tempMessageHTML = `
@@ -1823,50 +1464,48 @@ async function sendMessage(e, medecinId) {
                     checkSpan.innerHTML = '<i class="fas fa-check"></i>';
                     checkSpan.classList.remove('pending');
                 }
-                
-                // Rafraîchir la conversation
-                setTimeout(() => {
-                    selectConversation(medecinId);
-                }, 500);
-            }
-        }
-    } catch (error) {
-        console.error('Erreur envoi message:', error);
-    }
-}
-
-
-// Envoyer un nouveau message
-async function sendNewMessage(medecinId, content) {
-    try {
-        const response = await fetch('/api/messagerie/send', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                medecin_id: parseInt(medecinId),
-                contenu: content.trim()
-            })
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-                alert('Message envoyé avec succès !');
-                showMessagerieInterface();
-                await refreshNotifications();
             } else {
-                alert('Erreur lors de l\'envoi du message');
+                // Afficher une erreur
+                const lastMessage = messagesContainer.lastElementChild;
+                const checkSpan = lastMessage.querySelector('.message-check');
+                if (checkSpan) {
+                    checkSpan.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+                    checkSpan.classList.add('error');
+                }
             }
         } else {
-            alert('Erreur lors de l\'envoi du message');
+            throw new Error('Erreur serveur');
         }
     } catch (error) {
         console.error('Erreur envoi message:', error);
-        alert('Erreur de connexion');
+        
+        // Afficher l'erreur sur le message
+        const lastMessage = messagesContainer.lastElementChild;
+        const checkSpan = lastMessage.querySelector('.message-check');
+        if (checkSpan) {
+            checkSpan.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+            checkSpan.classList.add('error');
+        }
+        
+        // Ajouter un message d'erreur
+        const errorHTML = `
+            <div class="message-wrapper message-error-wrapper">
+                <div class="message-error-bubble">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Échec de l'envoi. Veuillez réessayer.
+                </div>
+            </div>
+        `;
+        messagesContainer.innerHTML += errorHTML;
+    } finally {
+        // Réactiver le textarea
+        textarea.disabled = false;
+        if (sendButton) sendButton.disabled = false;
+        textarea.focus();
     }
 }
+
+
 
 
 // Afficher le formulaire de message à un médecin spécifique
@@ -1893,7 +1532,7 @@ async function showMessageToMedecin(medecinId) {
                         <p><i class="fas fa-stethoscope"></i> ${medecin.specialite}</p>
                         <p><i class="fas fa-graduation-cap"></i> ${medecin.annees_experience} ans d'expérience</p>
                         <p><i class="fas fa-envelope"></i> ${medecin.email}</p>
-                        <p><i class="fas fa-euro-sign"></i> ${medecin.prix_consultation}CFA</p>
+                        <p><i class="fas fa-euro-sign"></i> ${medecin.prix_consultation}€</p>
                         <p><i class="fas fa-phone"></i> ${medecin.telephone || 'Non disponible'}</p>
                     </div>
                 </div>
@@ -1931,6 +1570,38 @@ async function showMessageToMedecin(medecinId) {
 }
 
 
+// Ajoutez cette fonction quelque part dans votre code
+async function sendDirectMessage(medecinId, content) {
+    try {
+        const response = await fetch('/api/messagerie/send', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                medecin_id: parseInt(medecinId),
+                contenu: content.trim()
+            })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                alert('Message envoyé avec succès !');
+                displaySection('medecins');
+                await refreshNotifications();
+                return true;
+            }
+        }
+        alert('Erreur lors de l\'envoi du message');
+        return false;
+    } catch (error) {
+        console.error('Erreur envoi message:', error);
+        alert('Erreur de connexion');
+        return false;
+    }
+}
+
 // Générer des initiales à partir d'un nom
 function getInitials(name) {
     const parts = name.split(' ').filter(p => p.length > 0);
@@ -1956,14 +1627,40 @@ function getColorFromName(name) {
     return colors[Math.abs(hash) % colors.length];
 }
 
+function parseApiDate(value) {
+    if (!value) return null;
+    const isoDate = new Date(value);
+    if (!Number.isNaN(isoDate.getTime())) return isoDate;
+
+    const frMatch = String(value).match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (frMatch) {
+        const [, dd, mm, yyyy, hh = '00', min = '00', ss = '00'] = frMatch;
+        const parsed = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min), Number(ss));
+        if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    return null;
+}
+
+function formatMessageDate(value) {
+    const d = parseApiDate(value);
+    return d ? d.toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR');
+}
+
+function formatMessageTime(value) {
+    const d = parseApiDate(value);
+    return d
+        ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        : new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
 // Formater le temps écoulé
 function formatTimeAgo(dateString) {
-    if (!dateString) return '';
-    
-    const date = new Date(dateString);
+    const date = parseApiDate(dateString);
+    if (!date) return '';
+
     const now = new Date();
     const seconds = Math.floor((now - date) / 1000);
-    
+
     if (seconds < 60) return 'À l\'instant';
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `${minutes}m`;
@@ -1971,7 +1668,7 @@ function formatTimeAgo(dateString) {
     if (hours < 24) return `${hours}h`;
     const days = Math.floor(hours / 24);
     if (days < 7) return `${days}j`;
-    
+
     return date.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
 }
 
@@ -2108,6 +1805,12 @@ async function viewDocument(docId, docTitle, docUrl, docType) {
         const docData = await response.json();
         const fullDocUrl = docData.fichier_url;
         
+        // Fermer toute modale existante
+        const existingWrapper = document.getElementById('documentViewerWrapper');
+        if (existingWrapper) {
+            existingWrapper.remove();
+        }
+        
         let viewerHtml = '';
         
         // Créer le HTML de visualisation selon le type de document
@@ -2131,7 +1834,8 @@ async function viewDocument(docId, docTitle, docUrl, docType) {
                             </div>
                         </div>
                         <div class="document-viewer-content">
-                            <img src="${fullDocUrl}" alt="${docTitle}" class="document-image-viewer" onerror="this.onerror=null;this.src='https://via.placeholder.com/600x800?text=Image+non+chargée';">
+                            <img src="${fullDocUrl}" alt="${docTitle}" class="document-image-viewer" 
+                                 onerror="this.onerror=null; this.src='https://via.placeholder.com/600x800?text=Image+non+chargée'; this.alt='Image non disponible';">
                         </div>
                     </div>
                 </div>
@@ -2156,7 +1860,7 @@ async function viewDocument(docId, docTitle, docUrl, docType) {
                             </div>
                         </div>
                         <div class="document-viewer-content pdf-content">
-                            <embed src="${fullDocUrl}#view=FitH" type="application/pdf" width="100%" height="600px" />
+                            <iframe src="${fullDocUrl}#view=FitH" width="100%" height="600px" style="border: none;"></iframe>
                         </div>
                     </div>
                 </div>
@@ -2182,10 +1886,10 @@ async function viewDocument(docId, docTitle, docUrl, docType) {
                         </div>
                         <div class="document-viewer-content">
                             <div class="document-preview-message">
-                                <i class="fas fa-file"></i>
+                                <i class="fas fa-file" style="font-size: 64px; color: #999; margin-bottom: 20px;"></i>
                                 <p><strong>${docTitle}</strong></p>
-                                <p>Ce format de fichier ne peut pas être prévisualisé dans le navigateur.</p>
-                                <p>Cliquez sur "Télécharger" pour ouvrir le fichier.</p>
+                                <p style="color: #666; margin: 10px 0;">Ce format de fichier ne peut pas être prévisualisé dans le navigateur.</p>
+                                <p style="color: #888;">Cliquez sur "Télécharger" pour ouvrir le fichier.</p>
                             </div>
                         </div>
                     </div>
@@ -2193,7 +1897,7 @@ async function viewDocument(docId, docTitle, docUrl, docType) {
             `;
         }
         
-        // Ajouter la modale au contenu principal
+        // Ajouter la modale au body
         const viewerDiv = document.createElement('div');
         viewerDiv.id = 'documentViewerWrapper';
         viewerDiv.innerHTML = viewerHtml;
@@ -2204,13 +1908,22 @@ async function viewDocument(docId, docTitle, docUrl, docType) {
             viewerDiv.classList.add('active');
         }, 10);
         
+        // Ajouter un écouteur pour fermer avec Echap
+        const escHandler = function(e) {
+            if (e.key === 'Escape') {
+                closeDocumentViewer();
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+        
     } catch (error) {
         console.error('Erreur visualisation:', error);
-        alert('Erreur lors de l\'ouverture du document');
+        alert('Erreur lors de l\'ouverture du document : ' + error.message);
     }
 }
 
-// Fermer la modale de visualisation
+// Fermer la modale de visualisation (UNE SEULE FOIS)
 function closeDocumentViewer() {
     const viewerWrapper = document.getElementById('documentViewerWrapper');
     if (viewerWrapper) {
@@ -2220,6 +1933,7 @@ function closeDocumentViewer() {
         }, 300);
     }
 }
+
 
 //============ FORMULAIRE DE TÉLÉVERSEMENT DE DOCUMENT =============
 
@@ -2780,6 +2494,79 @@ function renderStats(stats) {
     `;
 }
 
+async function showPatientVisioInterface() {
+    const mainContent = document.getElementById('mainContent');
+    try {
+        const response = await fetch('/api/medecins');
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP ${response.status}`);
+        }
+        const medecinsList = await response.json();
+        medecins = medecinsList;
+        const options = medecinsList.map((m) => (
+            `<option value="${m.id}">Dr. ${m.prenom} ${m.nom} - ${m.specialite || 'Medecin'}</option>`
+        )).join('');
+
+        mainContent.innerHTML = `
+            <div class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Visioconférences</h2>
+                </div>
+                <div class="patient-visio-card">
+                    <div class="patient-visio-controls">
+                        <div class="form-group">
+                            <label for="patientVisioMedecinSelect">Choisir un medecin</label>
+                            <select id="patientVisioMedecinSelect" class="form-control">
+                                <option value="">Selectionnez un medecin</option>
+                                ${options}
+                            </select>
+                        </div>
+                        <div class="patient-visio-actions">
+                            <button class="btn btn-primary" onclick="launchPatientVisioCall('video')">
+                                <i class="fas fa-video"></i> Appel video
+                            </button>
+                            <button class="btn btn-secondary" onclick="launchPatientVisioCall('audio')">
+                                <i class="fas fa-phone"></i> Appel vocal
+                            </button>
+                        </div>
+                    </div>
+                    <div id="patientVisioCallPanel" class="patient-call-panel" style="display:none;"></div>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Erreur affichage visio patient:', error);
+        mainContent.innerHTML = `
+            <div class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Visioconférences</h2>
+                </div>
+                <div class="empty-state">
+                    <div class="empty-state-icon error"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="empty-state-title">Impossible de charger les medecins</div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function launchPatientVisioCall(mode = 'video') {
+    const select = document.getElementById('patientVisioMedecinSelect');
+    if (!select || !select.value) {
+        alert('Veuillez choisir un medecin');
+        return;
+    }
+
+    const medecinId = Number(select.value);
+    const medecin = medecins.find((m) => Number(m.id) === medecinId);
+    if (!medecin) {
+        alert('Medecin introuvable');
+        return;
+    }
+
+    openPatientInAppCall(medecin, mode, 'patientVisioCallPanel');
+}
+
 // Fonction pour rendre les cartes de contenu
 function renderCards(cards) {
     if (!cards || cards.length === 0) {
@@ -2830,6 +2617,13 @@ function renderCards(cards) {
 // Fonction pour afficher le contenu d'une section
 async function displaySection(sectionName) {
     const mainContent = document.getElementById('mainContent');
+    closePatientInAppCall('patientChatCallPanel');
+    closePatientInAppCall('patientVisioCallPanel');
+    closePatientChatActionsMenu();
+    if (sectionName !== 'messagerie') {
+        stopPatientPresencePolling();
+        activeConversationMedecinId = null;
+    }
     
     // Gérer les sections spéciales qui nécessitent un rechargement API spécifique
     if (sectionName === 'messagerie') {
@@ -2837,12 +2631,11 @@ async function displaySection(sectionName) {
         showMessagerieInterface();
         return;
     }
-
-    if (sectionName === 'profil') {
+     if (sectionName === 'profil') {
     showProfilResume();  
     return;
-   }
-
+    }
+    
     if (sectionName === 'documents') {
         await loadDocumentsList();
         showDocumentsInterface();
@@ -2877,6 +2670,11 @@ async function displaySection(sectionName) {
 
     if (sectionName === 'chat-ia') {
         showChatIAInterface();
+        return;
+    }
+
+    if (sectionName === 'visio') {
+        await showPatientVisioInterface();
         return;
     }
 
@@ -2942,6 +2740,7 @@ function getSectionTitle(sectionName) {
         'dossier': 'Dossier Médical',
         'rendez-vous': 'Mes Rendez-vous',
         'messagerie': 'Messagerie',
+        'visio': 'Visioconférences',
         'ordonnances': 'Mes Ordonnances', 
         'documents': 'Mes Documents',
         'analyses': 'Analyses & Résultats',
@@ -3053,6 +2852,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // 3. Afficher le dashboard
     // Les données sont déjà prêtes grâce au Promise.all ci-dessus.
+    document.addEventListener('click', closePatientChatActionsMenu);
     displaySection('dashboard');
 });
 
@@ -3320,67 +3120,155 @@ async function creerRendezVous() {
     }
 }
 
+// ============= CHARGEMENT DES RENDEZ-VOUS - FIX =============
+
 async function loadMesRendezVous() {
     try {
-        const response = await fetch('/api/rendez-vous');
-        const rdvs = await response.json();
-
+        console.log("📅 Chargement des rendez-vous du patient...");
+        
+        const response = await fetch('/api/rendez-vous', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            },
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            console.error(`❌ Erreur HTTP ${response.status}: ${response.statusText}`);
+            throw new Error(`Erreur HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log("📊 Données reçues:", data);
+        
+        // ✅ CORRECTION: Vérifier que data est bien un tableau
+       
+        const rdvs = Array.isArray(data) ? data : [];
+        
+        console.log(`📈 ${rdvs.length} rendez-vous trouvés`);
+        
         let html = '';
 
         if (rdvs.length === 0) {
             html = `
-                <div class="empty-state">
-                    <i class="fas fa-calendar-times"></i>
-                    <p>Aucun rendez-vous programmé</p>
+                <div class="empty-state" style="text-align: center; padding: 40px;">
+                    <div style="margin-bottom: 20px;">
+                        <i class="fas fa-calendar-times" style="font-size: 64px; color: #ccc;"></i>
+                    </div>
+                    <h3 style="color: #666; margin-bottom: 10px;">Aucun rendez-vous programmé</h3>
+                    <p style="color: #999; margin-bottom: 20px;">Prenez votre premier rendez-vous en cliquant sur l'onglet "Nouveau RDV"</p>
+                    <button class="btn btn-primary" onclick="document.querySelector('[data-tab=\"prise-rdv\"]').click()">
+                        <i class="fas fa-calendar-plus"></i> Prendre un rendez-vous
+                    </button>
                 </div>
             `;
         } else {
-            html = `<div class="rdv-cards">`;
+            html = `<div class="rdv-cards" style="display: grid; gap: 16px;">`;
             
             rdvs.forEach(rdv => {
-                const date = new Date(rdv.date_heure);
-                const dateFormatée = date.toLocaleDateString('fr-FR', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
+                // ✅ Vérification de la date
+                let dateFormatée = 'Date non disponible';
+                if (rdv.date_heure) {
+                    try {
+                        const date = new Date(rdv.date_heure);
+                        dateFormatée = date.toLocaleDateString('fr-FR', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                    } catch (e) {
+                        console.warn('Erreur parsing date:', rdv.date_heure);
+                    }
+                }
 
+                // ✅ Icônes du type de consultation
                 const typeIcon = {
                     'Cabinet': '🏥',
                     'Vidéo': '📱',
                     'Domicile': '🏠'
                 }[rdv.type_consultation] || '📅';
 
-                // ✅ AJOUT: Affichage des infos du médecin
-                const medecinInfo = `
-                    <div class="rdv-medecin-info">
-                        <p><strong>👨‍⚕️ Médecin:</strong> ${rdv.medecin_nom || 'Médecin'}</p>
-                        <p><strong>🔬 Spécialité:</strong> ${rdv.medecin_specialite || 'Non spécifiée'}</p>
-                        <p><strong>⭐ Expérience:</strong> ${rdv.medecin_experience || 0} ans</p>
-                        ${rdv.medecin_prix ? `<p><strong>💰 Consultation:</strong> ${rdv.medecin_prix}CFA</p>` : ''}
-                    </div>
-                `;
+                // ✅ Classe CSS pour le statut
+                let statusClass = 'en_attente';
+                const statut = (rdv.statut || 'Planifié').toLowerCase();
+                
+                if (statut.includes('planifié') || statut.includes('confirmé')) {
+                    statusClass = 'confirme';
+                } else if (statut.includes('annulé')) {
+                    statusClass = 'annule';
+                } else if (statut.includes('terminé')) {
+                    statusClass = 'termine';
+                }
 
+                // ✅ Construction de la carte
                 html += `
-                    <div class="rdv-card">
-                        <div class="rdv-header">
-                            <h3>${dateFormatée}</h3>
-                            <span class="rdv-status ${rdv.statut ? rdv.statut.toLowerCase() : 'planifie'}">${rdv.statut || 'Planifié'}</span>
+                    <div class="rdv-card" style="
+                        background: white;
+                        border: 1px solid #e5e7eb;
+                        border-radius: 12px;
+                        padding: 16px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                        transition: all 0.3s ease;
+                    " onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" 
+                       onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)'">
+                        
+                        <div class="rdv-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h3 style="margin: 0; font-size: 16px; color: #1a2b3c;">
+                                <i class="fas fa-calendar"></i> ${dateFormatée}
+                            </h3>
+                            <span class="rdv-status ${statusClass}" style="
+                                padding: 4px 12px;
+                                border-radius: 20px;
+                                font-size: 12px;
+                                font-weight: 500;
+                                text-transform: uppercase;
+                                ${statusClass === 'confirme' ? 'background: #d1fae5; color: #065f46;' : ''}
+                                ${statusClass === 'annule' ? 'background: #fee2e2; color: #991b1b;' : ''}
+                                ${statusClass === 'termine' ? 'background: #dbeafe; color: #1e40af;' : ''}
+                                ${statusClass === 'en_attente' ? 'background: #fef3c7; color: #92400e;' : ''}
+                            ">
+                                ${rdv.statut || 'Planifié'}
+                            </span>
                         </div>
-                        <div class="rdv-body">
-                            ${medecinInfo}
-                            <p><strong>📝 Motif:</strong> ${rdv.motif || 'Non spécifié'}</p>
-                            <p><strong>📍 Type:</strong> ${typeIcon} ${rdv.type_consultation || 'Cabinet'}</p>
-                            ${rdv.lieu ? `<p><strong>🏠 Lieu:</strong> ${rdv.lieu}</p>` : ''}
+                        
+                        <div class="rdv-body" style="margin-bottom: 12px;">
+                            <p style="margin: 8px 0; color: #374151;">
+                                <strong>👨‍⚕️ Médecin:</strong> 
+                                <span style="color: #0D8ABC;">${rdv.medecin_nom || 'Médecin'}</span>
+                            </p>
+                            <p style="margin: 8px 0; color: #374151;">
+                                <strong>🩺 Spécialité:</strong> 
+                                ${rdv.medecin_specialite || 'Non spécifié'}
+                            </p>
+                            <p style="margin: 8px 0; color: #374151;">
+                                <strong>📝 Motif:</strong> 
+                                ${rdv.motif || 'Non spécifié'}
+                            </p>
+                            <p style="margin: 8px 0; color: #374151;">
+                                <strong>🔷 Type:</strong> 
+                                ${typeIcon} ${rdv.type_consultation || 'Cabinet'}
+                            </p>
+                            ${rdv.lieu ? `
+                                <p style="margin: 8px 0; color: #374151;">
+                                    <strong>📍 Lieu:</strong> 
+                                    ${rdv.lieu}
+                                </p>
+                            ` : ''}
                         </div>
-                        <div class="rdv-actions">
-                            <button class="btn btn-sm btn-secondary" onclick="modifierRendezVous(${rdv.id})">
+                        
+                        <div class="rdv-actions" style="display: flex; gap: 8px;">
+                            <button class="btn btn-sm btn-secondary" 
+                                    onclick="modifierRendezVous(${rdv.id})"
+                                    style="flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; background: white; color: #0D8ABC; cursor: pointer;">
                                 <i class="fas fa-edit"></i> Modifier
                             </button>
-                            <button class="btn btn-sm btn-danger" onclick="supprimerRendezVous(${rdv.id})">
+                            <button class="btn btn-sm btn-danger" 
+                                    onclick="supprimerRendezVous(${rdv.id})"
+                                    style="flex: 1; padding: 8px; border: 1px solid #fecaca; border-radius: 6px; background: #fee2e2; color: #991b1b; cursor: pointer;">
                                 <i class="fas fa-trash"></i> Annuler
                             </button>
                         </div>
@@ -3391,13 +3279,227 @@ async function loadMesRendezVous() {
             html += `</div>`;
         }
 
-        document.getElementById('rdv-list-container').innerHTML = html;
+        const container = document.getElementById('rdv-list-container');
+        if (container) {
+            container.innerHTML = html;
+        } else {
+            console.error('❌ Container rdv-list-container non trouvé');
+        }
 
     } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Erreur chargement rendez-vous:', error);
+        
+        const container = document.getElementById('rdv-list-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="empty-state error" style="text-align: center; padding: 40px;">
+                    <div style="margin-bottom: 20px;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 64px; color: #dc3545;"></i>
+                    </div>
+                    <h3 style="color: #666; margin-bottom: 10px;">Erreur de chargement</h3>
+                    <p style="color: #999; margin-bottom: 20px;">Impossible de charger vos rendez-vous. Veuillez réessayer.</p>
+                    <button class="btn btn-primary" onclick="loadMesRendezVous()" style="padding: 8px 16px; background: #0D8ABC; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        <i class="fas fa-redo"></i> Réessayer
+                    </button>
+                </div>
+            `;
+        }
     }
 }
 
+
+// ============= MODIFIER UN RENDEZ-VOUS - FIX =============
+
+async function modifierRendezVous(rdvId) {
+    try {
+        console.log(`📝 Modification du RDV ${rdvId}`);
+        
+        // Récupérer les données actuelles du RDV
+        const response = await fetch('/api/rendez-vous');
+        const rdvs = await response.json();
+        
+        const rdv = rdvs.find(r => r.id === rdvId);
+        if (!rdv) {
+            alert('Rendez-vous non trouvé');
+            return;
+        }
+        
+        // Formater la date pour l'input datetime-local
+        let dateValue = '';
+        if (rdv.date_heure) {
+            const date = new Date(rdv.date_heure);
+            // Formatter: YYYY-MM-DDTHH:mm
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            dateValue = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+        
+        // Créer le formulaire de modification
+        let html = `
+            <div class="modification-form" style="background: white; border-radius: 12px; padding: 24px;">
+                <div style="display: flex; align-items: center; margin-bottom: 24px;">
+                    <button class="btn-back" onclick="loadMesRendezVous()" style="
+                        background: none;
+                        border: none;
+                        color: #0D8ABC;
+                        cursor: pointer;
+                        font-size: 18px;
+                        margin-right: 12px;
+                    ">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h2 style="margin: 0; flex: 1;">Modifier le rendez-vous</h2>
+                </div>
+                
+                <form id="modifyRdvForm">
+                    <div class="form-section" style="margin-bottom: 20px;">
+                        <h3 style="margin: 0 0 12px 0; color: #1a2b3c;">Informations du rendez-vous</h3>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">
+                                Date et heure
+                            </label>
+                            <input type="datetime-local" 
+                                   id="modifyDateHeure" 
+                                   value="${dateValue}"
+                                   style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">
+                                Motif de la visite
+                            </label>
+                            <textarea id="modifyMotif" 
+                                      style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; resize: vertical; min-height: 80px;"
+                            >${rdv.motif || ''}</textarea>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">
+                                Type de consultation
+                            </label>
+                            <select id="modifyTypeConsultation" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                <option value="Cabinet" ${rdv.type_consultation === 'Cabinet' ? 'selected' : ''}>🏥 En Cabinet</option>
+                                <option value="Vidéo" ${rdv.type_consultation === 'Vidéo' ? 'selected' : ''}>📱 En Ligne (Vidéo)</option>
+                                <option value="Domicile" ${rdv.type_consultation === 'Domicile' ? 'selected' : ''}>🏠 À Domicile</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">
+                                Lieu (si domicile)
+                            </label>
+                            <input type="text" 
+                                   id="modifyLieu" 
+                                   placeholder="Votre adresse complète"
+                                   value="${rdv.lieu || ''}"
+                                   style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">
+                                Statut
+                            </label>
+                            <select id="modifyStatut" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                <option value="Planifié" ${rdv.statut === 'Planifié' ? 'selected' : ''}>Planifié</option>
+                                <option value="Confirmé" ${rdv.statut === 'Confirmé' ? 'selected' : ''}>Confirmé</option>
+                                <option value="Annulé" ${rdv.statut === 'Annulé' ? 'selected' : ''}>Annulé</option>
+                                <option value="Terminé" ${rdv.statut === 'Terminé' ? 'selected' : ''}>Terminé</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px;">
+                        <button type="submit" class="btn btn-primary" style="
+                            flex: 1;
+                            padding: 10px 16px;
+                            background: #0D8ABC;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-weight: 500;
+                        ">
+                            <i class="fas fa-save"></i> Enregistrer les modifications
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="loadMesRendezVous()" style="
+                            flex: 1;
+                            padding: 10px 16px;
+                            background: white;
+                            color: #374151;
+                            border: 1px solid #d1d5db;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-weight: 500;
+                        ">
+                            <i class="fas fa-times"></i> Annuler
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+        
+        const container = document.getElementById('rdv-list-container');
+        if (container) {
+            container.innerHTML = html;
+            
+            // Gestion du changement du type de consultation
+            document.getElementById('modifyTypeConsultation').addEventListener('change', function() {
+                const lieuInput = document.getElementById('modifyLieu');
+                if (this.value === 'Domicile') {
+                    lieuInput.style.display = 'block';
+                } else {
+                    lieuInput.style.display = 'none';
+                }
+            });
+            
+            // Soumission du formulaire
+            document.getElementById('modifyRdvForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const dateHeure = document.getElementById('modifyDateHeure').value;
+                const motif = document.getElementById('modifyMotif').value;
+                const typeConsultation = document.getElementById('modifyTypeConsultation').value;
+                const lieu = document.getElementById('modifyLieu').value;
+                const statut = document.getElementById('modifyStatut').value;
+                
+                try {
+                    const response = await fetch(`/api/rendez-vous/${rdvId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            date_heure: dateHeure,
+                            motif: motif,
+                            type_consultation: typeConsultation,
+                            lieu: lieu || null,
+                            statut: statut
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        alert('✅ Rendez-vous modifié avec succès');
+                        loadMesRendezVous();
+                    } else {
+                        const error = await response.json();
+                        alert('❌ Erreur: ' + error.detail);
+                    }
+                } catch (error) {
+                    console.error('Erreur modification:', error);
+                    alert('Erreur lors de la modification');
+                }
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Erreur:', error);
+        alert('Erreur lors du chargement du rendez-vous');
+    }
+}
 
 
 async function supprimerRendezVous(rdvId) {
@@ -3420,6 +3522,202 @@ async function supprimerRendezVous(rdvId) {
     }
 }
 
+// ============= MODIFIER UN RENDEZ-VOUS =============
+
+async function modifierRendezVous(rdvId) {
+    try {
+        // Charger tous les rendez-vous pour trouver celui à modifier
+        const response = await fetch('/api/rendez-vous');
+        const rdvs = await response.json();
+        
+        const rdv = rdvs.find(r => r.id === rdvId);
+        if (!rdv) {
+            alert('Rendez-vous non trouvé');
+            return;
+        }
+        
+        // Formater la date pour l'input datetime-local
+        let dateValue = '';
+        if (rdv.date_heure) {
+            const date = new Date(rdv.date_heure);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            dateValue = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+        
+        // Créer le formulaire de modification
+        let html = `
+            <div class="modification-form" style="background: white; border-radius: 12px; padding: 24px;">
+                <div style="display: flex; align-items: center; margin-bottom: 24px;">
+                    <button class="btn-back" onclick="loadMesRendezVous()" style="
+                        background: none;
+                        border: none;
+                        color: #0D8ABC;
+                        cursor: pointer;
+                        font-size: 18px;
+                        margin-right: 12px;
+                    ">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h2 style="margin: 0; flex: 1;">Modifier le rendez-vous</h2>
+                </div>
+                
+                <form id="modifyRdvForm">
+                    <div class="form-section" style="margin-bottom: 20px;">
+                        <h3 style="margin: 0 0 12px 0; color: #1a2b3c;">Informations du rendez-vous</h3>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">
+                                Date et heure
+                            </label>
+                            <input type="datetime-local" 
+                                   id="modifyDateHeure" 
+                                   value="${dateValue}"
+                                   style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">
+                                Motif de la visite
+                            </label>
+                            <textarea id="modifyMotif" 
+                                      style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; resize: vertical; min-height: 80px;"
+                            >${rdv.motif || ''}</textarea>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">
+                                Type de consultation
+                            </label>
+                            <select id="modifyTypeConsultation" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                <option value="Cabinet" ${rdv.type_consultation === 'Cabinet' ? 'selected' : ''}>🏥 En Cabinet</option>
+                                <option value="Vidéo" ${rdv.type_consultation === 'Vidéo' ? 'selected' : ''}>📱 En Ligne (Vidéo)</option>
+                                <option value="Domicile" ${rdv.type_consultation === 'Domicile' ? 'selected' : ''}>🏠 À Domicile</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">
+                                Lieu (si domicile)
+                            </label>
+                            <input type="text" 
+                                   id="modifyLieu" 
+                                   placeholder="Votre adresse complète"
+                                   value="${rdv.lieu || ''}"
+                                   style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; color: #374151; font-weight: 500;">
+                                Statut
+                            </label>
+                            <select id="modifyStatut" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+                                <option value="Planifié" ${rdv.statut === 'Planifié' ? 'selected' : ''}>Planifié</option>
+                                <option value="Confirmé" ${rdv.statut === 'Confirmé' ? 'selected' : ''}>Confirmé</option>
+                                <option value="Annulé" ${rdv.statut === 'Annulé' ? 'selected' : ''}>Annulé</option>
+                                <option value="Terminé" ${rdv.statut === 'Terminé' ? 'selected' : ''}>Terminé</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px;">
+                        <button type="submit" class="btn btn-primary" style="
+                            flex: 1;
+                            padding: 10px 16px;
+                            background: #0D8ABC;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-weight: 500;
+                        ">
+                            <i class="fas fa-save"></i> Enregistrer les modifications
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="loadMesRendezVous()" style="
+                            flex: 1;
+                            padding: 10px 16px;
+                            background: white;
+                            color: #374151;
+                            border: 1px solid #d1d5db;
+                            border-radius: 6px;
+                            cursor: pointer;
+                            font-weight: 500;
+                        ">
+                            <i class="fas fa-times"></i> Annuler
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+        
+        const container = document.getElementById('rdv-list-container');
+        if (container) {
+            container.innerHTML = html;
+            
+            // Gestion du changement du type de consultation
+            document.getElementById('modifyTypeConsultation').addEventListener('change', function() {
+                const lieuInput = document.getElementById('modifyLieu');
+                if (this.value === 'Domicile') {
+                    lieuInput.style.display = 'block';
+                } else {
+                    lieuInput.style.display = 'none';
+                }
+            });
+            
+            // Initialiser l'affichage du champ lieu
+            const typeSelect = document.getElementById('modifyTypeConsultation');
+            const lieuInput = document.getElementById('modifyLieu');
+            if (typeSelect.value !== 'Domicile') {
+                lieuInput.style.display = 'none';
+            }
+            
+            // Soumission du formulaire
+            document.getElementById('modifyRdvForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const dateHeure = document.getElementById('modifyDateHeure').value;
+                const motif = document.getElementById('modifyMotif').value;
+                const typeConsultation = document.getElementById('modifyTypeConsultation').value;
+                const lieu = document.getElementById('modifyLieu').value;
+                const statut = document.getElementById('modifyStatut').value;
+                
+                try {
+                    const response = await fetch(`/api/rendez-vous/${rdvId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            date_heure: dateHeure,
+                            motif: motif,
+                            type_consultation: typeConsultation,
+                            lieu: lieu || null,
+                            statut: statut
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        alert('✅ Rendez-vous modifié avec succès');
+                        loadMesRendezVous();
+                    } else {
+                        const error = await response.json();
+                        alert('❌ Erreur: ' + error.detail);
+                    }
+                } catch (error) {
+                    console.error('Erreur modification:', error);
+                    alert('Erreur lors de la modification');
+                }
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Erreur:', error);
+        alert('Erreur lors du chargement du rendez-vous');
+    }
+}
 
 // Mesure le temps de chaque appel API au chargement
 async function timedFetch(url, opts) {
@@ -3428,218 +3726,6 @@ async function timedFetch(url, opts) {
     const end = performance.now();
     console.log(`[API] ${url} : ${(end - start).toFixed(1)} ms`);
     return response;
-}
-
-
-// ============= MODIFIER UN RENDEZ-VOUS =============
-
-async function modifierRendezVous(rdvId) {
-    try {
-        // 1. Récupérer les détails du rendez-vous
-        const response = await fetch(`/api/rendez-vous`);
-        const rdvs = await response.json();
-        const rdv = rdvs.find(r => r.id === rdvId);
-        
-        if (!rdv) {
-            alert('Rendez-vous non trouvé');
-            return;
-        }
-
-        // 2. Récupérer la liste des médecins
-        const medecinsResponse = await fetch('/api/medecins');
-        const medecinsList = await medecinsResponse.json();
-
-        // 3. Formater la date pour datetime-local
-        const date = new Date(rdv.date_heure);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const dateFormatted = `${year}-${month}-${day}T${hours}:${minutes}`;
-
-        // 4. Générer les options des médecins
-        let medecinOptions = medecinsList.map(m => {
-            const selected = m.id === rdv.medecin_id ? 'selected' : '';
-            return `<option value="${m.id}" ${selected}>Dr. ${m.prenom} ${m.nom} - ${m.specialite} (${m.annees_experience} ans exp.)</option>`;
-        }).join('');
-
-        // 5. Afficher le formulaire de modification
-        let html = `
-            <div class="rendez-vous-interface">
-                <div class="section-header">
-                    <h2 class="section-title">Modifier le Rendez-vous</h2>
-                    <button class="btn btn-secondary" onclick="annulerModification()">
-                        <i class="fas fa-arrow-left"></i> Retour
-                    </button>
-                </div>
-
-                <form id="modifierRdvForm" class="rdv-form">
-                    <!-- Sélection du médecin -->
-                    <div class="form-section">
-                        <h3>Étape 1: Choisir un médecin</h3>
-                        <div class="form-group">
-                            <select id="modif_medecin_id" class="form-control" required>
-                                <option value="">Sélectionnez un médecin</option>
-                                ${medecinOptions}
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Type de consultation -->
-                    <div class="form-section">
-                        <h3>Étape 2: Type de consultation</h3>
-                        <div class="consultation-types">
-                            <div class="type-option">
-                                <input type="radio" id="modif_cabinet" name="modif_type_consultation" value="Cabinet" ${rdv.type_consultation === 'Cabinet' ? 'checked' : ''}>
-                                <label for="modif_cabinet">
-                                    <i class="fas fa-hospital"></i>
-                                    <span>En Cabinet</span>
-                                </label>
-                            </div>
-                            <div class="type-option">
-                                <input type="radio" id="modif_video" name="modif_type_consultation" value="Vidéo" ${rdv.type_consultation === 'Vidéo' ? 'checked' : ''}>
-                                <label for="modif_video">
-                                    <i class="fas fa-video"></i>
-                                    <span>En Ligne (Vidéo)</span>
-                                </label>
-                            </div>
-                            <div class="type-option">
-                                <input type="radio" id="modif_domicile" name="modif_type_consultation" value="Domicile" ${rdv.type_consultation === 'Domicile' ? 'checked' : ''}>
-                                <label for="modif_domicile">
-                                    <i class="fas fa-home"></i>
-                                    <span>À Domicile</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Lieu (si domicile) -->
-                        <div id="modif_lieu-container" style="display: ${rdv.type_consultation === 'Domicile' ? 'block' : 'none'}; margin-top: 15px;">
-                            <label for="modif_lieu">Adresse du rendez-vous</label>
-                            <input type="text" id="modif_lieu" name="modif_lieu" class="form-control" placeholder="Votre adresse complète" value="${rdv.lieu || ''}">
-                        </div>
-                    </div>
-
-                    <!-- Date et heure -->
-                    <div class="form-section">
-                        <h3>Étape 3: Date et heure</h3>
-                        <div class="form-group">
-                            <label for="modif_date_heure">Date et heure du rendez-vous</label>
-                            <input type="datetime-local" id="modif_date_heure" name="modif_date_heure" class="form-control" value="${dateFormatted}" required>
-                        </div>
-                    </div>
-
-                    <!-- Motif -->
-                    <div class="form-section">
-                        <h3>Étape 4: Motif de la visite</h3>
-                        <div class="form-group">
-                            <label for="modif_motif">Décrivez brièvement le motif</label>
-                            <textarea id="modif_motif" name="modif_motif" class="form-control" rows="4" required>${rdv.motif || ''}</textarea>
-                        </div>
-                    </div>
-
-                    <!-- Boutons -->
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="fas fa-save"></i> Enregistrer les modifications
-                        </button>
-                        <button type="button" class="btn btn-secondary btn-lg" onclick="loadMesRendezVous(); document.querySelector('[data-tab=\\'mes-rdv\\']').click();">
-                            <i class="fas fa-times"></i> Annuler
-                        </button>
-                    </div>
-                </form>
-            </div>
-        `;
-
-        // Remplacer le contenu principal
-        document.getElementById('mainContent').innerHTML = html;
-
-        // Gérer l'affichage du champ lieu
-        document.querySelectorAll('input[name="modif_type_consultation"]').forEach(input => {
-            input.addEventListener('change', function() {
-                const lieuContainer = document.getElementById('modif_lieu-container');
-                if (this.value === 'Domicile') {
-                    lieuContainer.style.display = 'block';
-                } else {
-                    lieuContainer.style.display = 'none';
-                }
-            });
-        });
-
-        // Soumission du formulaire
-        document.getElementById('modifierRdvForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            await saveModifiedRendezVous(rdvId,e);
-        });
-
-    } catch (error) {
-        console.error('Erreur:', error);
-        alert('Erreur lors du chargement du rendez-vous');
-    }
-}
-
-// ============= SAUVEGARDER LA MODIFICATION =============
-
-async function saveModifiedRendezVous(rdvId) {
-    try {
-        const medecin_id = document.getElementById('modif_medecin_id').value;
-        const type_consultation = document.querySelector('input[name="modif_type_consultation"]:checked')?.value;
-        const date_heure = document.getElementById('modif_date_heure').value;
-        const motif = document.getElementById('modif_motif').value;
-        const lieu = document.getElementById('modif_lieu').value || null;
-
-        // Vérifications
-        if (!medecin_id || !date_heure || !motif || !type_consultation) {
-            alert('Veuillez remplir tous les champs obligatoires');
-            return;
-        }
-
-        const response = await fetch(`/api/rendez-vous/${rdvId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                medecin_id: parseInt(medecin_id),
-                date_heure: date_heure,
-                motif: motif,
-                type_consultation: type_consultation,
-                lieu: lieu
-            })
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-                alert('✅ Rendez-vous modifié avec succès!');
-                
-                // ✅ SOLUTION : Recharger proprement sans double appel
-                showRendezVousInterface();
-                setTimeout(() => {
-                    loadMesRendezVous();
-                    document.querySelector('[data-tab="mes-rdv"]').click();
-                }, 100);
-            } else {
-                alert('Erreur: ' + result.detail);
-            }
-        } else {
-            const error = await response.json();
-            alert('Erreur: ' + error.detail);
-        }
-
-    } catch (error) {
-        console.error('Erreur:', error);
-        alert('Erreur lors de la modification du rendez-vous');
-    }
-}
-
-// ============= ANNULER LA MODIFICATION =============
-function annulerModification() {
-    showRendezVousInterface();
-    setTimeout(() => {
-        loadMesRendezVous();
-        document.querySelector('[data-tab="mes-rdv"]').click();
-    }, 100);
 }
 
 
@@ -4026,22 +4112,437 @@ async function showDossierMedicalInterface() {
 
 
 
+// ============= AFFICHER LE RÉSUMÉ DU PROFIL =============
+async function showProfilResume() {
+    try {
+        const response = await fetch('/api/patient/full-info');
+        if (!response.ok) throw new Error('Erreur chargement profil');
+        
+        const patient = await response.json();
+        
+        // Formater la date de naissance
+        let dateNaissance = 'Non renseignée';
+        if (patient.date_naissance) {
+            const date = new Date(patient.date_naissance);
+            dateNaissance = date.toLocaleDateString('fr-FR', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+        }
 
+        // Calculer l'âge
+        let age = '';
+        if (patient.date_naissance) {
+            const today = new Date();
+            const birthDate = new Date(patient.date_naissance);
+            let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                calculatedAge--;
+            }
+            age = `(${calculatedAge} ans)`;
+        }
 
+        // Déterminer le niveau de complétion du profil
+        let completedFields = 0;
+        let totalFields = 7; // Nom, Prénom, Email, Téléphone, Adresse, Date naissance, Genre
+        
+        if (patient.nom) completedFields++;
+        if (patient.prenom) completedFields++;
+        if (patient.email) completedFields++;
+        if (patient.telephone) completedFields++;
+        if (patient.adresse) completedFields++;
+        if (patient.date_naissance) completedFields++;
+        if (patient.genre) completedFields++;
+        
+        const completionPercent = Math.round((completedFields / totalFields) * 100);
+        
+        // Déterminer le statut de sécurité
+        let securityStatus = 'Standard';
+        let securityIcon = 'fa-shield';
+        let securityColor = 'orange';
+        
+        // Vérifier si l'email est vérifié (simulé)
+        const isEmailVerified = patient.est_email_verifie || false;
+        
+        if (isEmailVerified) {
+            securityStatus = 'Protégé';
+            securityIcon = 'fa-shield-alt';
+            securityColor = 'green';
+        }
 
+        // Informations médicales - compter les champs remplis
+        let medicalCount = 0;
+        if (patient.groupe_sanguin) medicalCount++;
+        if (patient.allergies && patient.allergies.trim() !== '') medicalCount++;
+        if (patient.antecedents_medicaux && patient.antecedents_medicaux.trim() !== '') medicalCount++;
+        if (patient.traitements_en_cours && patient.traitements_en_cours.trim() !== '') medicalCount++;
 
+        // ✅ CONSTRUCTION DU HTML DE RÉSUMÉ
+        let html = `
+            <div class="profil-resume-container">
+                <!-- EN-TÊTE DU PROFIL -->
+                <div class="profil-header-card">
+                    <div class="profil-avatar-large">
+                        <img src="${patient.photo_profil_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(patient.prenom + ' ' + patient.nom) + '&background=0D8ABC&color=fff&size=128'}" 
+                             alt="Photo de profil"
+                             id="profilAvatarLarge"
+                             onerror="this.src='https://ui-avatars.com/api/?name=' + encodeURIComponent('${patient.prenom || ''} ${patient.nom || ''}') + '&background=0D8ABC&color=fff&size=128'">
+                    </div>
+                    <div class="profil-header-info">
+                        <h1>${patient.prenom || ''} ${patient.nom || ''}</h1>
+                        <p class="profil-email">${patient.email || 'Email non renseigné'}</p>
+                        <div class="profil-completion">
+                            <div class="completion-bar-container">
+                                <div class="completion-bar" style="width: ${completionPercent}%;"></div>
+                            </div>
+                            <span class="completion-text">Profil complété à ${completionPercent}%</span>
+                        </div>
+                    </div>
+                    <div class="profil-header-actions">
+                        <button class="btn btn-primary" onclick="showParametresInterface()">
+                            <i class="fas fa-edit"></i> Modifier le profil
+                        </button>
+                    </div>
+                </div>
 
+                <!-- GRILLE DES INFORMATIONS -->
+                <div class="profil-grid">
+                    <!-- CARTE INFORMATIONS PERSONNELLES -->
+                    <div class="profil-card">
+                        <div class="profil-card-header">
+                            <div class="card-icon blue">
+                                <i class="fas fa-id-card"></i>
+                            </div>
+                            <h2>Informations Personnelles</h2>
+                            <a href="#" onclick="showParametresInterface(); return false;" class="card-edit-btn">
+                                <i class="fas fa-pencil-alt"></i> Modifier
+                            </a>
+                        </div>
+                        <div class="profil-card-body">
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-user"></i> Nom complet:</span>
+                                <span class="info-value">${patient.prenom || ''} ${patient.nom || ''} <span class="info-age">${age}</span></span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-calendar"></i> Date de naissance:</span>
+                                <span class="info-value">${dateNaissance}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-venus-mars"></i> Genre:</span>
+                                <span class="info-value">${patient.genre || 'Non renseigné'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-phone"></i> Téléphone:</span>
+                                <span class="info-value">${patient.telephone || 'Non renseigné'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-map-marker-alt"></i> Adresse:</span>
+                                <span class="info-value">${patient.adresse || 'Non renseignée'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-city"></i> Ville / CP:</span>
+                                <span class="info-value">${patient.ville || ''} ${patient.code_postal || ''}</span>
+                            </div>
+                        </div>
+                        <div class="profil-card-footer">
+                            <span class="status-badge ${completedFields === totalFields ? 'success' : 'warning'}">
+                                ${completedFields === totalFields ? '✓ Complet' : '⚠️ À compléter'}
+                            </span>
+                        </div>
+                    </div>
 
+                    <!-- CARTE SÉCURITÉ DU COMPTE -->
+                    <div class="profil-card">
+                        <div class="profil-card-header">
+                            <div class="card-icon ${securityColor}">
+                                <i class="fas ${securityIcon}"></i>
+                            </div>
+                            <h2>Sécurité du Compte</h2>
+                            <a href="#" onclick="showParametresInterface(); return false;" class="card-edit-btn">
+                                <i class="fas fa-pencil-alt"></i> Modifier
+                            </a>
+                        </div>
+                        <div class="profil-card-body">
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-envelope"></i> Email:</span>
+                                <span class="info-value">${patient.email || 'Non renseigné'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-check-circle"></i> Email vérifié:</span>
+                                <span class="info-value">
+                                    ${isEmailVerified ? 
+                                        '<span class="badge-success"><i class="fas fa-check"></i> Vérifié</span>' : 
+                                        '<span class="badge-warning"><i class="fas fa-clock"></i> Non vérifié</span>'}
+                                </span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-lock"></i> Mot de passe:</span>
+                                <span class="info-value">••••••••</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-shield-alt"></i> Authentification:</span>
+                                <span class="info-value">Standard</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-history"></i> Dernière connexion:</span>
+                                <span class="info-value">${patient.derniere_connexion ? new Date(patient.derniere_connexion).toLocaleDateString('fr-FR') : 'Première connexion'}</span>
+                            </div>
+                        </div>
+                        <div class="profil-card-footer">
+                            <span class="status-badge success">
+                                <i class="fas fa-shield-alt"></i> ${securityStatus}
+                            </span>
+                        </div>
+                    </div>
 
+                    <!-- CARTE INFORMATIONS MÉDICALES -->
+                    <div class="profil-card">
+                        <div class="profil-card-header">
+                            <div class="card-icon orange">
+                                <i class="fas fa-heartbeat"></i>
+                            </div>
+                            <h2>Informations Médicales</h2>
+                            <a href="#" onclick="displaySection('dossier'); return false;" class="card-edit-btn">
+                                <i class="fas fa-folder-medical"></i> Voir dossier
+                            </a>
+                        </div>
+                        <div class="profil-card-body">
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-tint"></i> Groupe sanguin:</span>
+                                <span class="info-value"><strong>${patient.groupe_sanguin || 'Non renseigné'}</strong></span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-allergies"></i> Allergies:</span>
+                                <span class="info-value">${patient.allergies ? patient.allergies.split(',').map(a => a.trim()).join(', ') : 'Aucune'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-history"></i> Antécédents:</span>
+                                <span class="info-value">${patient.antecedents_medicaux ? 'Renseignés' : 'Aucun'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-prescription-bottle"></i> Traitements:</span>
+                                <span class="info-value">${patient.traitements_en_cours ? 'En cours' : 'Aucun'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label"><i class="fas fa-id-card"></i> N° Sécurité sociale:</span>
+                                <span class="info-value">${patient.numero_securite_sociale ? '••••' + patient.numero_securite_sociale.slice(-4) : 'Non renseigné'}</span>
+                            </div>
+                        </div>
+                        <div class="profil-card-footer">
+                            <span class="status-badge ${medicalCount > 0 ? 'info' : 'warning'}">
+                                ${medicalCount} information${medicalCount > 1 ? 's' : ''} médicale${medicalCount > 1 ? 's' : ''}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
 
+        // Ajouter le CSS directement dans le head s'il n'existe pas déjà
+        if (!document.getElementById('profil-resume-css')) {
+            const style = document.createElement('style');
+            style.id = 'profil-resume-css';
+            style.textContent = `
+                .profil-resume-container {
+                    padding: 20px;
+                }
+                .profil-header-card {
+                    display: flex;
+                    align-items: center;
+                    gap: 24px;
+                    background: white;
+                    border-radius: 16px;
+                    padding: 24px;
+                    margin-bottom: 24px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                }
+                .profil-avatar-large {
+                    width: 100px;
+                    height: 100px;
+                    border-radius: 50%;
+                    overflow: hidden;
+                    border: 3px solid #0D8ABC;
+                }
+                .profil-avatar-large img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+                .profil-header-info {
+                    flex: 1;
+                }
+                .profil-header-info h1 {
+                    margin: 0 0 8px 0;
+                    font-size: 28px;
+                    color: #1a2b3c;
+                }
+                .profil-email {
+                    color: #6b7280;
+                    margin: 0 0 12px 0;
+                }
+                .profil-completion {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+                .completion-bar-container {
+                    width: 200px;
+                    height: 8px;
+                    background: #e5e7eb;
+                    border-radius: 4px;
+                    overflow: hidden;
+                }
+                .completion-bar {
+                    height: 100%;
+                    background: #0D8ABC;
+                    border-radius: 4px;
+                    transition: width 0.3s ease;
+                }
+                .completion-text {
+                    font-size: 14px;
+                    color: #6b7280;
+                }
+                .profil-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+                    gap: 24px;
+                }
+                .profil-card {
+                    background: white;
+                    border-radius: 16px;
+                    padding: 20px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                    display: flex;
+                    flex-direction: column;
+                }
+                .profil-card-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    margin-bottom: 20px;
+                    padding-bottom: 16px;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+                .card-icon {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 12px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                }
+                .card-icon.blue { background: #0D8ABC; }
+                .card-icon.green { background: #10b981; }
+                .card-icon.orange { background: #f59e0b; }
+                .card-icon.red { background: #ef4444; }
+                .profil-card-header h2 {
+                    flex: 1;
+                    margin: 0;
+                    font-size: 18px;
+                    color: #1a2b3c;
+                }
+                .card-edit-btn {
+                    color: #0D8ABC;
+                    text-decoration: none;
+                    font-size: 14px;
+                }
+                .card-edit-btn:hover {
+                    text-decoration: underline;
+                }
+                .profil-card-body {
+                    flex: 1;
+                }
+                .info-row {
+                    display: flex;
+                    margin-bottom: 12px;
+                    font-size: 15px;
+                }
+                .info-label {
+                    width: 140px;
+                    color: #6b7280;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .info-label i {
+                    width: 16px;
+                    color: #9ca3af;
+                }
+                .info-value {
+                    flex: 1;
+                    color: #1a2b3c;
+                    font-weight: 500;
+                }
+                .info-age {
+                    color: #6b7280;
+                    font-size: 14px;
+                    font-weight: normal;
+                }
+                .profil-card-footer {
+                    margin-top: 20px;
+                    padding-top: 16px;
+                    border-top: 1px solid #e5e7eb;
+                    display: flex;
+                    justify-content: flex-end;
+                }
+                .status-badge {
+                    padding: 4px 12px;
+                    border-radius: 20px;
+                    font-size: 13px;
+                    font-weight: 500;
+                }
+                .status-badge.success {
+                    background: #d1fae5;
+                    color: #065f46;
+                }
+                .status-badge.warning {
+                    background: #fef3c7;
+                    color: #92400e;
+                }
+                .status-badge.info {
+                    background: #dbeafe;
+                    color: #1e40af;
+                }
+                .badge-success {
+                    color: #10b981;
+                }
+                .badge-warning {
+                    color: #f59e0b;
+                }
+                @media (max-width: 768px) {
+                    .profil-header-card {
+                        flex-direction: column;
+                        text-align: center;
+                    }
+                    .profil-completion {
+                        flex-direction: column;
+                    }
+                    .info-row {
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .info-label {
+                        width: 100%;
+                    }
+                }
+            `;  
+            document.head.appendChild(style);
+        }
 
+        document.getElementById('mainContent').innerHTML = html;
 
-
-
-
-
-
-
-
+    } catch (error) {
+        console.error('Erreur chargement résumé profil:', error);
+        document.getElementById('mainContent').innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Erreur lors du chargement du profil</p>
+            </div>
+        `;
+    }
+}
 
 

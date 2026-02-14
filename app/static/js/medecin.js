@@ -1,11 +1,15 @@
-// ============= VARIABLES GLOBALES =============
+﻿// ============= VARIABLES GLOBALES =============
 
 let currentMedecin = {
     id: null,
-    nom: 'Dr. Médecin',
+    nom: 'Dr. MÃ©decin',
     prenom: '',
     specialite: '',
-    email: ''
+    email: '',
+    telephone: '',
+    adresse_cabinet: '',
+    annees_experience: 0,
+    photo: ''
 };
 
 let patientSelectionne = null;
@@ -24,6 +28,17 @@ let ordonnancesData = {
     patients: []
 };
 
+let historiqueData = {
+    consultations: { semaine: [], mois: [], total_semaine: 0, total_mois: 0 },
+    rendez_vous: { semaine: [], mois: [], total_semaine: 0, total_mois: 0 }
+};
+let historiquePeriode = 'semaine';
+
+let visioState = {
+    patients: [],
+    patientSelectionne: null
+};
+
 
 let messagerie = {
     conversations: [],
@@ -35,13 +50,13 @@ let messagerie = {
 // ============= INITIALISATION =============
 
 document.addEventListener('DOMContentLoaded', async function () {
-    // Charger les infos du médecin
+    // Charger les infos du mÃ©decin
     await loadMedecinInfo();
     
     // Configuration de la navigation
     setupNavigation();
     
-    // Configuration des événements
+    // Configuration des Ã©vÃ©nements
     setupEventListeners();
     
     // Charger le dashboard
@@ -51,11 +66,11 @@ document.addEventListener('DOMContentLoaded', async function () {
     setupLogout();
 });
 
-// ============= CHARGEMENT INFOS MÉDECIN =============
+// ============= CHARGEMENT INFOS MÃ‰DECIN =============
 
 async function loadMedecinInfo() {
     try {
-        const response = await fetch('/medecin/api/info');
+        const response = await fetch('/medecin/api/profil/complete');
         const data = await response.json();
         
         if (data) {
@@ -63,21 +78,24 @@ async function loadMedecinInfo() {
                 id: data.id,
                 nom: data.nom,
                 prenom: data.prenom,
-                specialite: data.specialite || 'Médecin',
+                specialite: data.specialite || 'MÃ©decin',
                 email: data.email,
-                photo: data.photo_profil_url
+                telephone: data.telephone || '',
+                adresse_cabinet: data.adresse_cabinet || '',
+                annees_experience: data.annees_experience || 0,
+                photo: data.photo_profil_url || ''
             };
             
-            // Mettre à jour l'affichage
+            // Mettre Ã  jour l'affichage
             document.getElementById('medecinName').textContent = `Dr. ${data.prenom} ${data.nom}`;
-            document.getElementById('medecinSpecialite').textContent = data.specialite || 'Médecin';
+            document.getElementById('medecinSpecialite').textContent = data.specialite || 'MÃ©decin';
             
             if (data.photo_profil_url) {
                 document.getElementById('profileAvatar').src = data.photo_profil_url;
             }
         }
     } catch (error) {
-        console.error('Erreur chargement infos médecin:', error);
+        console.error('Erreur chargement infos mÃ©decin:', error);
     }
 }
 
@@ -129,13 +147,14 @@ function loadSection(section) {
             break;
         case 'visio':
             mainContent.innerHTML = getVisioContent();
+            initVisioSection();
             break;
         case 'historique':
             mainContent.innerHTML = getHistoriqueContent();
+            loadHistorique();
             break;
         case 'profil':
             mainContent.innerHTML = getProfilContent();
-            loadProfilData();
             break;
         case 'parametres':
             mainContent.innerHTML = getParametresContent();
@@ -150,8 +169,8 @@ function getDashboardContent() {
     return `
         <div class="welcome-card">
             <div class="welcome-content">
-                <h1>Bonjour Dr. ${currentMedecin.prenom} ${currentMedecin.nom} 👋</h1>
-                <p>Bienvenue dans votre espace médecin Dokira</p>
+                <h1>Bonjour Dr. ${currentMedecin.prenom} ${currentMedecin.nom} ðŸ‘‹</h1>
+                <p>Bienvenue dans votre espace mÃ©decin Dokira</p>
             </div>
         </div>
 
@@ -246,7 +265,7 @@ function displayPatientsList(patients) {
     const container = document.getElementById('patientsTable');
     
     if (patients.length === 0) {
-        container.innerHTML = '<p class="text-center text-muted">Aucun patient trouvé</p>';
+        container.innerHTML = '<p class="text-center text-muted">Aucun patient trouvÃ©</p>';
         return;
     }
 
@@ -256,7 +275,7 @@ function displayPatientsList(patients) {
                 <tr>
                     <th>Patient</th>
                     <th>Email</th>
-                    <th>Téléphone</th>
+                    <th>TÃ©lÃ©phone</th>
                     <th>Age</th>
                     <th>Actions</th>
                 </tr>
@@ -330,7 +349,7 @@ async function viewPatientDossier(patientId) {
                         <strong>Email:</strong> ${patient.email}
                     </div>
                     <div>
-                        <strong>Téléphone:</strong> ${patient.telephone}
+                        <strong>TÃ©lÃ©phone:</strong> ${patient.telephone}
                     </div>
                     <div>
                         <strong>Age:</strong> ${patient.age} ans
@@ -340,14 +359,14 @@ async function viewPatientDossier(patientId) {
                     </div>
                 </div>
                 
-                <h6 style="margin-top: 20px; margin-bottom: 10px;">Antécédents Médicaux</h6>
+                <h6 style="margin-top: 20px; margin-bottom: 10px;">AntÃ©cÃ©dents MÃ©dicaux</h6>
                 <div class="dossier-info">
-                    ${dossier.antecedents_medicaux || 'Aucun antécédent renseigné'}
+                    ${dossier.antecedents_medicaux || 'Aucun antÃ©cÃ©dent renseignÃ©'}
                 </div>
                 
                 <h6 style="margin-top: 15px; margin-bottom: 10px;">Allergies</h6>
                 <div class="dossier-info">
-                    ${dossier.allergies || 'Aucune allergie renseignée'}
+                    ${dossier.allergies || 'Aucune allergie renseignÃ©e'}
                 </div>
                 
                 <h6 style="margin-top: 15px; margin-bottom: 10px;">Dossiers de Consultation</h6>
@@ -438,7 +457,7 @@ function getDossiersContent() {
     return `
         <div class="content-section">
             <div class="section-header">
-                <h2 class="section-title">Dossiers Médicaux</h2>
+                <h2 class="section-title">Dossiers MÃ©dicaux</h2>
             </div>
             <div class="custom-table" id="dossiersTable">
                 <p class="text-center text-muted">Chargement...</p>
@@ -466,9 +485,60 @@ function getVisioContent() {
             <div class="section-header">
                 <h2 class="section-title">Visioconférences</h2>
             </div>
-            <p class="text-muted">Fonctionnalité en développement</p>
+            <div class="custom-table p-3">
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label"><strong>Patient</strong></label>
+                        <select id="visioPatientSelect" class="form-control">
+                            <option value="">Sélectionnez un patient...</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6 d-flex gap-2">
+                        <button class="btn btn-primary" onclick="launchVisioFromSection('video')">
+                            <i class="fas fa-video"></i> Lancer appel vidéo
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="launchVisioFromSection('audio')">
+                            <i class="fas fa-phone"></i> Appel vocal
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="visioSectionCallPanel" class="chat-call-panel mt-3" style="display:none;"></div>
         </div>
     `;
+}
+
+async function initVisioSection() {
+    try {
+        const response = await fetch('/medecin/api/messagerie/patients-list', { credentials: 'include' });
+        if (!response.ok) throw new Error('Erreur chargement patients');
+
+        visioState.patients = await response.json();
+        const select = document.getElementById('visioPatientSelect');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">Sélectionnez un patient...</option>';
+        visioState.patients.forEach(patient => {
+            const option = document.createElement('option');
+            option.value = String(patient.id);
+            option.textContent = `${patient.nom_complet} (${patient.email})`;
+            select.appendChild(option);
+        });
+
+        select.addEventListener('change', function() {
+            visioState.patientSelectionne = visioState.patients.find(p => String(p.id) === this.value) || null;
+        });
+    } catch (error) {
+        console.error('Erreur init visio:', error);
+    }
+}
+
+function launchVisioFromSection(mode = 'video') {
+    if (!visioState.patientSelectionne) {
+        alert('Veuillez sélectionner un patient avant de lancer l’appel');
+        return;
+    }
+    openInAppCall(visioState.patientSelectionne, mode, 'visioSectionCallPanel');
 }
 
 function getHistoriqueContent() {
@@ -477,166 +547,33 @@ function getHistoriqueContent() {
             <div class="section-header">
                 <h2 class="section-title">Historique</h2>
             </div>
-            <p class="text-muted">Historique de vos consultations</p>
-        </div>
-    `;
-}
-
-// ============= FONCTION PRINCIPALE - SECTION MON PROFIL =============
-
-function getProfilContent() {
-    return `
-        <div class="content-section">
-            <div class="section-header">
-                <h2 class="section-title">
-                    <i class="fas fa-user-circle"></i> Mon Profil
-                </h2>
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <button class="btn btn-sm btn-primary" id="historiquePeriodeSemaine" onclick="setHistoriquePeriode('semaine')">Semaine</button>
+                <button class="btn btn-sm btn-outline-primary" id="historiquePeriodeMois" onclick="setHistoriquePeriode('mois')">Mois</button>
             </div>
-            
-            <!-- Conteneur Principal -->
-            <div class="profil-container">
-                
-                <!-- Partie Gauche: Avatar et Info Rapide -->
-                <div class="profil-sidebar">
-                    <div class="avatar-section">
-                        <div class="avatar-container">
-                            <img id="profilAvatarImg" 
-                                src="" 
-                                alt="Avatar"
-                                class="avatar-image"
-                                onerror="this.src='https://ui-avatars.com/api/?name=${currentMedecin.prenom}+${currentMedecin.nom}&background=0D8ABC&color=fff&size=200'">
-                            <input type="file" id="photoInput" style="display:none;" accept="image/*">
-                            <button class="btn-change-photo" onclick="document.getElementById('photoInput').click()" title="Changer la photo">
-                                <i class="fas fa-camera"></i>
-                            </button>
+
+            <div class="row g-3">
+                <div class="col-12 col-lg-6">
+                    <div class="custom-table p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0"><i class="fas fa-stethoscope"></i> Historique Consultations</h5>
+                            <span class="badge bg-info text-dark" id="historiqueConsultationsCount">0</span>
                         </div>
-                        <h3 class="medecin-name">Dr. ${currentMedecin.prenom} ${currentMedecin.nom}</h3>
-                        <p class="medecin-specialite">${currentMedecin.specialite || 'Médecin'}</p>
-                    </div>
-                    
-                    <!-- Badges Info Rapides -->
-                    <div class="info-badges">
-                        <div class="badge-item">
-                            <span class="badge-icon">📧</span>
-                            <span class="badge-label">Email</span>
-                            <span class="badge-value" id="badgeEmail">${currentMedecin.email}</span>
-                        </div>
-                        <div class="badge-item">
-                            <span class="badge-icon">📱</span>
-                            <span class="badge-label">Téléphone</span>
-                            <span class="badge-value" id="badgeTelephone">Chargement...</span>
+                        <div id="historiqueConsultationsTable">
+                            <p class="text-muted mb-0">Chargement...</p>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Partie Droite: Informations Détaillées -->
-                <div class="profil-main">
-                    
-                    <!-- Section Personnelles -->
-                    <div class="profil-section">
-                        <div class="section-header-profil">
-                            <h4 class="section-title-profil">
-                                <i class="fas fa-id-card"></i> Informations Personnelles
-                            </h4>
-                            <button class="btn-edit-section" onclick="editPersonnelInfo()" title="Modifier">
-                                <i class="fas fa-edit"></i>
-                            </button>
+
+                <div class="col-12 col-lg-6">
+                    <div class="custom-table p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0"><i class="fas fa-calendar-check"></i> Historique Rendez-vous</h5>
+                            <span class="badge bg-info text-dark" id="historiqueRdvCount">0</span>
                         </div>
-                        
-                        <div class="info-grid">
-                            <div class="info-row">
-                                <div class="info-col">
-                                    <label class="info-label">Prénom</label>
-                                    <p class="info-value" id="profilPrenom">${currentMedecin.prenom}</p>
-                                </div>
-                                <div class="info-col">
-                                    <label class="info-label">Nom</label>
-                                    <p class="info-value" id="profilNom">${currentMedecin.nom}</p>
-                                </div>
-                            </div>
-                            
-                            <div class="info-row">
-                                <div class="info-col full-width">
-                                    <label class="info-label">Email</label>
-                                    <p class="info-value" id="profilEmail">${currentMedecin.email}</p>
-                                </div>
-                            </div>
-                            
-                            <div class="info-row">
-                                <div class="info-col">
-                                    <label class="info-label">Téléphone</label>
-                                    <p class="info-value" id="profilTelephone">Chargement...</p>
-                                </div>
-                                <div class="info-col">
-                                    <label class="info-label">Spécialité</label>
-                                    <p class="info-value" id="profilSpecialite">${currentMedecin.specialite || 'Médecin'}</p>
-                                </div>
-                            </div>
+                        <div id="historiqueRdvTable">
+                            <p class="text-muted mb-0">Chargement...</p>
                         </div>
-                    </div>
-                    
-                    <!-- Section Professionnelles -->
-                    <div class="profil-section">
-                        <div class="section-header-profil">
-                            <h4 class="section-title-profil">
-                                <i class="fas fa-stethoscope"></i> Informations Professionnelles
-                            </h4>
-                            <button class="btn-edit-section" onclick="editProfessionalInfo()" title="Modifier">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </div>
-                        
-                        <div class="info-grid">
-                            <div class="info-row">
-                                <div class="info-col">
-                                    <label class="info-label">Numéro d'Ordre</label>
-                                    <p class="info-value" id="profilNumeroOrdre">Chargement...</p>
-                                </div>
-                                <div class="info-col">
-                                    <label class="info-label">Années d'Expérience</label>
-                                    <p class="info-value" id="profilAnneeExperience">Chargement...</p>
-                                </div>
-                            </div>
-                            
-                            <div class="info-row">
-                                <div class="info-col">
-                                    <label class="info-label">Montant de Consultation (FCFA)</label>
-                                    <p class="info-value" id="profilPrixConsultation">Chargement...</p>
-                                </div>
-                                <div class="info-col">
-                                    <label class="info-label">Langues</label>
-                                    <p class="info-value" id="profilLangues">Chargement...</p>
-                                </div>
-                            </div>
-                            
-                            <div class="info-row">
-                                <div class="info-col full-width">
-                                    <label class="info-label">Adresse du Cabinet</label>
-                                    <p class="info-value" id="profilAdresse">Chargement...</p>
-                                </div>
-                            </div>
-                            
-                            <div class="info-row">
-                                <div class="info-col">
-                                    <label class="info-label">Ville</label>
-                                    <p class="info-value" id="profilVille">Chargement...</p>
-                                </div>
-                                <div class="info-col">
-                                    <label class="info-label">Code Postal</label>
-                                    <p class="info-value" id="profilCodePostal">Chargement...</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Section Actions -->
-                    <div class="profil-actions">
-                        <button class="btn btn-primary" onclick="goToParametres()">
-                            <i class="fas fa-cog"></i> Modifier mes informations
-                        </button>
-                        <button class="btn btn-outline" onclick="printProfil()">
-                            <i class="fas fa-print"></i> Imprimer
-                        </button>
                     </div>
                 </div>
             </div>
@@ -644,475 +581,173 @@ function getProfilContent() {
     `;
 }
 
-// ============= CHARGER DONNÉES PROFIL =============
+function setHistoriquePeriode(periode) {
+    historiquePeriode = periode === 'mois' ? 'mois' : 'semaine';
 
-async function loadProfilData() {
-    try {
-        // Charger les infos personnelles
-        const response = await fetch('/medecin/api/info');
-        const personalData = await response.json();
-        
-        // Charger les infos professionnelles
-        const proResponse = await fetch('/medecin/api/profil/professional-info');
-        const proData = proResponse.ok ? await proResponse.json() : {};
-        
-        // Remplir les informations personnelles
-        document.getElementById('profilPrenom').textContent = personalData.prenom || '';
-        document.getElementById('profilNom').textContent = personalData.nom || '';
-        document.getElementById('profilEmail').textContent = personalData.email || '';
-        document.getElementById('profilTelephone').textContent = personalData.telephone || 'Non renseigné';
-        document.getElementById('profilSpecialite').textContent = personalData.specialite || 'Médecin';
-        document.getElementById('badgeEmail').textContent = personalData.email || '';
-        document.getElementById('badgeTelephone').textContent = personalData.telephone || 'Non renseigné';
-        
-        // Afficher la photo de profil
-        if (personalData.photo_profil_url) {
-            document.getElementById('profilAvatarImg').src = personalData.photo_profil_url;
+    const btnSemaine = document.getElementById('historiquePeriodeSemaine');
+    const btnMois = document.getElementById('historiquePeriodeMois');
+
+    if (btnSemaine && btnMois) {
+        if (historiquePeriode === 'semaine') {
+            btnSemaine.className = 'btn btn-sm btn-primary';
+            btnMois.className = 'btn btn-sm btn-outline-primary';
         } else {
-            document.getElementById('profilAvatarImg').src = 
-                `https://ui-avatars.com/api/?name=${personalData.prenom}+${personalData.nom}&background=0D8ABC&color=fff&size=200`;
+            btnSemaine.className = 'btn btn-sm btn-outline-primary';
+            btnMois.className = 'btn btn-sm btn-primary';
         }
-        
-        // Remplir les informations professionnelles
-        document.getElementById('profilNumeroOrdre').textContent = proData.numero_ordre || 'Non renseigné';
-        document.getElementById('profilAnneeExperience').textContent = 
-            (proData.annees_experience ? proData.annees_experience + ' ans' : 'Non renseigné');
-        document.getElementById('profilPrixConsultation').textContent = 
-            (proData.prix_consultation ? proData.prix_consultation + ' FCFA' : 'Non renseigné');
-        document.getElementById('profilLangues').textContent = 
-            (Array.isArray(personalData.langues) ? personalData.langues.join(', ') : 'Non renseigné');
-        document.getElementById('profilAdresse').textContent = 
-            (proData.adresse ? proData.adresse : 'Non renseigné');
-        document.getElementById('profilVille').textContent = 
-            (proData.ville ? proData.ville : 'Non renseigné');
-        document.getElementById('profilCodePostal').textContent = 
-            (proData.code_postal ? proData.code_postal : 'Non renseigné');
-        
-        // Setup événement upload photo
-        setupPhotoUpload();
-        
+    }
+
+    renderHistorique();
+}
+
+async function loadHistorique() {
+    try {
+        const response = await fetch('/medecin/api/historique', { credentials: 'include' });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || 'Erreur chargement historique');
+        }
+
+        const data = await response.json();
+        historiqueData = {
+            consultations: data.consultations || { semaine: [], mois: [], total_semaine: 0, total_mois: 0 },
+            rendez_vous: data.rendez_vous || { semaine: [], mois: [], total_semaine: 0, total_mois: 0 }
+        };
+        renderHistorique();
     } catch (error) {
-        console.error('Erreur chargement profil:', error);
+        console.error('Erreur historique:', error);
+        const consultationsTable = document.getElementById('historiqueConsultationsTable');
+        const rdvTable = document.getElementById('historiqueRdvTable');
+        if (consultationsTable) consultationsTable.innerHTML = '<p class="text-danger mb-0">Erreur de chargement</p>';
+        if (rdvTable) rdvTable.innerHTML = '<p class="text-danger mb-0">Erreur de chargement</p>';
     }
 }
 
-// ============= UPLOAD PHOTO DE PROFIL =============
+function renderHistorique() {
+    const consultations = historiqueData.consultations?.[historiquePeriode] || [];
+    const rdvs = historiqueData.rendez_vous?.[historiquePeriode] || [];
 
-function setupPhotoUpload() {
-    const photoInput = document.getElementById('photoInput');
-    if (!photoInput) return;
-    
-    photoInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        // Vérifier que c'est une image
-        if (!file.type.startsWith('image/')) {
-            alert('⚠️ Veuillez sélectionner une image');
-            return;
+    const consultationsCount = document.getElementById('historiqueConsultationsCount');
+    const rdvCount = document.getElementById('historiqueRdvCount');
+    if (consultationsCount) consultationsCount.textContent = consultations.length;
+    if (rdvCount) rdvCount.textContent = rdvs.length;
+
+    const consultationsTable = document.getElementById('historiqueConsultationsTable');
+    if (consultationsTable) {
+        if (consultations.length === 0) {
+            consultationsTable.innerHTML = '<p class="text-muted mb-0">Aucune consultation sur cette pÃ©riode.</p>';
+        } else {
+            consultationsTable.innerHTML = `
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Date</th>
+                            <th>Motif</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${consultations.map(c => `
+                            <tr>
+                                <td>${c.patient_nom}</td>
+                                <td>${formatHistoriqueDate(c.date_consultation)}</td>
+                                <td>${truncateText(c.motif || 'N/A', 35)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
         }
-        
-        // Vérifier la taille (max 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            alert('⚠️ L\'image doit faire moins de 5MB');
-            return;
+    }
+
+    const rdvTable = document.getElementById('historiqueRdvTable');
+    if (rdvTable) {
+        if (rdvs.length === 0) {
+            rdvTable.innerHTML = '<p class="text-muted mb-0">Aucun rendez-vous sur cette pÃ©riode.</p>';
+        } else {
+            rdvTable.innerHTML = `
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rdvs.map(r => `
+                            <tr>
+                                <td>${r.patient_nom}</td>
+                                <td>${formatHistoriqueDate(r.date_heure)}</td>
+                                <td>${r.type || 'N/A'}</td>
+                                <td>${r.statut || 'N/A'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
         }
-        
-        const formData = new FormData();
-        formData.append('photo', file);
-        
-        try {
-            const response = await fetch('/medecin/api/upload-photo', {
-                method: 'POST',
-                body: formData
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                // Mettre à jour l'image
-                document.getElementById('profilAvatarImg').src = data.photo_url;
-                alert('✅ Photo de profil mise à jour avec succès!');
-                
-                // Mettre à jour le profil global
-                currentMedecin.photo = data.photo_url;
-                
-                // Mettre à jour les autres avatars sur la page
-                const profileAvatars = document.querySelectorAll('#profileAvatar');
-                profileAvatars.forEach(avatar => {
-                    avatar.src = data.photo_url;
-                });
-            } else {
-                alert('❌ Erreur lors du téléchargement');
-            }
-        } catch (error) {
-            console.error('Erreur upload:', error);
-            alert('❌ Erreur lors du téléchargement');
-        }
-        
-        // Réinitialiser l'input
-        photoInput.value = '';
-    });
+    }
 }
 
-// ============= FONCTIONS ÉDITION =============
-
-function editPersonnelInfo() {
-    alert('Veuillez vous rendre dans la section "Paramètres" pour modifier vos informations personnelles');
-    loadSection('parametres');
+function formatHistoriqueDate(value) {
+    if (!value) return 'N/A';
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return value;
+    return dt.toLocaleString('fr-FR');
 }
 
-function editProfessionalInfo() {
-    alert('Veuillez vous rendre dans la section "Paramètres" pour modifier vos informations professionnelles');
-    loadSection('parametres');
+function getProfilContent() {
+    const profilePhoto = currentMedecin.photo
+        ? currentMedecin.photo
+        : `https://ui-avatars.com/api/?name=Dr+${encodeURIComponent(currentMedecin.prenom + ' ' + currentMedecin.nom)}&background=0D8ABC&color=fff&size=180`;
+
+    return `
+        <div class="content-section">
+            <div class="section-header">
+                <h2 class="section-title">Mon Profil</h2>
+            </div>
+            <div style="background: white; padding: 30px; border-radius: 12px;">
+                <div style="display:flex; gap:20px; align-items:center; margin-bottom: 25px; flex-wrap: wrap;">
+                    <img id="profilAvatar"
+                        src="${profilePhoto}"
+                        alt="Avatar"
+                        style="width: 120px; height: 120px; border-radius: 50%; border: 3px solid #0D8ABC; object-fit: cover;">
+                    <div>
+                        <h4 style="margin: 0;">Dr. ${currentMedecin.prenom} ${currentMedecin.nom}</h4>
+                        <p style="margin: 6px 0 0 0; color: #6b7280;">${currentMedecin.specialite || 'Médecin'}</p>
+                        <p style="margin: 6px 0 0 0; color: #6b7280;">${currentMedecin.email || 'Email non renseigné'}</p>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <div style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:16px;">
+                            <h5 style="margin-bottom: 12px;">Informations Personnelles</h5>
+                            <p style="margin: 6px 0;"><strong>Prénom:</strong> ${currentMedecin.prenom || 'N/A'}</p>
+                            <p style="margin: 6px 0;"><strong>Nom:</strong> ${currentMedecin.nom || 'N/A'}</p>
+                            <p style="margin: 6px 0;"><strong>Email:</strong> ${currentMedecin.email || 'N/A'}</p>
+                            <p style="margin: 6px 0;"><strong>Téléphone:</strong> ${currentMedecin.telephone || 'N/A'}</p>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:16px;">
+                            <h5 style="margin-bottom: 12px;">Informations Professionnelles</h5>
+                            <p style="margin: 6px 0;"><strong>Spécialité:</strong> ${currentMedecin.specialite || 'N/A'}</p>
+                            <p style="margin: 6px 0;"><strong>Adresse du cabinet:</strong> ${currentMedecin.adresse_cabinet || 'N/A'}</p>
+                            <p style="margin: 6px 0;"><strong>Années d'expérience:</strong> ${currentMedecin.annees_experience || 0} an(s)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> Utilisez la section "Paramètres" pour modifier vos informations
+                </div>
+            </div>
+        </div>
+    `;
 }
-
-function goToParametres() {
-    loadSection('parametres');
-}
-
-function printProfil() {
-    window.print();
-}
-
-// ============= STYLES CSS POUR MON PROFIL =============
-
-const profilStyles = `
-    <style>
-        .profil-container {
-            display: grid;
-            grid-template-columns: 280px 1fr;
-            gap: 30px;
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-        }
-        
-        .profil-sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 25px;
-            border-right: 1px solid #f0f0f0;
-            padding-right: 30px;
-        }
-        
-        .avatar-section {
-            text-align: center;
-        }
-        
-        .avatar-container {
-            position: relative;
-            width: 200px;
-            height: 200px;
-            margin: 0 auto 15px;
-            border-radius: 50%;
-            overflow: hidden;
-            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
-            box-shadow: 0 4px 16px rgba(13, 139, 188, 0.3);
-        }
-        
-        .avatar-image {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .btn-change-photo {
-            position: absolute;
-            bottom: 8px;
-            right: 8px;
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
-            color: white;
-            border: none;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(13, 139, 188, 0.4);
-        }
-        
-        .btn-change-photo:hover {
-            transform: scale(1.1);
-            box-shadow: 0 4px 12px rgba(13, 139, 188, 0.6);
-        }
-        
-        .medecin-name {
-            font-size: 20px;
-            font-weight: 700;
-            color: #1a1a1a;
-            margin: 0 0 5px 0;
-        }
-        
-        .medecin-specialite {
-            font-size: 14px;
-            color: #0d8abc;
-            font-weight: 600;
-            margin: 0;
-        }
-        
-        .info-badges {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        
-        .badge-item {
-            background: #f8f9fa;
-            border-left: 4px solid #0d8abc;
-            padding: 12px 15px;
-            border-radius: 6px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        
-        .badge-icon {
-            font-size: 20px;
-        }
-        
-        .badge-label {
-            font-size: 11px;
-            color: #666;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .badge-value {
-            font-size: 13px;
-            color: #1a1a1a;
-            font-weight: 600;
-            word-break: break-word;
-        }
-        
-        .profil-main {
-            display: flex;
-            flex-direction: column;
-            gap: 25px;
-        }
-        
-        .profil-section {
-            background: #f9f9f9;
-            border: 1px solid #f0f0f0;
-            border-radius: 8px;
-            padding: 20px;
-        }
-        
-        .section-header-profil {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e0e0e0;
-        }
-        
-        .section-title-profil {
-            margin: 0;
-            font-size: 16px;
-            font-weight: 700;
-            color: #0d8abc;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .section-title-profil i {
-            font-size: 18px;
-        }
-        
-        .btn-edit-section {
-            background: #0d8abc;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-edit-section:hover {
-            background: #0a6d9e;
-            transform: scale(1.05);
-        }
-        
-        .info-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        
-        .info-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        
-        .info-row.single {
-            grid-template-columns: 1fr;
-        }
-        
-        .info-col {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .info-col.full-width {
-            grid-column: 1 / -1;
-        }
-        
-        .info-label {
-            font-size: 12px;
-            color: #666;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin: 0;
-        }
-        
-        .info-value {
-            font-size: 15px;
-            color: #1a1a1a;
-            margin: 0;
-            font-weight: 500;
-            padding: 10px;
-            background: white;
-            border-radius: 6px;
-            border: 1px solid #e0e0e0;
-        }
-        
-        .profil-actions {
-            display: flex;
-            gap: 15px;
-            margin-top: 20px;
-        }
-        
-        .btn {
-            padding: 12px 24px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(13, 139, 188, 0.3);
-        }
-        
-        .btn-outline {
-            background: white;
-            color: #0d8abc;
-            border: 2px solid #0d8abc;
-        }
-        
-        .btn-outline:hover {
-            background: #f0f8ff;
-        }
-        
-        /* Responsive Design */
-        @media (max-width: 1024px) {
-            .profil-container {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-            
-            .profil-sidebar {
-                border-right: none;
-                border-bottom: 1px solid #f0f0f0;
-                padding-right: 0;
-                padding-bottom: 20px;
-            }
-            
-            .info-row {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .profil-container {
-                padding: 20px;
-            }
-            
-            .avatar-container {
-                width: 150px;
-                height: 150px;
-            }
-            
-            .medecin-name {
-                font-size: 18px;
-            }
-            
-            .section-header-profil {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 10px;
-            }
-            
-            .btn-edit-section {
-                width: 32px;
-                height: 32px;
-            }
-            
-            .profil-actions {
-                flex-direction: column;
-            }
-            
-            .btn {
-                width: 100%;
-                justify-content: center;
-            }
-        }
-        
-        /* Print Styles */
-        @media print {
-            .btn-change-photo,
-            .btn-edit-section,
-            .profil-actions {
-                display: none;
-            }
-            
-            .profil-container {
-                box-shadow: none;
-                border: 1px solid #ccc;
-            }
-            
-            .info-value {
-                background: white;
-                border: none;
-            }
-        }
-    </style>
-`;
-
-// Injecter les styles
-if (document.head) {
-    document.head.insertAdjacentHTML('beforeend', profilStyles);
-}
-
-// ============= PARAMÈTRES - CONTENU =============
 
 function getParametresContent() {
     return `
@@ -1121,12 +756,8 @@ function getParametresContent() {
                 <h2 class="section-title">Paramètres</h2>
             </div>
             
-            <!-- Section Informations Personnelles -->
-            <div style="background: white; padding: 30px; border-radius: 12px; margin-bottom: 20px;">
-                <h4 class="mb-4">
-                    <i class="fas fa-user-circle" style="color: #0d8abc; margin-right: 10px;"></i>
-                    Informations Personnelles
-                </h4>
+            <div style="background: white; padding: 30px; border-radius: 12px;">
+                <h4 class="mb-4">Informations Personnelles</h4>
                 
                 <form id="parametresForm">
                     <div class="row">
@@ -1147,7 +778,25 @@ function getParametresContent() {
                     
                     <div class="mb-3">
                         <label class="form-label">Téléphone</label>
-                        <input type="tel" class="form-control" id="paramTelephone">
+                        <input type="tel" class="form-control" id="paramTelephone" value="${currentMedecin.telephone || ''}">
+                    </div>
+
+                    <hr class="my-4" />
+                    <h4 class="mb-3">Informations Professionnelles</h4>
+
+                    <div class="mb-3">
+                        <label class="form-label">Spécialité</label>
+                        <input type="text" class="form-control" id="paramSpecialite" value="${currentMedecin.specialite || ''}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Adresse du cabinet</label>
+                        <input type="text" class="form-control" id="paramAdresseCabinet" value="${currentMedecin.adresse_cabinet || ''}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Nombre d'années d'expérience</label>
+                        <input type="number" min="0" class="form-control" id="paramAnneesExperience" value="${currentMedecin.annees_experience || 0}">
                     </div>
                     
                     <div class="mb-3">
@@ -1160,67 +809,14 @@ function getParametresContent() {
                     </button>
                 </form>
             </div>
-
-            <!-- Section Informations Professionnelles -->
-            <div style="background: white; padding: 30px; border-radius: 12px;">
-                <h4 class="mb-4">
-                    <i class="fas fa-stethoscope" style="color: #10b981; margin-right: 10px;"></i>
-                    Informations Professionnelles
-                </h4>
-                
-                <form id="parametresProfessionnelsForm">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Années d'expérience</label>
-                            <input type="number" class="form-control" id="paramAnneeExperience" min="0" placeholder="Ex: 10">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Montant de consultation (FCFA)</label>
-                            <input type="number" class="form-control" id="paramPrixConsultation" min="0" step="100" placeholder="Ex: 25000">
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Numéro d'ordre</label>
-                        <input type="text" class="form-control" id="paramNumeroOrdre" placeholder="Numéro d'ordre médical">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Nom du cabinet</label>
-                        <input type="text" class="form-control" id="paramNomCabinet" placeholder="Ex: Cabinet Médical du Docteur X">
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Adresse du cabinet</label>
-                            <input type="text" class="form-control" id="paramAdresseCabinet" placeholder="Adresse complète">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Ville</label>
-                            <input type="text" class="form-control" id="paramVilleCabinet" placeholder="Ville">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Code postal</label>
-                            <input type="text" class="form-control" id="paramCodePostalCabinet" placeholder="Code postal">
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-success">
-                        <i class="fas fa-save"></i> Sauvegarder les informations professionnelles
-                    </button>
-                </form>
-            </div>
         </div>
     `;
 }
 
-// ============= SETUP PARAMÈTRES LISTENERS (MODIFIÉE) =============
-
 function setupParametresListeners() {
-    // ===== FORMULAIRE INFORMATIONS PERSONNELLES =====
-    const formPersonnel = document.getElementById('parametresForm');
-    if (formPersonnel) {
-        formPersonnel.addEventListener('submit', async function(e) {
+    const form = document.getElementById('parametresForm');
+    if (form) {
+        form.addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const formData = new FormData();
@@ -1228,6 +824,9 @@ function setupParametresListeners() {
             formData.append('nom', document.getElementById('paramNom').value);
             formData.append('email', document.getElementById('paramEmail').value);
             formData.append('telephone', document.getElementById('paramTelephone').value || '');
+            formData.append('specialite', document.getElementById('paramSpecialite').value || '');
+            formData.append('adresse_cabinet', document.getElementById('paramAdresseCabinet').value || '');
+            formData.append('annees_experience', document.getElementById('paramAnneesExperience').value || '0');
             
             const photoInput = document.getElementById('paramPhoto');
             if (photoInput.files.length > 0) {
@@ -1241,114 +840,23 @@ function setupParametresListeners() {
                 });
                 
                 if (response.ok) {
-                    alert('✅ Profil personnel mis à jour avec succès!');
+                    alert('Profil mis Ã  jour avec succÃ¨s!');
                     await loadMedecinInfo();
                 } else {
-                    alert('❌ Erreur lors de la mise à jour');
+                    alert('Erreur lors de la mise Ã  jour');
                 }
             } catch (error) {
                 console.error('Erreur:', error);
-                alert('❌ Erreur lors de la mise à jour');
-            }
-        });
-    }
-
-    // ===== FORMULAIRE INFORMATIONS PROFESSIONNELLES =====
-    const formProfessionnel = document.getElementById('parametresProfessionnelsForm');
-    if (formProfessionnel) {
-        // Charger les données existantes au chargement du formulaire
-        loadProfessionalInfoData();
-        
-        formProfessionnel.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const anneeExperience = document.getElementById('paramAnneeExperience').value;
-            const prixConsultation = document.getElementById('paramPrixConsultation').value;
-            const numeroOrdre = document.getElementById('paramNumeroOrdre').value;
-            const nomCabinet = document.getElementById('paramNomCabinet').value;
-            const adresseCabinet = document.getElementById('paramAdresseCabinet').value;
-            const villeCabinet = document.getElementById('paramVilleCabinet').value;
-            const codePostalCabinet = document.getElementById('paramCodePostalCabinet').value;
-            
-            // Au moins un champ doit être rempli
-            if (!anneeExperience && !prixConsultation && !numeroOrdre && !nomCabinet && !adresseCabinet && !villeCabinet && !codePostalCabinet) {
-                alert('⚠️ Veuillez remplir au moins un champ');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('annees_experience', anneeExperience || '');
-            formData.append('prix_consultation', prixConsultation || '');
-            formData.append('numero_ordre', numeroOrdre || '');
-            formData.append('cabinet_nom', nomCabinet || '');
-            formData.append('adresse', adresseCabinet || '');
-            formData.append('ville', villeCabinet || '');
-            formData.append('code_postal', codePostalCabinet || '');
-            
-            try {
-                const response = await fetch('/medecin/api/profil/update-professional', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    alert('✅ ' + (result.message || 'Informations professionnelles mises à jour avec succès!'));
-                    await loadMedecinInfo();
-                } else {
-                    const error = await response.json();
-                    alert('❌ ' + (error.detail || 'Erreur lors de la mise à jour'));
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
-                alert('❌ Erreur lors de la mise à jour');
+                alert('Erreur lors de la mise Ã  jour');
             }
         });
     }
 }
 
-// ============= CHARGER DONNÉES PROFESSIONNELLES =============
-
-async function loadProfessionalInfoData() {
-    try {
-        const response = await fetch('/medecin/api/profil/professional-info');
-        if (!response.ok) {
-            console.log('Pas d\'informations professionnelles existantes');
-            return;
-        }
-        
-        const data = await response.json();
-        
-        // Remplir les champs avec les données existantes
-        if (data.annees_experience) {
-            document.getElementById('paramAnneeExperience').value = data.annees_experience;
-        }
-        if (data.prix_consultation) {
-            document.getElementById('paramPrixConsultation').value = data.prix_consultation;
-        }
-        if (data.numero_ordre) {
-            document.getElementById('paramNumeroOrdre').value = data.numero_ordre;
-        }
-        if (data.cabinet_nom) {
-            document.getElementById('paramNomCabinet').value = data.cabinet_nom;
-        }
-        if (data.adresse) {
-            document.getElementById('paramAdresseCabinet').value = data.adresse;
-        }
-        if (data.ville) {
-            document.getElementById('paramVilleCabinet').value = data.ville;
-        }
-        if (data.code_postal) {
-            document.getElementById('paramCodePostalCabinet').value = data.code_postal;
-        }
-    } catch (error) {
-        console.error('Erreur chargement infos professionnelles:', error);
-    }
-}
 // ============= HELPER FUNCTIONS =============
 
 function sendMessageToPatient(patientId) {
-    alert('Fonctionnalité messagerie en développement pour patient ' + patientId);
+    alert('FonctionnalitÃ© messagerie en dÃ©veloppement pour patient ' + patientId);
 }
 
 // ============= EVENT LISTENERS =============
@@ -1390,17 +898,17 @@ async function submitOrdonnance() {
         
         if (response.ok) {
             const result = await response.json();
-            alert('Ordonnance créée et envoyée au patient!');
+            alert('Ordonnance crÃ©Ã©e et envoyÃ©e au patient!');
             
             // Fermer modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('ordonnanceModal'));
             modal.hide();
         } else {
-            alert('Erreur lors de la création de l\'ordonnance');
+            alert('Erreur lors de la crÃ©ation de l\'ordonnance');
         }
     } catch (error) {
         console.error('Erreur:', error);
-        alert('Erreur lors de la création de l\'ordonnance');
+        alert('Erreur lors de la crÃ©ation de l\'ordonnance');
     }
 }
 
@@ -1462,7 +970,7 @@ function setupLogout() {
         logoutLink.addEventListener('click', function(e) {
             e.preventDefault();
             
-            const confirmed = confirm('Êtes-vous sûr de vouloir vous déconnecter ?');
+            const confirmed = confirm('ÃŠtes-vous sÃ»r de vouloir vous dÃ©connecter ?');
             
             if (confirmed) {
                 window.location.href = '/medecin/deconnexionMedecin';
@@ -1505,8 +1013,8 @@ function getMessagerieContent() {
                 <div id="emptyState" class="empty-state">
                     <div class="empty-content">
                         <i class="fas fa-envelope-open-text"></i>
-                        <h4>Sélectionnez une conversation</h4>
-                        <p>Choisissez un patient dans la liste pour commencer à discuter</p>
+                        <h4>SÃ©lectionnez une conversation</h4>
+                        <p>Choisissez un patient dans la liste pour commencer Ã  discuter</p>
                     </div>
                 </div>
                 
@@ -1520,10 +1028,28 @@ function getMessagerieContent() {
                                 <p id="chatPatientEmail" class="text-muted"></p>
                             </div>
                         </div>
-                        <button class="btn-close-chat" onclick="closeChat()" title="Fermer">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <div class="chat-actions">
+                            <button class="btn-action-call" onclick="startVideoCall()" title="Appel vidéo">
+                                <i class="fas fa-video"></i>
+                            </button>
+                            <button class="btn-action-call" onclick="startVoiceCall()" title="Appel vocal">
+                                <i class="fas fa-phone"></i>
+                            </button>
+                            <button class="btn-action-call" onclick="toggleChatActionsMenu(event)" title="Plus d'actions">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <button class="btn-close-chat" onclick="closeChat()" title="Fermer">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <div id="chatActionsMenu" class="chat-actions-menu">
+                                <button type="button" class="chat-menu-item" onclick="sendPatientEmail()">
+                                    <i class="fas fa-envelope"></i> Envoyer un mail
+                                </button>
+                            </div>
+                        </div>
                     </div>
+
+                    <div id="chatCallPanel" class="chat-call-panel" style="display:none;"></div>
                     
                     <!-- Messages -->
                     <div class="messages-container" id="messagesContainer">
@@ -1534,11 +1060,7 @@ function getMessagerieContent() {
                     <div class="message-input-area">
                         <form id="messageForm" onsubmit="sendMessage(event)">
                             <div class="form-group">
-                                <input type="text" id="messageSubject" placeholder="Sujet du message..." 
-                                    class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <textarea id="messageContent" placeholder="Écrivez votre message ici..." 
+                                <textarea id="messageContent" placeholder="Ã‰crivez votre message ici..." 
                                     class="form-control" rows="3" required></textarea>
                             </div>
                             <button type="submit" class="btn btn-primary btn-send">
@@ -1563,12 +1085,8 @@ function getMessagerieContent() {
                             <div class="form-group mb-3">
                                 <label class="form-label"><strong>Destinataire</strong></label>
                                 <select id="newMessagePatient" class="form-control" required>
-                                    <option value="">Sélectionnez un patient...</option>
+                                    <option value="">SÃ©lectionnez un patient...</option>
                                 </select>
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label"><strong>Sujet</strong></label>
-                                <input type="text" id="newMessageSubject" class="form-control" required>
                             </div>
                             <div class="form-group mb-3">
                                 <label class="form-label"><strong>Message</strong></label>
@@ -1592,7 +1110,7 @@ async function loadMessagerie() {
     const mainContent = document.getElementById('mainContent');
     mainContent.innerHTML = getMessagerieContent();
     
-    // Charger les données
+    // Charger les donnÃ©es
     await Promise.all([
         loadConversations(),
         loadPatientsForMessaging()
@@ -1600,7 +1118,7 @@ async function loadMessagerie() {
     
     setupMessagerieListeners();
     
-    // Rafraîchissement auto toutes les 30 secondes
+    // RafraÃ®chissement auto toutes les 30 secondes
     if (messagerie.autoRefresh) clearInterval(messagerie.autoRefresh);
     messagerie.autoRefresh = setInterval(loadConversations, 30000);
 }
@@ -1648,7 +1166,7 @@ function displayConversations(conversations) {
         const dernierMsg = conv.derniere_date ? new Date(conv.derniere_date).toLocaleDateString('fr-FR') : '';
         
         return `
-            <div class="conversation-item ${classe}" onclick="openConversation(${conv.patient_id}, '${conv.nom_complet}', '${conv.email}')">
+            <div class="conversation-item ${classe}" data-patient-id="${conv.patient_id}" onclick="openConversation(${conv.patient_id})">
                 <div class="conversation-avatar">
                     ${conv.nom_complet.charAt(0).toUpperCase()}${conv.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || ''}
                 </div>
@@ -1683,44 +1201,48 @@ function updateUnreadBadge() {
 
 // ============= OUVERTURE CONVERSATION =============
 
-async function openConversation(patientId, patientName, patientEmail) {
+async function openConversation(patientId) {
     try {
-        messagerie.patientActuel = {
-            id: patientId,
-            nom_complet: patientName,
-            email: patientEmail
-        };
-        
         // Fetch messages
         const response = await fetch(`/medecin/api/messagerie/conversation/${patientId}`);
         if (!response.ok) throw new Error('Erreur chargement conversation');
         
         const data = await response.json();
-        messagerie.messagesActuels = data.messages;
+        messagerie.messagesActuels = data.messages || [];
+        messagerie.patientActuel = {
+            id: data.patient?.id || patientId,
+            nom_complet: data.patient?.nom_complet || 'Patient',
+            email: data.patient?.email || '',
+            telephone: data.patient?.telephone || ''
+        };
         
         // Afficher le chat
         document.getElementById('emptyState').style.display = 'none';
         document.getElementById('chatContent').style.display = 'flex';
         
         // Remplir les infos du patient
-        document.getElementById('chatPatientName').textContent = data.patient.nom_complet;
-        document.getElementById('chatPatientEmail').textContent = data.patient.email;
+        document.getElementById('chatPatientName').textContent = messagerie.patientActuel.nom_complet;
+        document.getElementById('chatPatientEmail').textContent = messagerie.patientActuel.email;
         document.getElementById('chatPatientAvatar').textContent = 
-            data.patient.nom_complet.charAt(0).toUpperCase() + 
-            (data.patient.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || '');
+            messagerie.patientActuel.nom_complet.charAt(0).toUpperCase() + 
+            (messagerie.patientActuel.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || '');
         
         // Afficher les messages
         displayMessages(data.messages);
         
-        // Mise à jour visuelle
+        // Mise Ã  jour visuelle
         document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
-        event.target.closest('.conversation-item')?.classList.add('active');
+        const activeItem = document.querySelector(`[data-patient-id="${patientId}"]`);
+        if (activeItem) activeItem.classList.add('active');
         
         // Reset form
         document.getElementById('messageForm').reset();
     } catch (error) {
         console.error('Erreur ouverture conversation:', error);
-        alert('Erreur lors de l\'ouverture de la conversation');
+        const container = document.getElementById('messagesContainer');
+        if (container) {
+            container.innerHTML = '<p class="text-center text-danger p-3">Impossible de charger cette conversation</p>';
+        }
     }
 }
 
@@ -1743,9 +1265,8 @@ function displayMessages(messages) {
         return `
             <div class="message-group ${fromClass}">
                 <div class="message-bubble">
-                    <div class="message-subject"><strong>${msg.sujet}</strong></div>
                     <div class="message-content">${msg.contenu}</div>
-                    <div class="message-time">${dateStr} à ${timeStr}</div>
+                    <div class="message-time">${dateStr} Ã  ${timeStr}</div>
                 </div>
             </div>
         `;
@@ -1764,11 +1285,11 @@ function displayMessages(messages) {
 async function sendMessage(event) {
     event.preventDefault();
     
-    const sujet = document.getElementById('messageSubject').value;
+    const sujet = 'Message';
     const contenu = document.getElementById('messageContent').value;
     
-    if (!sujet.trim() || !contenu.trim()) {
-        alert('Veuillez remplir tous les champs');
+    if (!contenu.trim()) {
+        alert('Veuillez écrire un message');
         return;
     }
     
@@ -1790,14 +1311,14 @@ async function sendMessage(event) {
         
         const result = await response.json();
         
-        // Ajouter le message à la liste
+        // Ajouter le message Ã  la liste
         messagerie.messagesActuels.push({
             id: result.message_id,
             sujet: sujet,
             contenu: contenu,
             de_medecin: true,
             date_envoi: result.date_envoi,
-            statut: 'Envoyé'
+            statut: 'EnvoyÃ©'
         });
         
         displayMessages(messagerie.messagesActuels);
@@ -1820,7 +1341,7 @@ function openNewMessageModal() {
 
 function populatePatientsSelect() {
     const select = document.getElementById('newMessagePatient');
-    select.innerHTML = '<option value="">Sélectionnez un patient...</option>';
+    select.innerHTML = '<option value="">SÃ©lectionnez un patient...</option>';
     
     messagerie.patients.forEach(patient => {
         const option = document.createElement('option');
@@ -1832,10 +1353,10 @@ function populatePatientsSelect() {
 
 async function submitNewMessage() {
     const patientId = document.getElementById('newMessagePatient').value;
-    const sujet = document.getElementById('newMessageSubject').value;
+    const sujet = 'Message';
     const contenu = document.getElementById('newMessageContent').value;
     
-    if (!patientId || !sujet.trim() || !contenu.trim()) {
+    if (!patientId || !contenu.trim()) {
         alert('Veuillez remplir tous les champs');
         return;
     }
@@ -1868,7 +1389,7 @@ async function submitNewMessage() {
         setTimeout(() => {
             const conv = messagerie.conversations.find(c => c.patient_id == patientId);
             if (conv) {
-                openConversation(patientId, patient.nom_complet, patient.email);
+                openConversation(patientId);
             }
         }, 500);
     } catch (error) {
@@ -1877,11 +1398,83 @@ async function submitNewMessage() {
     }
 }
 
+function toggleChatActionsMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('chatActionsMenu');
+    if (!menu) return;
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+function closeChatActionsMenu() {
+    const menu = document.getElementById('chatActionsMenu');
+    if (menu) menu.style.display = 'none';
+}
+
+function openInAppCall(patient, mode = 'video', targetId = 'chatCallPanel') {
+    const panel = document.getElementById(targetId);
+    if (!panel) return;
+
+    const room = `dokira-${patient.id}-${new Date().toISOString().slice(0, 10)}`;
+    const audioOnly = mode === 'audio';
+    const displayName = encodeURIComponent(`Dr. ${currentMedecin.prenom || ''} ${currentMedecin.nom || ''}`.trim());
+    const title = audioOnly ? 'Appel vocal en cours' : 'Appel vidéo en cours';
+    const jitsiUrl = `https://meet.jit.si/${room}#userInfo.displayName=\"${displayName}\"&config.startWithVideoMuted=${audioOnly}`;
+
+    panel.innerHTML = `
+        <div class="call-panel-header">
+            <div>
+                <strong>${title}</strong>
+                <span class="call-patient-name">${patient.nom_complet}</span>
+            </div>
+            <button class="btn-end-call" onclick="closeInAppCall('${targetId}')">
+                <i class="fas fa-phone-slash"></i> Terminer
+            </button>
+        </div>
+        <iframe class="call-frame" src="${jitsiUrl}" allow="camera; microphone; fullscreen; display-capture" title="Visioconférence Dokira"></iframe>
+    `;
+    panel.style.display = 'block';
+}
+
+function closeInAppCall(targetId = 'chatCallPanel') {
+    const panel = document.getElementById(targetId);
+    if (!panel) return;
+    panel.innerHTML = '';
+    panel.style.display = 'none';
+}
+
+function startVoiceCall() {
+    if (!messagerie.patientActuel) {
+        alert('Sélectionnez un patient avant de lancer un appel');
+        return;
+    }
+    openInAppCall(messagerie.patientActuel, 'audio', 'chatCallPanel');
+}
+
+function startVideoCall() {
+    if (!messagerie.patientActuel) {
+        alert('Sélectionnez un patient avant de lancer un appel');
+        return;
+    }
+    openInAppCall(messagerie.patientActuel, 'video', 'chatCallPanel');
+}
+
+function sendPatientEmail() {
+    if (!messagerie.patientActuel) return;
+    const email = (messagerie.patientActuel.email || '').trim();
+    if (!email) {
+        alert('Email indisponible pour ce patient');
+        return;
+    }
+    const subject = encodeURIComponent('Suivi médical Dokira');
+    window.location.href = `mailto:${email}?subject=${subject}`;
+}
+
 // ============= FERMETURE CHAT =============
 
 function closeChat() {
     messagerie.patientActuel = null;
     messagerie.messagesActuels = [];
+    closeInAppCall('chatCallPanel');
     document.getElementById('emptyState').style.display = 'flex';
     document.getElementById('chatContent').style.display = 'none';
     document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
@@ -1890,6 +1483,8 @@ function closeChat() {
 // ============= EVENT LISTENERS =============
 
 function setupMessagerieListeners() {
+    document.addEventListener('click', closeChatActionsMenu);
+
     // Recherche conversation
     const searchInput = document.getElementById('searchConversation');
     if (searchInput) {
@@ -1914,7 +1509,7 @@ function getDossiersContent() {
         <div class="content-section">
             <div class="section-header">
                 <h2 class="section-title">
-                    <i class="fas fa-folder-medical"></i> Dossiers Médicaux
+                    <i class="fas fa-folder-medical"></i> Dossiers MÃ©dicaux
                 </h2>
                 <div class="section-actions">
                     <input type="text" 
@@ -1929,17 +1524,17 @@ function getDossiersContent() {
                 <button class="btn btn-sm btn-outline-primary active" onclick="filterDossiersByStatut('tous')">
                     Tous
                 </button>
-                <button class="btn btn-sm btn-outline-warning" onclick="filterDossiersByStatut('À traiter')">
-                    À traiter
+                <button class="btn btn-sm btn-outline-warning" onclick="filterDossiersByStatut('Ã€ traiter')">
+                    Ã€ traiter
                 </button>
                 <button class="btn btn-sm btn-outline-info" onclick="filterDossiersByStatut('En cours de traitement')">
                     En cours
                 </button>
-                <button class="btn btn-sm btn-outline-success" onclick="filterDossiersByStatut('Traité')">
-                    Traité
+                <button class="btn btn-sm btn-outline-success" onclick="filterDossiersByStatut('TraitÃ©')">
+                    TraitÃ©
                 </button>
-                <button class="btn btn-sm btn-outline-secondary" onclick="filterDossiersByStatut('Archivé')">
-                    Archivé
+                <button class="btn btn-sm btn-outline-secondary" onclick="filterDossiersByStatut('ArchivÃ©')">
+                    ArchivÃ©
                 </button>
             </div>
             
@@ -1965,7 +1560,7 @@ async function loadDossiers() {
         const data = await response.json();
         
         if (!data.success) {
-            throw new Error("Réponse invalide de l'API");
+            throw new Error("RÃ©ponse invalide de l'API");
         }
         
         dossiersMedecin.list = data.dossiers || [];
@@ -1993,7 +1588,7 @@ function displayDossiers(dossiers) {
         container.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-folder-open"></i>
-                <p>Aucun dossier médical</p>
+                <p>Aucun dossier mÃ©dical</p>
             </div>
         `;
         return;
@@ -2039,13 +1634,13 @@ function displayDossiers(dossiers) {
                         </td>
                         <td>
                             <div class="action-buttons">
-                                <button class="btn-action view" onclick="viewDossierDetail(${d.id})" title="Voir détails">
+                                <button class="btn-action view" onclick="viewDossierDetail(${d.id})" title="Voir dÃ©tails">
                                     <i class="fas fa-eye"></i>
                                 </button>
                                 <button class="btn-action edit" onclick="editDossier(${d.id})" title="Modifier">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="btn-action" onclick="downloadDossier(${d.id})" title="Télécharger">
+                                <button class="btn-action" onclick="downloadDossier(${d.id})" title="TÃ©lÃ©charger">
                                     <i class="fas fa-download"></i>
                                 </button>
                             </div>
@@ -2060,7 +1655,7 @@ function displayDossiers(dossiers) {
     setupDossierListeners();
 }
 
-// ============= VOIR DÉTAILS DOSSIER =============
+// ============= VOIR DÃ‰TAILS DOSSIER =============
 
 async function viewDossierDetail(dossierId) {
     try {
@@ -2069,7 +1664,7 @@ async function viewDossierDetail(dossierId) {
         });
         
         if (!response.ok) {
-            throw new Error("Dossier non trouvé");
+            throw new Error("Dossier non trouvÃ©");
         }
         
         const data = await response.json();
@@ -2077,7 +1672,7 @@ async function viewDossierDetail(dossierId) {
         
         dossiersMedecin.selectionne = d;
         
-        // Créer la modale détail
+        // CrÃ©er la modale dÃ©tail
         const modalHTML = createDossierModal(d);
         
         // Ajouter au DOM
@@ -2098,7 +1693,7 @@ async function viewDossierDetail(dossierId) {
     }
 }
 
-// ============= CRÉER MODALE DÉTAIL DOSSIER =============
+// ============= CRÃ‰ER MODALE DÃ‰TAIL DOSSIER =============
 
 function createDossierModal(d) {
     return `
@@ -2136,7 +1731,7 @@ function createDossierModal(d) {
                                         <span class="value">${d.patient.email}</span>
                                     </div>
                                     <div class="info-item">
-                                        <span class="label">Téléphone:</span>
+                                        <span class="label">TÃ©lÃ©phone:</span>
                                         <span class="value">${d.patient.telephone}</span>
                                     </div>
                                     <div class="info-item">
@@ -2146,39 +1741,39 @@ function createDossierModal(d) {
                                 </div>
                             </div>
                             
-                            <!-- Infos Médicales -->
+                            <!-- Infos MÃ©dicales -->
                             <div class="detail-section">
                                 <h6 class="section-title">
-                                    <i class="fas fa-heartbeat"></i> Informations Médicales
+                                    <i class="fas fa-heartbeat"></i> Informations MÃ©dicales
                                 </h6>
                                 <div class="info-grid">
                                     <div class="info-item">
                                         <span class="label">Groupe Sanguin:</span>
-                                        <span class="value">${d.groupe_sanguin || 'Non renseigné'}</span>
+                                        <span class="value">${d.groupe_sanguin || 'Non renseignÃ©'}</span>
                                     </div>
                                     <div class="info-item">
-                                        <span class="label">Numéro Sécu:</span>
-                                        <span class="value">${d.numero_securite_sociale || 'Non renseigné'}</span>
+                                        <span class="label">NumÃ©ro SÃ©cu:</span>
+                                        <span class="value">${d.numero_securite_sociale || 'Non renseignÃ©'}</span>
                                     </div>
                                 </div>
                                 
                                 ${d.allergies ? `
                                     <div class="info-item full-width alert alert-warning mt-2">
                                         <i class="fas fa-exclamation-triangle"></i>
-                                        <strong>⚠️ Allergies:</strong> ${d.allergies}
+                                        <strong>âš ï¸ Allergies:</strong> ${d.allergies}
                                     </div>
                                 ` : ''}
                                 
                                 ${d.antecedents_medicaux ? `
                                     <div class="info-item full-width mt-2">
-                                        <strong>📋 Antécédents Médicaux:</strong>
+                                        <strong>ðŸ“‹ AntÃ©cÃ©dents MÃ©dicaux:</strong>
                                         <p>${d.antecedents_medicaux}</p>
                                     </div>
                                 ` : ''}
                                 
                                 ${d.antecedents_familiaux ? `
                                     <div class="info-item full-width mt-2">
-                                        <strong>👨‍👩‍👧 Antécédents Familiaux:</strong>
+                                        <strong>ðŸ‘¨â€ðŸ‘©â€ðŸ‘§ AntÃ©cÃ©dents Familiaux:</strong>
                                         <p>${d.antecedents_familiaux}</p>
                                     </div>
                                 ` : ''}
@@ -2192,15 +1787,15 @@ function createDossierModal(d) {
                                 <div class="consultation-info">
                                     <div class="info-item full-width">
                                         <strong>Motif:</strong>
-                                        <p>${d.motif_consultation || 'Non renseigné'}</p>
+                                        <p>${d.motif_consultation || 'Non renseignÃ©'}</p>
                                     </div>
                                     <div class="info-item full-width">
                                         <strong>Diagnostic:</strong>
-                                        <p>${d.diagnostic || 'Non renseigné'}</p>
+                                        <p>${d.diagnostic || 'Non renseignÃ©'}</p>
                                     </div>
                                     <div class="info-item full-width">
                                         <strong>Traitement:</strong>
-                                        <p>${d.traitement || 'Non renseigné'}</p>
+                                        <p>${d.traitement || 'Non renseignÃ©'}</p>
                                     </div>
                                     <div class="info-item full-width">
                                         <strong>Observations:</strong>
@@ -2223,7 +1818,7 @@ function createDossierModal(d) {
                             ${d.document ? `
                                 <div class="detail-section">
                                     <h6 class="section-title">
-                                        <i class="fas fa-file"></i> Document Associé
+                                        <i class="fas fa-file"></i> Document AssociÃ©
                                     </h6>
                                     <div class="document-info">
                                         <div class="doc-icon">
@@ -2232,7 +1827,7 @@ function createDossierModal(d) {
                                         <div class="doc-details">
                                             <p class="doc-title">${d.document.titre}</p>
                                             <p class="doc-type">${d.document.type_document}</p>
-                                            <p class="doc-date">📅 ${d.document.date_upload}</p>
+                                            <p class="doc-date">ðŸ“… ${d.document.date_upload}</p>
                                         </div>
                                         <a href="${d.document.fichier_url}" target="_blank" class="btn btn-sm btn-primary">
                                             <i class="fas fa-download"></i> Voir
@@ -2250,11 +1845,11 @@ function createDossierModal(d) {
                                     <div class="ordonnance-info">
                                         <div class="info-grid">
                                             <div class="info-item">
-                                                <span class="label">Médecin:</span>
+                                                <span class="label">MÃ©decin:</span>
                                                 <span class="value">${d.ordonnance.medecin_nom}</span>
                                             </div>
                                             <div class="info-item">
-                                                <span class="label">Date Émission:</span>
+                                                <span class="label">Date Ã‰mission:</span>
                                                 <span class="value">${d.ordonnance.date_emission}</span>
                                             </div>
                                             <div class="info-item">
@@ -2263,16 +1858,16 @@ function createDossierModal(d) {
                                             </div>
                                         </div>
                                         <div class="info-item full-width">
-                                            <strong>💊 Médicaments:</strong>
+                                            <strong>ðŸ’Š MÃ©dicaments:</strong>
                                             <p>${d.ordonnance.medicaments}</p>
                                         </div>
                                         <div class="info-item full-width">
-                                            <strong>📋 Posologie:</strong>
+                                            <strong>ðŸ“‹ Posologie:</strong>
                                             <p>${d.ordonnance.posologie}</p>
                                         </div>
                                         ${d.ordonnance.fichier_url ? `
                                             <a href="${d.ordonnance.fichier_url}" target="_blank" class="btn btn-sm btn-primary mt-2">
-                                                <i class="fas fa-download"></i> Télécharger
+                                                <i class="fas fa-download"></i> TÃ©lÃ©charger
                                             </a>
                                         ` : ''}
                                     </div>
@@ -2319,13 +1914,13 @@ function searchDossiers(searchTerm) {
 // ============= ACTIONS =============
 
 function editDossier(dossierId) {
-    alert('Fonction modification en développement pour dossier ' + dossierId);
+    alert('Fonction modification en dÃ©veloppement pour dossier ' + dossierId);
 }
 
 function downloadDossier(dossierId) {
     const dossier = dossiersMedecin.list.find(d => d.id === dossierId);
     if (!dossier) return;
-    alert('Téléchargement du dossier ' + dossier.patient.nom_complet);
+    alert('TÃ©lÃ©chargement du dossier ' + dossier.patient.nom_complet);
 }
 
 // ============= HELPERS =============
@@ -2362,16 +1957,41 @@ async function initOrdonnanceModal() {
     setupOrdonnanceListeners();
 }
 
+function getOrdonnanceModalElement() {
+    const modals = document.querySelectorAll('#ordonnanceModal');
+    if (!modals.length) return null;
+    return Array.from(modals).find(modal => modal.querySelector('#ordonnancePatientSelect')) || modals[0];
+}
+
+function getOrdonnanceElementById(elementId) {
+    const modal = getOrdonnanceModalElement();
+    if (!modal) return document.getElementById(elementId);
+    return modal.querySelector(`#${elementId}`) || document.getElementById(elementId);
+}
+
 async function chargerPatientsOrdonnance() {
     try {
+        console.log("Chargement des patients pour ordonnance...");
         const response = await fetch('/medecin/api/patients');
         if (!response.ok) throw new Error('Erreur chargement patients');
         
         ordonnancesData.patients = await response.json();
+        console.log("Patients reÃ§us:", ordonnancesData.patients);
         
-        // Remplir le select
-        const select = document.getElementById('ordonnancePatientSelect');
-        select.innerHTML = '<option value="">-- Sélectionner un patient --</option>';
+        // VÃ©rifier que le select existe
+        const select = getOrdonnanceElementById('ordonnancePatientSelect');
+        if (!select) {
+            console.error("ERREUR CRITIQUE: Element 'ordonnancePatientSelect' non trouvÃ©!");
+            console.log("Le HTML de la modale est-il bien chargÃ©?");
+            return;
+        }
+        
+        select.innerHTML = '<option value="">-- SÃ©lectionner un patient --</option>';
+        
+        if (ordonnancesData.patients.length === 0) {
+            select.innerHTML += '<option value="" disabled>Aucun patient disponible</option>';
+            return;
+        }
         
         ordonnancesData.patients.forEach(patient => {
             const option = document.createElement('option');
@@ -2380,14 +2000,17 @@ async function chargerPatientsOrdonnance() {
             option.dataset.patient = JSON.stringify(patient);
             select.appendChild(option);
         });
+        
+        console.log(`${ordonnancesData.patients.length} patients chargÃ©s dans le select`);
+        
     } catch (error) {
         console.error('Erreur chargement patients:', error);
     }
 }
 
 function setupOrdonnanceListeners() {
-    // Sélection du patient
-    const patientSelect = document.getElementById('ordonnancePatientSelect');
+    // SÃ©lection du patient
+    const patientSelect = getOrdonnanceElementById('ordonnancePatientSelect');
     if (patientSelect) {
         patientSelect.addEventListener('change', function() {
             if (this.value) {
@@ -2397,17 +2020,18 @@ function setupOrdonnanceListeners() {
                 ordonnancesData.patientSelectionne = patient;
                 
                 // Afficher les infos du patient
-                document.getElementById('patientInfoDisplay').style.display = 'block';
-                document.getElementById('displayPatientNom').textContent = patient.nom_complet;
-                document.getElementById('displayPatientAge').textContent = patient.age + ' ans';
-                document.getElementById('displayPatientEmail').textContent = patient.email;
-                document.getElementById('displayPatientTel').textContent = patient.telephone || 'N/A';
+                getOrdonnanceElementById('patientInfoDisplay').style.display = 'block';
+                getOrdonnanceElementById('displayPatientNom').textContent = patient.nom_complet;
+                getOrdonnanceElementById('displayPatientAge').textContent = patient.age + ' ans';
+                getOrdonnanceElementById('displayPatientEmail').textContent = patient.email;
+                getOrdonnanceElementById('displayPatientTel').textContent = patient.telephone || 'N/A';
                 
-                // Mettre à jour les champs cachés
-                document.getElementById('ordonnancePatientId').value = patient.id;
-                document.getElementById('ordonnancePatientName').value = patient.nom_complet;
+                // Mettre Ã  jour les champs cachÃ©s
+                getOrdonnanceElementById('ordonnancePatientId').value = patient.id;
+                const patientNameInput = getOrdonnanceElementById('ordonnancePatientName');
+                if (patientNameInput) patientNameInput.value = patient.nom_complet;
             } else {
-                document.getElementById('patientInfoDisplay').style.display = 'none';
+                getOrdonnanceElementById('patientInfoDisplay').style.display = 'none';
             }
         });
     }
@@ -2419,48 +2043,60 @@ function setupOrdonnanceListeners() {
     }
 }
 
-// ============= OUVRIR MODAL CRÉATION ORDONNANCE =============
+// ============= OUVRIR MODAL CRÃ‰ATION ORDONNANCE =============
 
 function openNouvelleOrdonnance() {
-    const modal = new bootstrap.Modal(document.getElementById('ordonnanceModal'));
+    console.log("Ouverture du modal nouvelle ordonnance");
+    const modalElement = getOrdonnanceModalElement();
+    if (!modalElement) {
+        console.error("Element 'ordonnanceModal' non trouvÃ©!");
+        return;
+    }
     
-    // Réinitialiser le formulaire
-    document.getElementById('ordonnanceForm').reset();
-    document.getElementById('patientInfoDisplay').style.display = 'none';
-    document.getElementById('ordonnancePatientSelect').value = '';
+    // RÃ©initialiser le formulaire
+    const form = modalElement.querySelector('#ordonnanceForm') || document.getElementById('ordonnanceForm');
+    if (form) form.reset();
     
-    // Charger les patients frais
-    chargerPatientsOrdonnance();
+    // Cacher le panneau d'info patient
+    const infoDisplay = modalElement.querySelector('#patientInfoDisplay') || getOrdonnanceElementById('patientInfoDisplay');
+    if (infoDisplay) infoDisplay.style.display = 'none';
     
-    modal.show();
+    // Charger les patients et ouvrir la modale
+    chargerPatientsOrdonnance().then(() => {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }).catch(error => {
+        console.error('Erreur chargement patients:', error);
+        alert('Impossible de charger la liste des patients');
+    });
 }
 
 // ============= SOUMETTRE ORDONNANCE =============
 
 async function submitOrdonnance() {
     // Validation
-    const patientId = document.getElementById('ordonnancePatientId').value;
-    const medicaments = document.getElementById('ordonnanceMedicaments').value.trim();
-    const posologie = document.getElementById('ordonnancePosologie').value.trim();
-    const duree = document.getElementById('ordonnanceDuree').value.trim();
+    const patientId = getOrdonnanceElementById('ordonnancePatientId').value;
+    const medicaments = getOrdonnanceElementById('ordonnanceMedicaments').value.trim();
+    const posologie = getOrdonnanceElementById('ordonnancePosologie').value.trim();
+    const duree = getOrdonnanceElementById('ordonnanceDuree').value.trim();
     
     if (!patientId) {
-        alert('⚠️ Veuillez sélectionner un patient');
+        alert('âš ï¸ Veuillez sÃ©lectionner un patient');
         return;
     }
     
     if (!medicaments) {
-        alert('⚠️ Veuillez renseigner les médicaments');
+        alert('âš ï¸ Veuillez renseigner les mÃ©dicaments');
         return;
     }
     
     if (!posologie) {
-        alert('⚠️ Veuillez renseigner la posologie');
+        alert('âš ï¸ Veuillez renseigner la posologie');
         return;
     }
     
     if (!duree) {
-        alert('⚠️ Veuillez renseigner la durée du traitement');
+        alert('âš ï¸ Veuillez renseigner la durÃ©e du traitement');
         return;
     }
     
@@ -2468,7 +2104,7 @@ async function submitOrdonnance() {
     const submitBtn = document.getElementById('submitOrdonnanceBtn');
     const originalText = submitBtn.innerHTML;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Création en cours...';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> CrÃ©ation en cours...';
     
     try {
         const formData = new FormData();
@@ -2484,16 +2120,16 @@ async function submitOrdonnance() {
         
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.detail || 'Erreur création ordonnance');
+            throw new Error(error.detail || 'Erreur crÃ©ation ordonnance');
         }
         
         const result = await response.json();
         
-        // Succès
-        alert('✅ Ordonnance créée et PDF généré avec succès!');
+        // SuccÃ¨s
+        alert('âœ… Ordonnance crÃ©Ã©e et PDF gÃ©nÃ©rÃ© avec succÃ¨s!');
         
         // Fermer la modale
-        const modal = bootstrap.Modal.getInstance(document.getElementById('ordonnanceModal'));
+        const modal = bootstrap.Modal.getInstance(getOrdonnanceModalElement());
         modal.hide();
         
         // Recharger la liste des ordonnances
@@ -2501,12 +2137,12 @@ async function submitOrdonnance() {
             loadOrdonnances();
         }
         
-        // Télécharger le PDF automatiquement (optionnel)
+        // TÃ©lÃ©charger le PDF automatiquement (optionnel)
         downloadOrdonnancePDF(result.ordonnance_id);
         
     } catch (error) {
         console.error('Erreur:', error);
-        alert('❌ Erreur: ' + error.message);
+        alert('âŒ Erreur: ' + error.message);
     } finally {
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
@@ -2547,9 +2183,9 @@ function displayOrdonnances(ordonnances) {
         container.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-prescription-bottle"></i>
-                <p>Aucune ordonnance créée</p>
+                <p>Aucune ordonnance crÃ©Ã©e</p>
                 <button class="btn btn-primary mt-3" onclick="openNouvelleOrdonnance()">
-                    <i class="fas fa-plus"></i> Créer une ordonnance
+                    <i class="fas fa-plus"></i> CrÃ©er une ordonnance
                 </button>
             </div>
         `;
@@ -2561,9 +2197,9 @@ function displayOrdonnances(ordonnances) {
             <thead>
                 <tr>
                     <th>Patient</th>
-                    <th>Date d'émission</th>
-                    <th>Médicaments</th>
-                    <th>Durée</th>
+                    <th>Date d'Ã©mission</th>
+                    <th>MÃ©dicaments</th>
+                    <th>DurÃ©e</th>
                     <th>Statut</th>
                     <th>Actions</th>
                 </tr>
@@ -2596,7 +2232,7 @@ function displayOrdonnances(ordonnances) {
                                 <button class="btn-action view" onclick="viewOrdonnanceDetail(${ord.id})" title="Voir">
                                     <i class="fas fa-eye"></i>
                                 </button>
-                                <a href="/medecin/api/ordonnances/telecharger/${ord.id}" class="btn-action download" title="Télécharger">
+                                <a href="/medecin/api/ordonnances/telecharger/${ord.id}" class="btn-action download" title="TÃ©lÃ©charger">
                                     <i class="fas fa-download"></i>
                                 </a>
                                 <button class="btn-action delete" onclick="deleteOrdonnance(${ord.id})" title="Supprimer">
@@ -2613,7 +2249,7 @@ function displayOrdonnances(ordonnances) {
     container.innerHTML = html;
 }
 
-// ============= VOIR DÉTAILS ORDONNANCE =============
+// ============= VOIR DÃ‰TAILS ORDONNANCE =============
 
 function viewOrdonnanceDetail(ordonnanceId) {
     const ordonnance = ordonnancesData.list.find(o => o.id === ordonnanceId);
@@ -2625,7 +2261,7 @@ function viewOrdonnanceDetail(ordonnanceId) {
                 <div class="modal-content">
                     <div class="modal-header" style="background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%); color: white;">
                         <h5 class="modal-title">
-                            <i class="fas fa-file-prescription"></i> Ordonnance Détails
+                            <i class="fas fa-file-prescription"></i> Ordonnance DÃ©tails
                         </h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
@@ -2641,7 +2277,7 @@ function viewOrdonnanceDetail(ordonnanceId) {
                             <h6 class="section-title">
                                 <i class="fas fa-pills"></i> Prescription
                             </h6>
-                            <p><strong>Médicaments:</strong></p>
+                            <p><strong>MÃ©dicaments:</strong></p>
                             <p>${ordonnance.medicaments.replace(/\n/g, '<br>')}</p>
                             <p style="margin-top: 12px;"><strong>Posologie:</strong></p>
                             <p>${ordonnance.posologie.replace(/\n/g, '<br>')}</p>
@@ -2651,16 +2287,16 @@ function viewOrdonnanceDetail(ordonnanceId) {
                             <h6 class="section-title">
                                 <i class="fas fa-calendar"></i> Infos
                             </h6>
-                            <p><strong>Date d'émission:</strong> ${ordonnance.date_emission}</p>
-                            <p><strong>Durée:</strong> ${ordonnance.duree_traitement}</p>
-                            <p><strong>Médecin:</strong> ${ordonnance.medecin_nom}</p>
+                            <p><strong>Date d'Ã©mission:</strong> ${ordonnance.date_emission}</p>
+                            <p><strong>DurÃ©e:</strong> ${ordonnance.duree_traitement}</p>
+                            <p><strong>MÃ©decin:</strong> ${ordonnance.medecin_nom}</p>
                             <p><strong>Statut:</strong> <span class="status-badge status-${ordonnance.statut.toLowerCase()}">${ordonnance.statut}</span></p>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
                         <a href="/medecin/api/ordonnances/telecharger/${ordonnanceId}" class="btn btn-primary">
-                            <i class="fas fa-download"></i> Télécharger PDF
+                            <i class="fas fa-download"></i> TÃ©lÃ©charger PDF
                         </a>
                     </div>
                 </div>
@@ -2680,7 +2316,7 @@ function viewOrdonnanceDetail(ordonnanceId) {
     modal.show();
 }
 
-// ============= TÉLÉCHARGER PDF =============
+// ============= Télécharger PDF =============
 
 function downloadOrdonnancePDF(ordonnanceId) {
     const link = document.createElement('a');
@@ -2694,11 +2330,11 @@ function downloadOrdonnancePDF(ordonnanceId) {
 // ============= SUPPRIMER ORDONNANCE =============
 
 function deleteOrdonnance(ordonnanceId) {
-    const confirmed = confirm('Êtes-vous sûr de vouloir supprimer cette ordonnance?');
+    const confirmed = confirm('ÃŠtes-vous sÃ»r de vouloir supprimer cette ordonnance?');
     if (!confirmed) return;
     
-    alert('Fonction suppression en développement');
-    // À implémenter: route DELETE /api/ordonnances/{id}
+    alert('Fonction suppression en dÃ©veloppement');
+    // Ã€ implÃ©menter: route DELETE /api/ordonnances/{id}
 }
 
 // ============= GET ORDONNANCES CONTENT =============
@@ -2723,7 +2359,6 @@ function getOrdonnancesContent() {
         </div>
     `;
 }
-
 // ============= CSS STYLES ORDONNANCES =============
 
 const ordonnanceStyles = `

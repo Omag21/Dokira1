@@ -1,4 +1,4 @@
-// ============= VARIABLES GLOBALES - MESSAGERIE =============
+﻿// ============= VARIABLES GLOBALES - MESSAGERIE =============
 
 let messagerie = {
     conversations: [],
@@ -39,8 +39,8 @@ function getMessagerieContent() {
                 <div id="emptyState" class="empty-state">
                     <div class="empty-content">
                         <i class="fas fa-envelope-open-text"></i>
-                        <h4>Sélectionnez une conversation</h4>
-                        <p>Choisissez un patient dans la liste pour commencer à discuter</p>
+                        <h4>SÃ©lectionnez une conversation</h4>
+                        <p>Choisissez un patient dans la liste pour commencer Ã  discuter</p>
                     </div>
                 </div>
                 
@@ -54,18 +54,36 @@ function getMessagerieContent() {
                                 <p id="chatPatientEmail" class="text-muted"></p>
                             </div>
                         </div>
-                        <button class="btn-close-chat" onclick="closeChat()" title="Fermer">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <div class="chat-actions">
+                            <button class="btn-action-call" onclick="startVideoCall()" title="Appel vidéo">
+                                <i class="fas fa-video"></i>
+                            </button>
+                            <button class="btn-action-call" onclick="startVoiceCall()" title="Appel vocal">
+                                <i class="fas fa-phone"></i>
+                            </button>
+                            <button class="btn-action-call" onclick="toggleChatActionsMenu(event)" title="Plus d'actions">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <button class="btn-close-chat" onclick="closeChat()" title="Fermer">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <div id="chatActionsMenu" class="chat-actions-menu">
+                                <button type="button" class="chat-menu-item" onclick="sendPatientEmail()">
+                                    <i class="fas fa-envelope"></i> Envoyer un mail
+                                </button>
+                            </div>
+                        </div>
                     </div>
+
+                    <div id="chatCallPanel" class="chat-call-panel" style="display:none;"></div>
                     
                     <!-- Messages Container - Affichage uniquement -->
                     <div class="messages-container" id="messagesContainer">
                         <p class="text-center text-muted">Aucun message</p>
                     </div>
                     
-                    <!-- SUPPRIMÉ: Zone d'envoi de messages -->
-                    <!-- Les médecins envoient des messages via la modale "Nouveau Message" -->
+                    <!-- SUPPRIMÃ‰: Zone d'envoi de messages -->
+                    <!-- Les mÃ©decins envoient des messages via la modale "Nouveau Message" -->
                 </div>
             </div>
         </div>
@@ -88,7 +106,7 @@ function getMessagerieContent() {
                                     <span class="text-danger">*</span>
                                 </label>
                                 <select id="newMessagePatient" class="form-control" required>
-                                    <option value="">Sélectionnez un patient...</option>
+                                    <option value="">SÃ©lectionnez un patient...</option>
                                 </select>
                             </div>
                             <div class="form-group mb-3">
@@ -96,7 +114,7 @@ function getMessagerieContent() {
                                     <strong>Message</strong>
                                     <span class="text-danger">*</span>
                                 </label>
-                                <textarea id="newMessageContent" class="form-control" rows="6" placeholder="Écrivez votre message ici..." required></textarea>
+                                <textarea id="newMessageContent" class="form-control" rows="6" placeholder="Ã‰crivez votre message ici..." required></textarea>
                             </div>
                         </form>
                     </div>
@@ -120,7 +138,7 @@ async function loadMessagerie() {
     const mainContent = document.getElementById('mainContent');
     mainContent.innerHTML = getMessagerieContent();
     
-    // Charger les données
+    // Charger les donnÃ©es
     await Promise.all([
         loadConversations(),
         loadPatientsForMessaging()
@@ -128,7 +146,7 @@ async function loadMessagerie() {
     
     setupMessagerieListeners();
     
-    // Rafraîchissement auto toutes les 30 secondes
+    // RafraÃ®chissement auto toutes les 30 secondes
     if (messagerie.autoRefresh) clearInterval(messagerie.autoRefresh);
     messagerie.autoRefresh = setInterval(loadConversations, 30000);
 }
@@ -183,7 +201,7 @@ function displayConversations(conversations) {
         return `
             <div class="conversation-item ${classe}" 
                  data-patient-id="${conv.patient_id}"
-                 onclick="openConversation(${conv.patient_id}, '${conv.nom_complet}', '${conv.email}')">
+                 onclick="openConversation(${conv.patient_id})">
                 <div class="conversation-avatar">
                     ${initials}
                 </div>
@@ -218,48 +236,45 @@ function updateUnreadBadge() {
 
 // ============= OUVERTURE CONVERSATION =============
 
-async function openConversation(patientId, patientName, patientEmail) {
+async function openConversation(patientId) {
     try {
-        messagerie.patientActuel = {
-            id: patientId,
-            nom_complet: patientName,
-            email: patientEmail
-        };
-        
-        // Fetch messages
         const response = await fetch(`/medecin/api/messagerie/conversation/${patientId}`);
         if (!response.ok) throw new Error('Erreur chargement conversation');
-        
+
         const data = await response.json();
         messagerie.messagesActuels = data.messages || [];
-        
-        // Afficher le chat
+
+        const patient = data.patient || {};
+        messagerie.patientActuel = {
+            id: patient.id || patientId,
+            nom_complet: patient.nom_complet || 'Patient',
+            email: patient.email || '',
+            telephone: patient.telephone || ''
+        };
+
         const emptyState = document.getElementById('emptyState');
         const chatContent = document.getElementById('chatContent');
-        
         if (emptyState) emptyState.style.display = 'none';
         if (chatContent) chatContent.style.display = 'flex';
-        
-        // Remplir les infos du patient
-        const initials = getInitials(patientName);
-        document.getElementById('chatPatientName').textContent = patientName;
-        document.getElementById('chatPatientEmail').textContent = patientEmail;
+
+        const initials = getInitials(messagerie.patientActuel.nom_complet);
+        document.getElementById('chatPatientName').textContent = messagerie.patientActuel.nom_complet;
+        document.getElementById('chatPatientEmail').textContent = messagerie.patientActuel.email;
         document.getElementById('chatPatientAvatar').textContent = initials;
-        
-        // Afficher les messages
+
         displayMessages(messagerie.messagesActuels);
-        
-        // Mise à jour visuelle - marquer comme actif
+
         document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
         const activeItem = document.querySelector(`[data-patient-id="${patientId}"]`);
         if (activeItem) activeItem.classList.add('active');
-        
     } catch (error) {
         console.error('Erreur ouverture conversation:', error);
-        alert('Erreur lors de l\'ouverture de la conversation');
+        const container = document.getElementById('messagesContainer');
+        if (container) {
+            container.innerHTML = '<p class="text-center text-danger p-3">Impossible de charger cette conversation</p>';
+        }
     }
 }
-
 // ============= AFFICHAGE MESSAGES =============
 
 function displayMessages(messages) {
@@ -276,7 +291,7 @@ function displayMessages(messages) {
         const timeStr = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         const dateStr = dateObj.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
         
-        // Sécuriser le contenu HTML
+        // SÃ©curiser le contenu HTML
         const safeSubject = escapeHtml(msg.sujet || '');
         const safeContent = escapeHtml(msg.contenu || '');
         
@@ -285,7 +300,7 @@ function displayMessages(messages) {
                 <div class="message-bubble">
                     <div class="message-subject"><strong>${safeSubject}</strong></div>
                     <div class="message-content">${safeContent}</div>
-                    <div class="message-time">${dateStr} à ${timeStr}</div>
+                    <div class="message-time">${dateStr} Ã  ${timeStr}</div>
                 </div>
             </div>
         `;
@@ -303,58 +318,55 @@ function displayMessages(messages) {
 
 async function sendMessage(event) {
     event.preventDefault();
-    
-    const sujet = document.getElementById('messageSubject').value;
-    const contenu = document.getElementById('messageContent').value;
-    
-    if (!sujet.trim() || !contenu.trim()) {
-        alert('Veuillez remplir tous les champs');
+
+    const contenuInput = document.getElementById('messageContent');
+    const contenu = contenuInput ? contenuInput.value.trim() : '';
+    const sujet = 'Message';
+
+    if (!contenu) {
+        alert('Veuillez écrire un message');
         return;
     }
-    
+
     const formData = new FormData();
     formData.append('patient_id', messagerie.patientActuel.id);
     formData.append('sujet', sujet);
     formData.append('contenu', contenu);
-    
+
     try {
         const response = await fetch('/medecin/api/messagerie/send', {
             method: 'POST',
             body: formData
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Erreur envoi message');
         }
-        
+
         const result = await response.json();
-        
-        // Ajouter le message à la liste
+
         messagerie.messagesActuels.push({
             id: result.message_id,
-            sujet: sujet,
-            contenu: contenu,
+            sujet,
+            contenu,
             de_medecin: true,
             date_envoi: result.date_envoi,
             statut: 'Envoyé'
         });
-        
+
         displayMessages(messagerie.messagesActuels);
-        document.getElementById('messageForm').reset();
-        
-        // Recharger les conversations
+        if (contenuInput) contenuInput.value = '';
         await loadConversations();
     } catch (error) {
         console.error('Erreur envoi message:', error);
         alert('Erreur lors de l\'envoi: ' + error.message);
     }
 }
-
 // ============= NOUVEAU MESSAGE MODAL =============
 
 function openNewMessageModal() {
-    // Réinitialiser le formulaire
+    // RÃ©initialiser le formulaire
     const form = document.getElementById('newMessageForm');
     if (form) form.reset();
     
@@ -366,7 +378,7 @@ function populatePatientsSelect() {
     const select = document.getElementById('newMessagePatient');
     if (!select) return;
     
-    select.innerHTML = '<option value="">Sélectionnez un patient...</option>';
+    select.innerHTML = '<option value="">SÃ©lectionnez un patient...</option>';
     
     if (messagerie.patients && messagerie.patients.length > 0) {
         messagerie.patients.forEach(patient => {
@@ -380,78 +392,134 @@ function populatePatientsSelect() {
 
 async function submitNewMessage() {
     const patientId = document.getElementById('newMessagePatient').value;
-    const sujet = document.getElementById('newMessageSubject').value.trim();
+    const sujet = 'Message';
     const contenu = document.getElementById('newMessageContent').value.trim();
-    
+
     if (!patientId) {
         alert('⚠️ Veuillez sélectionner un patient');
         return;
     }
-    
-    if (!sujet) {
-        alert('⚠️ Veuillez renseigner le sujet');
-        return;
-    }
-    
+
     if (!contenu) {
         alert('⚠️ Veuillez écrire un message');
         return;
     }
-    
-    // Afficher le loading
-    const submitBtn = event.target;
-    const originalText = submitBtn.innerHTML;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi en cours...';
-    
+
+    const submitBtn = document.querySelector('#newMessageModal .btn.btn-primary');
+    const originalText = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi en cours...';
+    }
+
     try {
         const formData = new FormData();
         formData.append('patient_id', patientId);
         formData.append('sujet', sujet);
         formData.append('contenu', contenu);
-        
+
         const response = await fetch('/medecin/api/messagerie/send', {
             method: 'POST',
             body: formData
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Erreur lors de l\'envoi');
         }
-        
-        const result = await response.json();
-        
-        // Succès
-        alert('✅ Message envoyé avec succès!');
-        
-        // Fermer la modale
+
         const modal = bootstrap.Modal.getInstance(document.getElementById('newMessageModal'));
-        modal.hide();
-        
-        // Recharger les conversations
+        if (modal) modal.hide();
+
         await loadConversations();
-        
-        // Si le patient était déjà sélectionné, recharger ses messages
-        const patient = messagerie.patients.find(p => p.id == patientId);
-        if (messagerie.patientActuel?.id == patientId) {
-            await openConversation(patientId, patient.nom_complet, patient.email);
-        }
-        
+        await openConversation(patientId);
     } catch (error) {
         console.error('Erreur:', error);
         alert('❌ Erreur: ' + error.message);
     } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
     }
 }
 
+function toggleChatActionsMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('chatActionsMenu');
+    if (!menu) return;
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+function closeChatActionsMenu() {
+    const menu = document.getElementById('chatActionsMenu');
+    if (menu) menu.style.display = 'none';
+}
+
+function openInAppCall(patient, mode = 'video', targetId = 'chatCallPanel') {
+    const panel = document.getElementById(targetId);
+    if (!panel) return;
+
+    const room = `dokira-${patient.id}-${new Date().toISOString().slice(0, 10)}`;
+    const audioOnly = mode === 'audio';
+    const displayName = encodeURIComponent(`Dr. ${currentMedecin.prenom || ''} ${currentMedecin.nom || ''}`.trim());
+    const title = audioOnly ? 'Appel vocal en cours' : 'Appel vidéo en cours';
+    const jitsiUrl = `https://meet.jit.si/${room}#userInfo.displayName=\"${displayName}\"&config.startWithVideoMuted=${audioOnly}`;
+
+    panel.innerHTML = `
+        <div class="call-panel-header">
+            <div>
+                <strong>${title}</strong>
+                <span class="call-patient-name">${patient.nom_complet}</span>
+            </div>
+            <button class="btn-end-call" onclick="closeInAppCall('${targetId}')">
+                <i class="fas fa-phone-slash"></i> Terminer
+            </button>
+        </div>
+        <iframe class="call-frame" src="${jitsiUrl}" allow="camera; microphone; fullscreen; display-capture" title="Visioconférence Dokira"></iframe>
+    `;
+    panel.style.display = 'block';
+}
+
+function closeInAppCall(targetId = 'chatCallPanel') {
+    const panel = document.getElementById(targetId);
+    if (!panel) return;
+    panel.innerHTML = '';
+    panel.style.display = 'none';
+}
+
+function startVoiceCall() {
+    if (!messagerie.patientActuel) {
+        alert('Sélectionnez un patient avant de lancer un appel');
+        return;
+    }
+    openInAppCall(messagerie.patientActuel, 'audio', 'chatCallPanel');
+}
+
+function startVideoCall() {
+    if (!messagerie.patientActuel) {
+        alert('Sélectionnez un patient avant de lancer un appel');
+        return;
+    }
+    openInAppCall(messagerie.patientActuel, 'video', 'chatCallPanel');
+}
+
+function sendPatientEmail() {
+    if (!messagerie.patientActuel) return;
+    const email = (messagerie.patientActuel.email || '').trim();
+    if (!email) {
+        alert('Email indisponible pour ce patient');
+        return;
+    }
+    const subject = encodeURIComponent('Suivi médical Dokira');
+    window.location.href = `mailto:${email}?subject=${subject}`;
+}
 // ============= FERMETURE CHAT =============
 
 function closeChat() {
     messagerie.patientActuel = null;
     messagerie.messagesActuels = [];
+    closeInAppCall('chatCallPanel');
     
     const emptyState = document.getElementById('emptyState');
     const chatContent = document.getElementById('chatContent');
@@ -465,6 +533,7 @@ function closeChat() {
 // ============= EVENT LISTENERS =============
 
 function setupMessagerieListeners() {
+    document.addEventListener('click', closeChatActionsMenu);
     // Recherche conversation
     const searchInput = document.getElementById('searchConversation');
     if (searchInput) {
@@ -492,3 +561,7 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+
+
+

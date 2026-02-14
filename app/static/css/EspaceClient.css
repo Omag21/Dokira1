@@ -2449,3 +2449,231 @@ textarea.form-control {
         font-size: 14px;
     }
 }
+
+/* =========== Styles pour le visualiseur de documents =========== */
+.document-viewer-modal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 999999 !important;
+    visibility: hidden;
+    opacity: 0;
+    transition: visibility 0.3s, opacity 0.3s;
+    pointer-events: none;
+}
+
+.document-viewer-modal.active {
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+.document-viewer-overlay {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background-color: rgba(0, 0, 0, 0.85) !important;
+    z-index: 1 !important;
+    cursor: pointer;
+}
+
+.document-viewer-container {
+    position: relative !important;
+    width: 90% !important;
+    max-width: 1200px !important;
+    max-height: 90vh !important;
+    background-color: white !important;
+    border-radius: 16px !important;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5) !important;
+    z-index: 2 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    animation: modal-appear 0.3s ease-out;
+}
+
+@keyframes modal-appear {
+    from {
+        transform: scale(0.9) translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+.document-viewer-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 18px 24px !important;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+    border-bottom: 2px solid #dee2e6 !important;
+}
+
+.document-viewer-header h2 {
+    margin: 0 !important;
+    font-size: 1.3rem !important;
+    font-weight: 600 !important;
+    color: #1a2b3c !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    max-width: 60% !important;
+}
+
+.document-viewer-actions {
+    display: flex !important;
+    gap: 12px !important;
+}
+
+.btn-viewer-action {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 10px 20px !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    text-decoration: none !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
+}
+
+.btn-viewer-action.btn-download {
+    background: linear-gradient(135deg, #0D8ABC 0%, #0a6d9e 100%) !important;
+    color: white !important;
+}
+
+.btn-viewer-action.btn-download:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 5px 15px rgba(13, 138, 188, 0.4) !important;
+}
+
+.btn-viewer-action.btn-close {
+    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%) !important;
+    color: white !important;
+}
+
+.btn-viewer-action.btn-close:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4) !important;
+}
+
+.document-viewer-content {
+    flex: 1 !important;
+    overflow: auto !important;
+    padding: 30px !important;
+    background-color: white !important;
+    min-height: 500px !important;
+    max-height: calc(90vh - 80px) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Styles pour les images */
+.document-image-viewer {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    object-fit: contain !important;
+    display: block !important;
+    margin: 0 auto !important;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1) !important;
+    border-radius: 8px !important;
+}
+
+/* Styles pour les PDF */
+.pdf-viewer .document-viewer-content {
+    padding: 0 !important;
+    background-color: #2d2d2d !important;
+}
+
+.pdf-content {
+    height: 700px !important;
+    width: 100% !important;
+}
+
+.pdf-content iframe {
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+    background-color: white !important;
+}
+
+/* Styles pour le message de prévisualisation */
+.document-preview-message {
+    text-align: center !important;
+    padding: 60px 30px !important;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+    border-radius: 16px !important;
+    max-width: 500px !important;
+    margin: 0 auto !important;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.05) !important;
+}
+
+.document-preview-message i {
+    color: #0D8ABC !important;
+    margin-bottom: 20px !important;
+}
+
+.document-preview-message p {
+    margin: 15px 0 !important;
+    color: #495057 !important;
+    font-size: 1.1rem !important;
+    line-height: 1.6 !important;
+}
+
+.document-preview-message p:first-of-type {
+    font-weight: 600 !important;
+    color: #1a2b3c !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .document-viewer-container {
+        width: 95% !important;
+        max-height: 95vh !important;
+    }
+    
+    .document-viewer-header {
+        padding: 15px 20px !important;
+    }
+    
+    .document-viewer-header h2 {
+        font-size: 1.1rem !important;
+        max-width: 50% !important;
+    }
+    
+    .btn-viewer-action span {
+        display: none !important;
+    }
+    
+    .btn-viewer-action {
+        padding: 10px 15px !important;
+    }
+    
+    .btn-viewer-action i {
+        margin: 0 !important;
+        font-size: 1.2rem !important;
+    }
+    
+    .document-viewer-content {
+        padding: 20px !important;
+        min-height: 400px !important;
+    }
+    
+    .pdf-content {
+        height: 500px !important;
+    }
+}

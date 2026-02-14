@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
@@ -34,7 +34,7 @@
                         <a class="nav-link active" href="#">Accueil</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#services">Fonctionnalités</a>
+                        <a class="nav-link" href="#services">FonctionnalitÃ©s</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#stats">Statistiques</a>
@@ -57,9 +57,9 @@
             <div class="row align-items-center">
                 <div class="col-md-6 hero-content">
                     <h1 class="display-4">Bienvenue sur Dokira</h1>
-                    <h6 class="mb-4">La plateforme de gestion médicale tout-en-un pour les professionnels de santé</h6>
-                    <p class="lead">Optimisez votre pratique médicale avec notre solution complète de gestion des patients, de téléconsultations et de suivi médical.</p>
-                    <a href="#" class="btn btn-primary btn-lg me-2 mb-2">Prendre un rendez-vous</a>
+                    <h6 class="mb-4">La plateforme de gestion mÃ©dicale tout-en-un pour les professionnels de santÃ©</h6>
+                    <p class="lead">Optimisez votre pratique mÃ©dicale avec notre solution complÃ¨te de gestion des patients, de tÃ©lÃ©consultations et de suivi mÃ©dical.</p>
+                    <a href="#specialists" id="heroRdvBtn" class="btn btn-primary btn-lg me-2 mb-2">Prendre un rendez-vous</a>
                 </div>
                 <div class="col-md-6">
                     <img src="/static/images/hero-image.png" alt="Hero Image" class="img-fluid">
@@ -73,8 +73,8 @@
         <div class="container">
             <div class="row text-center mb-4">
                 <div class="col">
-                    <h2>Fonctionnalités</h2>
-                    <p class="text-muted">Découvrez comment Dokira peut transformer votre pratique médicale.</p>
+                    <h2>FonctionnalitÃ©s</h2>
+                    <p class="text-muted">DÃ©couvrez comment Dokira peut transformer votre pratique mÃ©dicale.</p>
                 </div>
             </div>
             <div class="row g-4">
@@ -84,7 +84,7 @@
                             <i class="fas fa-user-injured "></i>
                         </div>
                         <h5 class="feature">Gestion des Patients</h5>
-                        <p class="feature-text">Dossiers médicaux centralisés.</p>
+                        <p class="feature-text">Dossiers mÃ©dicaux centralisÃ©s.</p>
                         <a href="#" class="btn btn-outline-primary btn-sm">En savoir plus</a>
                     </div>
                 </div>
@@ -93,8 +93,8 @@
                         <div class="feature-icon mb-3">
                             <i class="fas fa-video "></i>
                         </div>
-                        <h5 class="feature">Téléconsultations</h5>
-                        <p class="feature-text">Consultations en ligne sécurisées.</p>
+                        <h5 class="feature">TÃ©lÃ©consultations</h5>
+                        <p class="feature-text">Consultations en ligne sÃ©curisÃ©es.</p>
                         <a href="#" class="btn btn-outline-primary btn-sm">En savoir plus</a>
                     </div>
                 </div>
@@ -103,8 +103,8 @@
                         <div class="feature-icon mb-3">
                             <i class="fas fa-pills "></i>
                         </div>
-                        <h5 class="feature">Prescriptions Électroniques</h5>
-                        <p class="feature-text">Générez et envoyez des prescriptions numériques.</p>
+                        <h5 class="feature">Prescriptions Ã‰lectroniques</h5>
+                        <p class="feature-text">GÃ©nÃ©rez et envoyez des prescriptions numÃ©riques.</p>
                         <a href="#" class="btn btn-outline-primary btn-sm">En savoir plus</a>
                     </div>
                 </div>
@@ -112,8 +112,6 @@
                     <div class="feature-card">
                         <div class="feature-icon mb-3">
                             <i class="fas fa-calendar-check "></i>
-                    <!-- Bootstrap JS pour le modal -->
-                    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
                         </div>
                         <h5 class="feature">Planification des Rendez-vous</h5>
                         <p class="feature-text">Organisez facilement vos consultations.</p>
@@ -136,8 +134,8 @@
                         <div class="feature-icon mb-3">
                             <i class="fas fa-shield-alt "></i>
                         </div>
-                        <h5 class="feature">Sécurité des Données</h5>
-                        <p class="feature-text">Protection avancée des informations patients.</p>
+                        <h5 class="feature">SÃ©curitÃ© des DonnÃ©es</h5>
+                        <p class="feature-text">Protection avancÃ©e des informations patients.</p>
                         <a href="#" class="btn btn-outline-primary btn-sm">En savoir plus</a>
                     </div>
                 </div>
@@ -148,58 +146,86 @@
 
   <section class="specialists-section py-5" id="specialists">
     <div class="container">
-
-        <!-- Titre -->
         <div class="row text-center mb-5">
             <div class="col">
                 <h2 class="text-white">Nos Spécialistes</h2>
-                <p class="text-light">
-                    Une équipe médicale qualifiée à votre service.
-                </p>
+                <p class="text-light">Une équipe médicale qualifiée à votre service.</p>
             </div>
         </div>
-
-        <!-- Cartes -->
-     <div class="row g-4">
-        {% for medecin in medecins %}
-        <div class="col-md-6 col-lg-4">
-            <div class="specialist-card text-center">
-                <div class="specialist-photo">
-                    <img src="{{ medecin.photo_profil_url or '/static/images/default-doctor.png' }}" alt="{{ medecin.nom_complet }}">
-                </div>
-                <h5>{{ medecin.nom_complet }}</h5>
-                <p>{{ medecin.specialite.value }}</p>
-                <p>Contact : {{ medecin.telephone }}</p>
-                <p>Prix consultation : {{ medecin.prix_consultation }} FCFA</p>
-                <p>Adresse du cabinet : {{ medecin.adresse }}</p>
-                <button class="btn btn-primary mt-2" onclick="ouvrirRdvModal('{{ medecin.id }}', '{{ medecin.nom_complet }}', '{{ medecin.specialite.value }}', '{{ medecin.adresse|default('Non renseignée') }}')">Prendre un rendez-vous</button>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-     
+        <div class="row g-4" id="specialistsGrid"></div>
     </div>
 </section>
+
+<div class="modal fade" id="rdvModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Prendre un rendez-vous</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <form id="publicConsultationForm">
+                    <input type="hidden" id="consultMedecinId">
+                    <div class="mb-3">
+                        <label class="form-label">Nom du médecin</label>
+                        <input type="text" class="form-control" id="consultMedecinNom" placeholder="Médecin sélectionné automatiquement" readonly>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Votre prénom</label>
+                            <input type="text" class="form-control" id="consultPrenom" placeholder="Ex: Alice" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Votre nom</label>
+                            <input type="text" class="form-control" id="consultNom" placeholder="Ex: Juvence" required>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Motif de consultation</label>
+                        <textarea class="form-control" id="consultMotif" rows="3" placeholder="Ex: Douleur oculaire, consultation de suivi..." required></textarea>
+                    </div>
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <label class="form-label">Jour et heure</label>
+                            <input type="datetime-local" class="form-control" id="consultDateHeure" placeholder="Choisir date et heure" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="consultEmail" placeholder="Ex: nom@email.com" required>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Numéro de téléphone</label>
+                        <input type="text" class="form-control" id="consultTelephone" placeholder="Ex: 077123456" required>
+                    </div>
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">Soumettre</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
 
        
     <!-- Section des Statistiques-->
     <section class="stats-section py-5" id="stats">
         <div class="container">
-             <h2>Statistiques Clés</h2>
+             <h2>Statistiques ClÃ©s</h2>
             <div class="stats-box">
             <div class="row text-center mb-4">
                 <div class="col-md-3 col-6 stat-item fade-in">
                     <div class="stat-number" data-count="50000">0</div>
-                    <div class="stat-label">Patients Gérés</div>
+                    <div class="stat-label">Patients GÃ©rÃ©s</div>
                 </div>
                     <div class="col-md-3 col-6 stat-item fade-in">
                     <div class="stat-number" data-count="1500">0</div>
-                    <div class="stat-label">Professionnels de Santé</div>
+                    <div class="stat-label">Professionnels de SantÃ©</div>
                 </div>
                 <div class="col-md-3 col-6 stat-item fade-in">
                     <div class="stat-number" data-count="200000">0</div>
-                    <div class="stat-label">Consultations Réalisées</div>
+                    <div class="stat-label">Consultations RÃ©alisÃ©es</div>
                 </div>
                 <div class="col-md-3 col-6 stat-item fade-in">
                     <div class="stat-number" data-count="99.9">0</div>
@@ -210,106 +236,86 @@
         </div>
     </section>
 
-    <!-- Section des témoignages -->
+    <!-- Section des tÃ©moignages -->
 <section class="py-5">
     <div class="container">
         <div class="row justify-content-center mb-5">
             <div class="col-lg-8 text-center">
-                <h2 class="testimonial-title">Témoignages</h2>
+                <h2 class="testimonial-title">TÃ©moignages</h2>
                 <p class="text-muted">Ce que nos utilisateurs disent de Dokira</p>
             </div>
         </div>
+
         <div class="row">
-            <!-- Exemple de témoignage statique, à remplacer par une boucle si besoin -->
+
+            <!-- TÃ©moignage 1 -->
             <div class="col-lg-4 fade-in">
-                <div class="testimonial-card p-4">
-                    <p class="mb-2">"Service rapide et médecins très compétents. Je recommande vivement Dokira !"</p>
-                    <div class="d-flex align-items-center mt-3">
-                        <img src="/static/images/default-user.png" alt="Utilisateur" class="rounded-circle me-3" width="48" height="48">
+                <div class="testimonial-card">
+                    <div class="testimonial-text">
+                        Dokira a rÃ©volutionnÃ© la faÃ§on dont je gÃ¨re mes patients. La tÃ©lÃ©consultation est un vrai plus !
+                    </div>
+
+                    <div class="testimonial-author">
+                        <img src="http://127.0.0.1:8000/static/images/docteur1.png"
+                             alt="Dr. Marie Dupont"
+                             class="testimonial-img">
+
                         <div>
-                            <strong>Jean Dupuis</strong><br>
-                            Libreville
+                            <strong>Dr. Marie Dupont</strong><br>
+                            MÃ©decin GÃ©nÃ©raliste
                         </div>
                     </div>
                 </div>
             </div>
-            <!-- Ajouter d'autres témoignages ici -->
-        </div>
-    </div>
-</section>
 
-
-        <!-- Modal Prise de Rendez-vous placé globalement -->
-        <div class="modal fade" id="rdvModal" tabindex="-1" aria-labelledby="rdvModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="rdvModalLabel">Prendre un rendez-vous</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <!-- TÃ©moignage 2 -->
+            <div class="col-lg-4 fade-in">
+                <div class="testimonial-card">
+                    <div class="testimonial-text">
+                        GrÃ¢ce Ã  Dokira, j'ai pu amÃ©liorer le suivi de mes patients et optimiser mon temps de travail.
                     </div>
-                    <div class="modal-body">
-                        <form id="rdvForm">
-                            <input type="hidden" id="medecin_id" name="medecin_id">
-                            <div class="mb-2">
-                                <label for="medecin_nom" class="form-label">Médecin</label>
-                                <input type="text" class="form-control" id="medecin_nom" name="medecin_nom" readonly placeholder="Nom du médecin choisi">
-                            </div>
-                            <div class="mb-2">
-                                <label for="specialite" class="form-label">Spécialité</label>
-                                <input type="text" class="form-control" id="specialite" name="specialite" readonly placeholder="Spécialité du médecin">
-                            </div>
-                            <div class="mb-2">
-                                <label for="adresse_cabinet" class="form-label">Adresse du cabinet</label>
-                                <input type="text" class="form-control" id="adresse_cabinet" name="adresse_cabinet" readonly placeholder="Adresse du cabinet">
-                            </div>
-                            <div class="mb-2">
-                                <label for="type_consultation" class="form-label">Type de consultation</label>
-                                <select class="form-select" id="type_consultation" name="type_consultation" required>
-                                    <option value="">Choisir le type de consultation</option>
-                                    <option value="présentiel">Présentiel (en cabinet)</option>
-                                    <option value="distanciel">Distanciel (téléphone)</option>
-                                    <option value="visioconférence">Visioconférence</option>
-                                </select>
-                            </div>
-                            <div class="mb-2">
-                                <label for="jour" class="form-label">Jour</label>
-                                <input type="date" class="form-control" id="jour" name="jour" required placeholder="Sélectionnez la date souhaitée">
-                            </div>
-                            <div class="mb-2">
-                                <label for="heure" class="form-label">Heure</label>
-                                <input type="time" class="form-control" id="heure" name="heure" required placeholder="Choisissez l'heure">
-                            </div>
-                            <div class="mb-2">
-                                <label for="nom_patient" class="form-label">Nom</label>
-                                <input type="text" class="form-control" id="nom_patient" name="nom_patient" required placeholder="Votre nom">
-                            </div>
-                            <div class="mb-2">
-                                <label for="prenom_patient" class="form-label">Prénom</label>
-                                <input type="text" class="form-control" id="prenom_patient" name="prenom_patient" required placeholder="Votre prénom">
-                            </div>
-                            <div class="mb-2">
-                                <label for="contact_patient" class="form-label">Contact</label>
-                                <input type="text" class="form-control" id="contact_patient" name="contact_patient" required placeholder="Votre numéro de téléphone ou email">
-                            </div>
-                            <div class="mb-2">
-                                <label for="maladie" class="form-label">Maladie ou motif</label>
-                                <textarea class="form-control" id="maladie" name="maladie" rows="2" required placeholder="Décrivez brièvement votre problème ou le motif de la consultation"></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-success w-100">Envoyer la demande</button>
-                        </form>
+
+                    <div class="testimonial-author">
+                        <img src="https://th.bing.com/th/id/OIP.HaTN608pZmxrSd9jtS9yoQHaE8?w=253&h=180&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3"
+                             alt="Dr. Ahmed Benali"
+                             class="testimonial-img">
+                        <div>
+                            <strong>Dr. Ahmed Benali</strong><br>
+                            Cardiologue
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- TÃ©moignage 3 -->
+            <div class="col-lg-4 fade-in">
+                <div class="testimonial-card">
+                    <div class="testimonial-text">
+                        L'interface est intuitive et les fonctionnalitÃ©s sont parfaitement adaptÃ©es Ã  mes besoins.
+                    </div>
+
+                    <div class="testimonial-author">
+                        <img src="data:image/jpeg;base64,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"
+                             alt="Dr. Sophie Martin"
+                             class="testimonial-img">
+
+                        <div>
+                            <strong>Dr. Sophie Martin</strong><br>
+                            PÃ©diatre
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-
+    </div>
+</section>
 
 <!--Newsletter Section-->  
 <section class="newsletter-section py-5 ">
     <div class="container">
         <div class="row justify-content-center text-center">
             <div class="col-lg-6">
-                <h3 class="mb-4 text-primary-custom">Abonnez-vous à notre Newsletter</h3>
-                <p class="mb-3 text-primary-custom">Restez informé des dernières nouveautés et offres de Dokira.</p>
+                <h3 class="mb-4 text-primary-custom">Abonnez-vous Ã  notre Newsletter</h3>
+                <p class="mb-3 text-primary-custom">Restez informÃ© des derniÃ¨res nouveautÃ©s et offres de Dokira.</p>
                 <form class=" d-flex justify-content-center">
                     <input type="text" class="form-control me-2" placeholder="Votre nom" required>
                     <input type="email" class="form-control me-2" placeholder="Entrez votre email" required>
@@ -332,8 +338,8 @@
                         <span class="h4 mb-0 fw-bold text-white">Dokira</span>
                     </div>
                     <p class="text-dokira-light">
-                        Plateforme eSanté professionnelle pour la gestion médicale, 
-                        la téléconsultation sécurisée et le suivi des patients.
+                        Plateforme eSantÃ© professionnelle pour la gestion mÃ©dicale, 
+                        la tÃ©lÃ©consultation sÃ©curisÃ©e et le suivi des patients.
                     </p>
                 </div>
                 
@@ -364,7 +370,7 @@
                         <a href="/" class="footer-link dokira-link">Accueil</a>
                     </li>
                     <li class="mb-2">
-                        <a href="#services" class="footer-link dokira-link">Fonctionnalités</a>
+                        <a href="#services" class="footer-link dokira-link">FonctionnalitÃ©s</a>
                     </li>
                     <li class="mb-2">
                         <a href="#stats" class="footer-link dokira-link">Statistiques</a>
@@ -373,7 +379,7 @@
                         <a href="#" class="footer-link dokira-link">Tarifs</a>
                     </li>
                     <li class="mb-2">
-                        <a href="#" class="footer-link dokira-link">Témoignages</a>
+                        <a href="#" class="footer-link dokira-link">TÃ©moignages</a>
                     </li>
                 </ul>
             </div>
@@ -386,7 +392,7 @@
                         <a href="#" class="footer-link dokira-link">Conditions d'utilisation</a>
                     </li>
                     <li class="mb-2">
-                        <a href="#" class="footer-link dokira-link">Politique de confidentialité</a>
+                        <a href="#" class="footer-link dokira-link">Politique de confidentialitÃ©</a>
                     </li>
                     <li class="mb-2">
                         <a href="#" class="footer-link dokira-link">FAQ & Support</a>
@@ -395,7 +401,7 @@
                         <a href="#" class="footer-link dokira-link">Centre d'aide</a>
                     </li>
                     <li class="mb-2">
-                        <a href="#" class="footer-link dokira-link">Blog médical</a>
+                        <a href="#" class="footer-link dokira-link">Blog mÃ©dical</a>
                     </li>
                 </ul>
             </div>
@@ -414,7 +420,7 @@
                     <li class="mb-3 d-flex align-items-start">
                         <i class="fas fa-phone text-dokira-primary me-2 mt-1"></i>
                         <div>
-                            <span class="d-block text-dokira-light small">Téléphone</span>
+                            <span class="d-block text-dokira-light small">TÃ©lÃ©phone</span>
                             <a href="tel:+24176362541" class="footer-link dokira-link">+241 76 36 25 41</a>
                         </div>
                     </li>
@@ -422,21 +428,21 @@
                         <i class="fas fa-map-marker-alt text-dokira-primary me-2 mt-1"></i>
                         <div>
                             <span class="d-block text-dokira-light small">Adresse</span>
-                            <span class="text-dokira-light">Centre Médical Dokira, Libreville</span>
+                            <span class="text-dokira-light">Centre MÃ©dical Dokira, Libreville</span>
                         </div>
                     </li>
                 </ul>
             </div>
         </div>
 
-        <!-- Séparateur -->
+        <!-- SÃ©parateur -->
         <hr class="my-4 dokira-separator">
 
         <!-- Bas de footer : Copyright et certifications -->
         <div class="row align-items-center">
             <div class="col-md-6">
                 <p class="mb-0 text-dokira-light small">
-                    &copy; 2024 Dokira. Tous droits réservés.
+                    &copy; 2024 Dokira. Tous droits rÃ©servÃ©s.
                 </p>
             </div>
             <div class="col-md-6 text-md-end">
@@ -448,7 +454,7 @@
                         <i class="fas fa-certificate me-1"></i> HDS
                     </span>
                     <span class="badge dokira-badge mb-2">
-                        <i class="fas fa-lock me-1"></i> SSL Sécurisé
+                        <i class="fas fa-lock me-1"></i> SSL SÃ©curisÃ©
                     </span>
                 </div>
             </div>
