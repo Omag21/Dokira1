@@ -59,6 +59,11 @@ class StatutRendezVous(str, enum.Enum):
     ANNULE = "Annulé"
     TERMINE = "Terminé"
 
+class StatutInscription(str, enum.Enum):
+    EN_ATTENTE = "EN_ATTENTE"
+    APPROUVEE = "APPROUVEE"
+    REJETEE = "REJETEE"
+
 class Patient(Base):
     __tablename__ = "patients"
     
@@ -274,6 +279,9 @@ class Medecin(Base):
     biographie = Column(Text, nullable=True)
 
     est_actif = Column(Boolean, default=True)
+    statut_inscription = Column(String(20), default=StatutInscription.EN_ATTENTE.value, nullable=False)
+    motif_refus_inscription = Column(Text, nullable=True)
+    date_decision_inscription = Column(DateTime, nullable=True)
     date_creation = Column(DateTime, default=datetime.utcnow)
     derniere_connexion = Column(DateTime, nullable=True)
 
@@ -443,6 +451,13 @@ class Admin(Base):
     nom = Column(String(100), nullable=False)
     prenom = Column(String(100), nullable=False)
     telephone = Column(String(20), nullable=True)
+    specialite = Column(String(100), nullable=True)
+    numero_ordre = Column(String(50), nullable=True)
+    adresse = Column(String(255), nullable=True)
+    ville = Column(String(100), nullable=True)
+    code_postal = Column(String(10), nullable=True)
+    langues = Column(String(255), nullable=True)
+    biographie = Column(Text, nullable=True)
     
     # Photo de profil
     photo_profil_url = Column(String(500), nullable=True)
@@ -451,6 +466,10 @@ class Admin(Base):
     # Statut et gestion du compte
     est_actif = Column(Boolean, default=True)
     est_super_admin = Column(Boolean, default=False)  # Super admin peut tout faire
+    statut_inscription = Column(String(20), default=StatutInscription.EN_ATTENTE.value, nullable=False)
+    motif_refus_inscription = Column(Text, nullable=True)
+    date_decision_inscription = Column(DateTime, nullable=True)
+    approuve_par_admin_id = Column(Integer, ForeignKey("admins.id"), nullable=True)
     
     # Dates
     date_creation = Column(DateTime, default=datetime.utcnow, nullable=False)

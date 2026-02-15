@@ -10,13 +10,16 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import secrets
 import os
+import smtplib
+from email.message import EmailMessage
 from dotenv import load_dotenv
 import shutil
 from typing import Optional, List
 
 # Imports locaux
-from app.database import get_db
-from app.models import Admin, Medecin, Patient, RendezVous, DossierMedical, Message, Photo, Annonce
+from app.database import get_db, engine
+from app.models import Admin, Medecin, Patient, RendezVous, DossierMedical, Message, Photo, Annonce, Consultation, StatutInscription
+from app.inscription_schema import ensure_inscription_schema
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -35,6 +38,9 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Configuration du hachage de mot de passe
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Compatibilite schema inscription
+ensure_inscription_schema(engine)
 
 
 # ============= FONCTIONS UTILITAIRES =============
@@ -92,11 +98,68 @@ def authenticate_admin(db: Session, email: str, password: str):
         print(f"Mot de passe incorrect pour l'email: {email}")
         return None
     
-    if not admin.est_actif:
-        print(f"Compte inactif pour l'email: {email}")
-        return None
-    
     return admin
+
+
+def get_admin_status(admin: Admin) -> str:
+    status_value = (getattr(admin, "statut_inscription", None) or "").strip().upper()
+    if not status_value:
+        return StatutInscription.APPROUVEE.value if admin.est_actif else StatutInscription.EN_ATTENTE.value
+    return status_value
+
+
+def get_medecin_status(medecin: Medecin) -> str:
+    status_value = (getattr(medecin, "statut_inscription", None) or "").strip().upper()
+    if not status_value:
+        return StatutInscription.APPROUVEE.value if medecin.est_actif else StatutInscription.EN_ATTENTE.value
+    return status_value
+
+
+def send_inscription_decision_email(
+    recipient_email: str,
+    full_name: str,
+    role_label: str,
+    approved: bool,
+    refusal_reason: Optional[str] = None
+) -> None:
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    smtp_from = os.getenv("SMTP_FROM") or smtp_user
+
+    if not smtp_host or not smtp_user or not smtp_password or not smtp_from:
+        print("SMTP non configure: email de decision non envoye.")
+        return
+
+    msg = EmailMessage()
+    if approved:
+        msg["Subject"] = f"Dokira - Inscription {role_label} approuvee"
+        body = (
+            f"Bonjour {full_name},\n\n"
+            f"Votre inscription en tant que {role_label} a ete approuvee.\n"
+            "Vous pouvez maintenant acceder a votre interface sur Dokira.\n\n"
+            "Cordialement,\nEquipe Dokira"
+        )
+    else:
+        msg["Subject"] = f"Dokira - Inscription {role_label} rejetee"
+        reason_text = refusal_reason.strip() if refusal_reason else "Aucun motif specifique n'a ete fourni."
+        body = (
+            f"Bonjour {full_name},\n\n"
+            f"Votre inscription en tant que {role_label} n'a pas ete validee.\n"
+            f"Motif: {reason_text}\n\n"
+            "Vous pouvez soumettre une nouvelle demande si necessaire.\n\n"
+            "Cordialement,\nEquipe Dokira"
+        )
+
+    msg["From"] = smtp_from
+    msg["To"] = recipient_email
+    msg.set_content(body)
+
+    with smtplib.SMTP(smtp_host, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(smtp_user, smtp_password)
+        smtp.send_message(msg)
 
 
 def get_current_admin_from_cookie(request: Request, db: Session):
@@ -117,6 +180,12 @@ def get_current_admin_from_cookie(request: Request, db: Session):
             return None
         
         admin = get_admin_by_email(db, email)
+        if not admin:
+            return None
+        if not admin.est_actif:
+            return None
+        if get_admin_status(admin) != StatutInscription.APPROUVEE.value:
+            return None
         return admin
         
     except JWTError as e:
@@ -152,8 +221,37 @@ def page_connexion_admin(request: Request, db: Session = Depends(get_db)):
     
     if current_admin:
         return RedirectResponse(url="/admin/dashboard", status_code=303)
-    
-    return templates.TemplateResponse("admin.html", {"request": request})
+
+    return RedirectResponse(url="/medecin/connexionMedecin?role=admin", status_code=303)
+
+
+@router.get("/inscriptionAdmin", response_class=HTMLResponse)
+def page_inscription_admin(request: Request, db: Session = Depends(get_db)):
+    """Page d'inscription admin"""
+    current_admin = get_current_admin_from_cookie(request, db)
+
+    if current_admin:
+        return RedirectResponse(url="/admin/dashboard", status_code=303)
+
+    return templates.TemplateResponse("inscriptionAdmin.html", {"request": request})
+
+
+@router.get("/attente-approbation", response_class=HTMLResponse)
+def page_attente_approbation_admin(request: Request):
+    return templates.TemplateResponse("attenteApprobationAdmin.html", {"request": request})
+
+
+@router.get("/api/inscription-status")
+async def admin_inscription_status(email: str, db: Session = Depends(get_db)):
+    admin = get_admin_by_email(db, email.strip().lower())
+    if not admin:
+        raise HTTPException(status_code=404, detail="Compte introuvable")
+
+    return {
+        "status": get_admin_status(admin),
+        "is_active": bool(admin.est_actif),
+        "motif_refus": getattr(admin, "motif_refus_inscription", None),
+    }
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -174,7 +272,7 @@ def dashboard_admin(request: Request, db: Session = Depends(get_db)):
         db.rollback()
     
     return templates.TemplateResponse(
-        "admin_dashboard.html",
+        "admin.html",
         {
             "request": request,
             "admin": current_admin,
@@ -194,32 +292,42 @@ async def login_admin(
 ):
     """Connexion admin"""
     email = email.strip().lower()
-    
+
     admin = authenticate_admin(db, email, password)
-    
+
     if not admin:
-        return templates.TemplateResponse(
-            "connexionAdmin.html",
-            {
-                "request": request,
-                "error": "Email ou mot de passe incorrect",
-                "email": email
-            },
-            status_code=401
+        return RedirectResponse(
+            url="/medecin/connexionMedecin?role=admin&error=Email%20ou%20mot%20de%20passe%20incorrect",
+            status_code=303
         )
-    
+
+    admin_status = get_admin_status(admin)
+    if admin_status in (StatutInscription.EN_ATTENTE.value, StatutInscription.REJETEE.value):
+        pending_token = create_access_token(
+            data={"sub": admin.email, "admin_id": admin.id},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        response = RedirectResponse(
+            url=f"/admin/attente-approbation?email={admin.email}",
+            status_code=303
+        )
+        response.set_cookie(
+            key="admin_access_token",
+            value=f"Bearer {pending_token}",
+            httponly=True,
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            samesite="lax",
+            secure=False
+        )
+        return response
+
     if not admin.est_actif:
-        return templates.TemplateResponse(
-            "connexionAdmin.html",
-            {
-                "request": request,
-                "error": "Votre compte a été désactivé.",
-                "email": email
-            },
-            status_code=403
+        return RedirectResponse(
+            url="/medecin/connexionMedecin?role=admin&error=Votre%20compte%20a%20ete%20desactive",
+            status_code=303
         )
-    
-    # Créer le token
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={
@@ -230,18 +338,15 @@ async def login_admin(
         },
         expires_delta=access_token_expires
     )
-    
-    # Mettre à jour la dernière connexion
+
     try:
         admin.derniere_connexion = datetime.utcnow()
         db.commit()
     except Exception as e:
-        print(f"Erreur lors de la mise à jour: {e}")
+        print(f"Erreur lors de la mise a jour: {e}")
         db.rollback()
-    
-    # Redirection
+
     response = RedirectResponse(url="/admin/dashboard", status_code=303)
-    
     response.set_cookie(
         key="admin_access_token",
         value=f"Bearer {access_token}",
@@ -251,10 +356,103 @@ async def login_admin(
         samesite="lax",
         secure=False
     )
-    
+
     return response
 
 
+@router.post("/inscription")
+async def register_admin(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    nom: str = Form(...),
+    prenom: str = Form(...),
+    specialite: str = Form(...),
+    telephone: str = Form(...),
+    numero_ordre: str = Form(default=None),
+    adresse: str = Form(default=None),
+    ville: str = Form(default=None),
+    code_postal: str = Form(default=None),
+    langues: str = Form(default=None),
+    biographie: str = Form(default=None),
+    acceptConditions: str = Form(default=None),
+    db: Session = Depends(get_db)
+):
+    """Inscription d'un nouvel administrateur"""
+    email = email.strip().lower()
+
+    if acceptConditions != "on":
+        return RedirectResponse(
+            url="/admin/inscriptionAdmin?error=Vous%20devez%20accepter%20les%20conditions",
+            status_code=303
+        )
+
+    if len(password.encode("utf-8")) > 72:
+        return RedirectResponse(
+            url="/admin/inscriptionAdmin?error=Le%20mot%20de%20passe%20est%20trop%20long",
+            status_code=303
+        )
+
+    existing = get_admin_by_email(db, email)
+    if existing:
+        return RedirectResponse(
+            url="/admin/inscriptionAdmin?error=Cet%20email%20est%20deja%20utilise",
+            status_code=303
+        )
+
+    try:
+        nouvel_admin = Admin(
+            email=email,
+            mot_de_passe_hash=get_password_hash(password),
+            nom=nom.strip().capitalize(),
+            prenom=prenom.strip().capitalize(),
+            telephone=telephone.strip() if telephone else None,
+            specialite=specialite.strip() if specialite else None,
+            numero_ordre=numero_ordre.strip() if numero_ordre else None,
+            adresse=adresse.strip() if adresse else None,
+            ville=ville.strip().capitalize() if ville else None,
+            code_postal=code_postal.strip() if code_postal else None,
+            langues=langues.strip() if langues else None,
+            biographie=biographie.strip() if biographie else None,
+            est_actif=False,
+            statut_inscription=StatutInscription.EN_ATTENTE.value,
+            date_creation=datetime.utcnow()
+        )
+
+        db.add(nouvel_admin)
+        db.commit()
+        db.refresh(nouvel_admin)
+
+        access_token = create_access_token(
+            data={
+                "sub": nouvel_admin.email,
+                "admin_id": nouvel_admin.id,
+                "nom": nouvel_admin.nom,
+                "prenom": nouvel_admin.prenom
+            },
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+
+        response = RedirectResponse(
+            url=f"/admin/attente-approbation?email={nouvel_admin.email}",
+            status_code=303
+        )
+        response.set_cookie(
+            key="admin_access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            samesite="lax",
+            secure=False
+        )
+        return response
+    except Exception as e:
+        db.rollback()
+        print(f"Erreur creation admin: {e}")
+        return RedirectResponse(
+            url="/admin/inscriptionAdmin?error=Erreur%20lors%20de%20la%20creation%20du%20compte",
+            status_code=303
+        )
 @router.get("/deconnexion")
 @router.get("/deconnexionAdmin")
 async def deconnexion_admin():
@@ -262,6 +460,178 @@ async def deconnexion_admin():
     response = RedirectResponse(url="/admin/connexionAdmin", status_code=303)
     response.delete_cookie(key="admin_access_token")
     return response
+
+
+@router.get("/api/inscriptions-en-attente")
+async def get_inscriptions_en_attente(request: Request, db: Session = Depends(get_db)):
+    current_admin = get_current_admin_from_cookie(request, db)
+    if not current_admin:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+
+    medecins = db.query(Medecin).filter(
+        Medecin.statut_inscription == StatutInscription.EN_ATTENTE.value
+    ).all()
+    admins = db.query(Admin).filter(
+        Admin.statut_inscription == StatutInscription.EN_ATTENTE.value
+    ).all()
+
+    pending = []
+    for m in medecins:
+        pending.append({
+            "profil_type": "medecin",
+            "id": m.id,
+            "nom_complet": f"Dr. {m.prenom} {m.nom}".strip(),
+            "nom": m.nom,
+            "prenom": m.prenom,
+            "email": m.email,
+            "telephone": m.telephone,
+            "specialite": m.specialite.value if getattr(m.specialite, "value", None) else str(m.specialite or ""),
+            "numero_ordre": m.numero_ordre,
+            "adresse": m.adresse,
+            "ville": m.ville,
+            "code_postal": m.code_postal,
+            "langues": m.langues,
+            "biographie": m.biographie,
+            "photo_profil_url": m.photo_profil_url,
+            "date_creation": m.date_creation.isoformat() if m.date_creation else None,
+        })
+
+    for a in admins:
+        pending.append({
+            "profil_type": "admin",
+            "id": a.id,
+            "nom_complet": f"{a.prenom} {a.nom}".strip(),
+            "nom": a.nom,
+            "prenom": a.prenom,
+            "email": a.email,
+            "telephone": a.telephone,
+            "specialite": a.specialite,
+            "numero_ordre": a.numero_ordre,
+            "adresse": a.adresse,
+            "ville": a.ville,
+            "code_postal": a.code_postal,
+            "langues": a.langues,
+            "biographie": a.biographie,
+            "photo_profil_url": a.photo_profil_url,
+            "date_creation": a.date_creation.isoformat() if a.date_creation else None,
+        })
+
+    pending.sort(key=lambda x: x.get("date_creation") or "", reverse=True)
+    return pending
+
+
+@router.get("/api/inscriptions/statistiques")
+async def get_inscriptions_statistiques(request: Request, db: Session = Depends(get_db)):
+    current_admin = get_current_admin_from_cookie(request, db)
+    if not current_admin:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+
+    med_pending = db.query(Medecin).filter(Medecin.statut_inscription == StatutInscription.EN_ATTENTE.value).count()
+    adm_pending = db.query(Admin).filter(Admin.statut_inscription == StatutInscription.EN_ATTENTE.value).count()
+    med_approved = db.query(Medecin).filter(Medecin.statut_inscription == StatutInscription.APPROUVEE.value).count()
+    adm_approved = db.query(Admin).filter(Admin.statut_inscription == StatutInscription.APPROUVEE.value).count()
+    med_rejected = db.query(Medecin).filter(Medecin.statut_inscription == StatutInscription.REJETEE.value).count()
+    adm_rejected = db.query(Admin).filter(Admin.statut_inscription == StatutInscription.REJETEE.value).count()
+
+    return {
+        "pending_total": med_pending + adm_pending,
+        "approved_total": med_approved + adm_approved,
+        "rejected_total": med_rejected + adm_rejected
+    }
+
+
+@router.post("/api/inscriptions/{profil_type}/{profil_id}/approuver")
+async def approuver_inscription(
+    request: Request,
+    profil_type: str,
+    profil_id: int,
+    db: Session = Depends(get_db)
+):
+    current_admin = get_current_admin_from_cookie(request, db)
+    if not current_admin:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+
+    profil_type = (profil_type or "").strip().lower()
+    if profil_type == "medecin":
+        profile = db.query(Medecin).filter(Medecin.id == profil_id).first()
+        role_label = "medecin"
+    elif profil_type == "admin":
+        profile = db.query(Admin).filter(Admin.id == profil_id).first()
+        role_label = "administrateur"
+    else:
+        raise HTTPException(status_code=400, detail="Type de profil invalide")
+
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profil non trouve")
+
+    profile.est_actif = True
+    profile.statut_inscription = StatutInscription.APPROUVEE.value
+    profile.motif_refus_inscription = None
+    profile.date_decision_inscription = datetime.utcnow()
+
+    if profil_type == "medecin":
+        profile.date_approbation = datetime.utcnow()
+        profile.approuve_par = current_admin.id
+    else:
+        profile.approuve_par_admin_id = current_admin.id
+
+    db.commit()
+    db.refresh(profile)
+
+    full_name = f"{getattr(profile, 'prenom', '')} {getattr(profile, 'nom', '')}".strip()
+    send_inscription_decision_email(profile.email, full_name, role_label, approved=True)
+
+    return {"success": True, "message": "Inscription approuvee"}
+
+
+@router.post("/api/inscriptions/{profil_type}/{profil_id}/rejeter")
+async def rejeter_inscription(
+    request: Request,
+    profil_type: str,
+    profil_id: int,
+    motif_refus: str = Form(default=""),
+    db: Session = Depends(get_db)
+):
+    current_admin = get_current_admin_from_cookie(request, db)
+    if not current_admin:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+
+    profil_type = (profil_type or "").strip().lower()
+    if profil_type == "medecin":
+        profile = db.query(Medecin).filter(Medecin.id == profil_id).first()
+        role_label = "medecin"
+    elif profil_type == "admin":
+        profile = db.query(Admin).filter(Admin.id == profil_id).first()
+        role_label = "administrateur"
+    else:
+        raise HTTPException(status_code=400, detail="Type de profil invalide")
+
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profil non trouve")
+
+    profile.est_actif = False
+    profile.statut_inscription = StatutInscription.REJETEE.value
+    profile.motif_refus_inscription = (motif_refus or "").strip() or None
+    profile.date_decision_inscription = datetime.utcnow()
+
+    if profil_type == "medecin":
+        profile.approuve_par = current_admin.id
+    else:
+        profile.approuve_par_admin_id = current_admin.id
+
+    db.commit()
+    db.refresh(profile)
+
+    full_name = f"{getattr(profile, 'prenom', '')} {getattr(profile, 'nom', '')}".strip()
+    send_inscription_decision_email(
+        profile.email,
+        full_name,
+        role_label,
+        approved=False,
+        refusal_reason=profile.motif_refus_inscription
+    )
+
+    return {"success": True, "message": "Inscription rejetee"}
 
 
 # ============= API ROUTES - MÉDECINS EN ATTENTE =============
@@ -275,7 +645,9 @@ async def get_medecins_en_attente(request: Request, db: Session = Depends(get_db
         raise HTTPException(status_code=401, detail="Non authentifié")
     
     try:
-        medecins = db.query(Medecin).filter(Medecin.est_actif == False).all()
+        medecins = db.query(Medecin).filter(
+            Medecin.statut_inscription == StatutInscription.EN_ATTENTE.value
+        ).all()
         
         return [
             {
@@ -321,11 +693,21 @@ async def approuver_medecin(
         
         # Activer le médecin
         medecin.est_actif = True
+        medecin.statut_inscription = StatutInscription.APPROUVEE.value
+        medecin.motif_refus_inscription = None
+        medecin.date_decision_inscription = datetime.utcnow()
         medecin.date_approbation = datetime.utcnow()
         medecin.approuve_par = current_admin.id
         
         db.commit()
         db.refresh(medecin)
+
+        send_inscription_decision_email(
+            medecin.email,
+            f"{medecin.prenom} {medecin.nom}".strip(),
+            "medecin",
+            approved=True
+        )
         
         return {
             "success": True,
@@ -342,6 +724,7 @@ async def approuver_medecin(
 async def rejeter_medecin(
     request: Request,
     medecin_id: int,
+    motif_refus: str = Form(default=""),
     db: Session = Depends(get_db)
 ):
     """Rejette un médecin en attente"""
@@ -357,8 +740,20 @@ async def rejeter_medecin(
             raise HTTPException(status_code=404, detail="Médecin non trouvé")
         
         # Supprimer le médecin
-        db.delete(medecin)
+        medecin.est_actif = False
+        medecin.statut_inscription = StatutInscription.REJETEE.value
+        medecin.motif_refus_inscription = (motif_refus or "").strip() or None
+        medecin.date_decision_inscription = datetime.utcnow()
+        medecin.approuve_par = current_admin.id
         db.commit()
+
+        send_inscription_decision_email(
+            medecin.email,
+            f"{medecin.prenom} {medecin.nom}".strip(),
+            "medecin",
+            approved=False,
+            refusal_reason=medecin.motif_refus_inscription
+        )
         
         return {
             "success": True,
@@ -381,7 +776,10 @@ async def get_medecins_actifs(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Non authentifié")
     
     try:
-        medecins = db.query(Medecin).filter(Medecin.est_actif == True).all()
+        medecins = db.query(Medecin).filter(
+            Medecin.est_actif == True,
+            Medecin.statut_inscription == StatutInscription.APPROUVEE.value
+        ).all()
         
         return [
             {
@@ -426,6 +824,7 @@ async def get_tous_medecins(request: Request, db: Session = Depends(get_db)):
                 "prix_consultation": m.prix_consultation,
                 "photo_profil_url": m.photo_profil_url,
                 "est_actif": m.est_actif,
+                "statut_inscription": m.statut_inscription,
                 "date_creation": m.date_creation.isoformat() if m.date_creation else None
             }
             for m in medecins
@@ -433,6 +832,140 @@ async def get_tous_medecins(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Erreur: {e}")
         raise HTTPException(status_code=500, detail="Erreur serveur")
+
+
+@router.get("/api/medecins/{medecin_id}/profil-professionnel")
+async def get_medecin_profil_professionnel(
+    medecin_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    current_admin = get_current_admin_from_cookie(request, db)
+    if not current_admin:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+
+    medecin = db.query(Medecin).filter(Medecin.id == medecin_id).first()
+    if not medecin:
+        raise HTTPException(status_code=404, detail="Medecin non trouve")
+
+    return {
+        "id": medecin.id,
+        "nom": medecin.nom,
+        "prenom": medecin.prenom,
+        "nom_complet": medecin.nom_complet,
+        "email": medecin.email,
+        "telephone": medecin.telephone,
+        "specialite": medecin.specialite.value if getattr(medecin.specialite, "value", None) else str(medecin.specialite or ""),
+        "numero_ordre": medecin.numero_ordre,
+        "adresse": medecin.adresse,
+        "ville": medecin.ville,
+        "code_postal": medecin.code_postal,
+        "langues": medecin.langues,
+        "biographie": medecin.biographie,
+        "annees_experience": medecin.annees_experience,
+        "prix_consultation": medecin.prix_consultation,
+        "photo_profil_url": medecin.photo_profil_url,
+        "est_actif": medecin.est_actif,
+        "statut_inscription": medecin.statut_inscription,
+        "date_creation": medecin.date_creation.isoformat() if medecin.date_creation else None
+    }
+
+
+@router.get("/api/medecins-actifs-jour")
+async def get_medecins_actifs_du_jour(request: Request, db: Session = Depends(get_db)):
+    current_admin = get_current_admin_from_cookie(request, db)
+    if not current_admin:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+
+    now = datetime.now()
+    start_day = datetime(now.year, now.month, now.day, 0, 0, 0)
+    end_day = start_day + timedelta(days=1)
+
+    rdv_rows = db.query(RendezVous, Medecin, Patient).join(
+        Medecin, RendezVous.medecin_id == Medecin.id
+    ).join(
+        Patient, RendezVous.patient_id == Patient.id
+    ).filter(
+        RendezVous.date_heure >= start_day,
+        RendezVous.date_heure < end_day,
+        Medecin.est_actif == True,
+        Medecin.statut_inscription == StatutInscription.APPROUVEE.value
+    ).all()
+
+    consultations_rows = []
+    try:
+        consultations_rows = db.query(Consultation, Medecin).join(
+            Medecin, Consultation.medecin_id == Medecin.id
+        ).filter(
+            Consultation.date_heure >= start_day,
+            Consultation.date_heure < end_day,
+            Medecin.est_actif == True,
+            Medecin.statut_inscription == StatutInscription.APPROUVEE.value
+        ).all()
+    except Exception:
+        consultations_rows = []
+
+    cards = []
+    for rdv, medecin, patient in rdv_rows:
+        cards.append({
+            "event_type": "rendez_vous",
+            "date_heure": rdv.date_heure.isoformat() if rdv.date_heure else None,
+            "medecin": {
+                "id": medecin.id,
+                "nom_complet": medecin.nom_complet,
+                "email": medecin.email,
+                "telephone": medecin.telephone,
+                "specialite": medecin.specialite.value if getattr(medecin.specialite, "value", None) else str(medecin.specialite or ""),
+                "numero_ordre": medecin.numero_ordre,
+                "adresse": medecin.adresse,
+                "ville": medecin.ville,
+                "code_postal": medecin.code_postal,
+                "langues": medecin.langues,
+                "biographie": medecin.biographie,
+                "prix_consultation": medecin.prix_consultation,
+            },
+            "patient": {
+                "id": patient.id,
+                "nom_complet": patient.nom_complet,
+                "email": patient.email,
+                "telephone": patient.telephone,
+                "adresse": patient.adresse,
+                "ville": patient.ville,
+                "code_postal": patient.code_postal
+            }
+        })
+
+    for consultation, medecin in consultations_rows:
+        cards.append({
+            "event_type": "consultation",
+            "date_heure": consultation.date_heure.isoformat() if consultation.date_heure else None,
+            "medecin": {
+                "id": medecin.id,
+                "nom_complet": medecin.nom_complet,
+                "email": medecin.email,
+                "telephone": medecin.telephone,
+                "specialite": medecin.specialite.value if getattr(medecin.specialite, "value", None) else str(medecin.specialite or ""),
+                "numero_ordre": medecin.numero_ordre,
+                "adresse": medecin.adresse,
+                "ville": medecin.ville,
+                "code_postal": medecin.code_postal,
+                "langues": medecin.langues,
+                "biographie": medecin.biographie,
+                "prix_consultation": medecin.prix_consultation,
+            },
+            "patient": {
+                "id": None,
+                "nom_complet": f"{consultation.visiteur_prenom} {consultation.visiteur_nom}".strip(),
+                "email": consultation.visiteur_email,
+                "telephone": consultation.visiteur_telephone,
+                "adresse": None,
+                "ville": None,
+                "code_postal": None
+            }
+        })
+
+    cards.sort(key=lambda x: x.get("date_heure") or "")
+    return {"date": start_day.date().isoformat(), "cards": cards}
 
 
 @router.delete("/api/medecins/{medecin_id}")
@@ -505,7 +1038,8 @@ async def ajouter_medecin(
             telephone=telephone.strip(),
             prix_consultation=prix,
             est_actif=True,
-            bio=bio,
+            statut_inscription=StatutInscription.APPROUVEE.value,
+            biographie=bio,
             featured=featured,
             date_creation=datetime.utcnow(),
             date_approbation=datetime.utcnow(),
@@ -556,13 +1090,59 @@ async def get_patients(request: Request, db: Session = Depends(get_db)):
                 "email": p.email,
                 "telephone": p.telephone,
                 "photo_profil_url": p.photo_profil_url,
-                "date_creation": p.date_creation.isoformat() if p.date_creation else None
+                "date_creation": p.date_creation.isoformat() if p.date_creation else None,
+                "consultations_count": db.query(RendezVous).filter(RendezVous.patient_id == p.id).count()
             }
             for p in patients
         ]
     except Exception as e:
         print(f"Erreur: {e}")
         raise HTTPException(status_code=500, detail="Erreur serveur")
+
+
+@router.get("/api/patients/{patient_id}/profil")
+async def get_patient_profil(
+    patient_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    current_admin = get_current_admin_from_cookie(request, db)
+    if not current_admin:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient non trouve")
+
+    return {
+        "id": patient.id,
+        "nom": patient.nom,
+        "prenom": patient.prenom,
+        "nom_complet": patient.nom_complet,
+        "email": patient.email,
+        "telephone": patient.telephone,
+        "telephone_urgence": patient.telephone_urgence,
+        "date_naissance": patient.date_naissance.isoformat() if patient.date_naissance else None,
+        "genre": patient.genre.value if getattr(patient.genre, "value", None) else str(patient.genre or ""),
+        "adresse": patient.adresse,
+        "adresse_ligne2": patient.adresse_ligne2,
+        "ville": patient.ville,
+        "code_postal": patient.code_postal,
+        "pays": patient.pays,
+        "numero_securite_sociale": patient.numero_securite_sociale,
+        "groupe_sanguin": patient.groupe_sanguin.value if getattr(patient.groupe_sanguin, "value", None) else str(patient.groupe_sanguin or ""),
+        "allergies": patient.allergies,
+        "antecedents_medicaux": patient.antecedents_medicaux,
+        "antecedents_familiaux": patient.antecedents_familiaux,
+        "traitements_en_cours": patient.traitements_en_cours,
+        "mutuelle_nom": patient.mutuelle_nom,
+        "mutuelle_numero": patient.mutuelle_numero,
+        "medecin_traitant_nom": patient.medecin_traitant_nom,
+        "medecin_traitant_telephone": patient.medecin_traitant_telephone,
+        "photo_profil_url": patient.photo_profil_url,
+        "est_actif": patient.est_actif,
+        "date_creation": patient.date_creation.isoformat() if patient.date_creation else None
+    }
 
 
 # ============= API ROUTES - ANNONCES =============
@@ -874,18 +1454,25 @@ async def nommer_medecin_admin(
         if existing_admin:
             raise HTTPException(status_code=400, detail="Ce médecin est déjà administrateur")
         
-        # Générer un mot de passe temporaire
-        temp_password = secrets.token_urlsafe(12)
-        
         # Créer un nouveau compte admin
         nouvel_admin = Admin(
             email=medecin.email,
-            mot_de_passe_hash=get_password_hash(temp_password),
+            mot_de_passe_hash=medecin.mot_de_passe_hash,
             nom=medecin.nom,
             prenom=medecin.prenom,
             telephone=medecin.telephone,
+            specialite=medecin.specialite.value if getattr(medecin.specialite, "value", None) else str(medecin.specialite or ""),
+            numero_ordre=medecin.numero_ordre,
+            adresse=medecin.adresse,
+            ville=medecin.ville,
+            code_postal=medecin.code_postal,
+            langues=medecin.langues,
+            biographie=medecin.biographie,
             photo_profil_url=medecin.photo_profil_url,
             est_actif=True,
+            statut_inscription=StatutInscription.APPROUVEE.value,
+            date_decision_inscription=datetime.utcnow(),
+            approuve_par_admin_id=current_admin.id,
             date_creation=datetime.utcnow()
         )
         
@@ -897,7 +1484,7 @@ async def nommer_medecin_admin(
             "success": True,
             "message": f"{medecin.nom_complet} a été nommé administrateur",
             "admin_id": nouvel_admin.id,
-            "temp_password": temp_password
+            "redirect_url": "/admin/dashboard"
         }
     except Exception as e:
         db.rollback()

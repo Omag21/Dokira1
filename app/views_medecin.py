@@ -23,8 +23,9 @@ from dotenv import load_dotenv
 
 
 # Imports locaux
-from app.database import get_db
-from app.models import Medecin, Patient, RendezVous, DossierMedical, Message , StatutMessage, Document, Ordonnance, Specialite
+from app.database import get_db, engine
+from app.models import Medecin, Patient, RendezVous, DossierMedical, Message , StatutMessage, Document, Ordonnance, Specialite, StatutInscription
+from app.inscription_schema import ensure_inscription_schema
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -41,6 +42,9 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Configuration du hachage de mot de passe
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Compatibilite schema inscription
+ensure_inscription_schema(engine)
 
 
 # ============= FONCTIONS UTILITAIRES =============
@@ -98,11 +102,14 @@ def authenticate_medecin(db: Session, email: str, password: str):
         print(f"Mot de passe incorrect pour l'email: {email}")
         return None
     
-    if not medecin.est_actif:
-        print(f"Compte inactif pour l'email: {email}")
-        return None
-    
     return medecin
+
+
+def get_medecin_status(medecin: Medecin) -> str:
+    status_value = (getattr(medecin, "statut_inscription", None) or "").strip().upper()
+    if not status_value:
+        return StatutInscription.APPROUVEE.value if medecin.est_actif else StatutInscription.EN_ATTENTE.value
+    return status_value
 
 
 def get_current_medecin_from_cookie(request: Request, db: Session):
@@ -123,6 +130,12 @@ def get_current_medecin_from_cookie(request: Request, db: Session):
             return None
         
         medecin = get_medecin_by_email(db, email)
+        if not medecin:
+            return None
+        if not medecin.est_actif:
+            return None
+        if get_medecin_status(medecin) != StatutInscription.APPROUVEE.value:
+            return None
         return medecin
         
     except JWTError as e:
@@ -150,6 +163,24 @@ def page_connexion_medecin(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("connexionMedecin.html", {"request": request})
 
 
+@router.get("/attente-approbation", response_class=HTMLResponse)
+def page_attente_approbation_medecin(request: Request):
+    return templates.TemplateResponse("attenteApprobationMedecin.html", {"request": request})
+
+
+@router.get("/api/inscription-status")
+async def medecin_inscription_status(email: str, db: Session = Depends(get_db)):
+    medecin = get_medecin_by_email(db, email.strip().lower())
+    if not medecin:
+        raise HTTPException(status_code=404, detail="Compte introuvable")
+
+    return {
+        "status": get_medecin_status(medecin),
+        "is_active": bool(medecin.est_actif),
+        "motif_refus": getattr(medecin, "motif_refus_inscription", None),
+    }
+
+
 @router.get("/dashboard", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def dashboard_medecin(request: Request, db: Session = Depends(get_db)):
@@ -157,7 +188,7 @@ def dashboard_medecin(request: Request, db: Session = Depends(get_db)):
     current_medecin = get_current_medecin_from_cookie(request, db)
     
     if not current_medecin:
-        return RedirectResponse(url="/connexionMedecin", status_code=303)
+        return RedirectResponse(url="/medecin/connexionMedecin", status_code=303)
     
     # Mettre à jour la dernière connexion
     try:
@@ -186,11 +217,11 @@ async def login_medecin(
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    """Connexion médecin"""
+    """Connexion medecin"""
     email = email.strip().lower()
-    
+
     medecin = authenticate_medecin(db, email, password)
-    
+
     if not medecin:
         return templates.TemplateResponse(
             "connexionMedecin.html",
@@ -201,19 +232,42 @@ async def login_medecin(
             },
             status_code=401
         )
-    
+
+    medecin_status = get_medecin_status(medecin)
+    if medecin_status in (StatutInscription.EN_ATTENTE.value, StatutInscription.REJETEE.value):
+        pending_token = create_access_token(
+            data={
+                "sub": medecin.email,
+                "medecin_id": medecin.id
+            },
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        response = RedirectResponse(
+            url=f"/medecin/attente-approbation?email={medecin.email}",
+            status_code=303
+        )
+        response.set_cookie(
+            key="medecin_access_token",
+            value=f"Bearer {pending_token}",
+            httponly=True,
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            samesite="lax",
+            secure=False
+        )
+        return response
+
     if not medecin.est_actif:
         return templates.TemplateResponse(
             "connexionMedecin.html",
             {
                 "request": request,
-                "error": "Votre compte a été désactivé. Contactez le support.",
+                "error": "Votre compte est desactive. Contactez le support.",
                 "email": email
             },
             status_code=403
         )
-    
-    # Créer le token
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={
@@ -225,18 +279,15 @@ async def login_medecin(
         },
         expires_delta=access_token_expires
     )
-    
-    # Mettre à jour la dernière connexion
+
     try:
         medecin.derniere_connexion = datetime.utcnow()
         db.commit()
     except Exception as e:
-        print(f"Erreur lors de la mise à jour: {e}")
+        print(f"Erreur lors de la mise a jour: {e}")
         db.rollback()
-    
-    # Redirection
+
     response = RedirectResponse(url="/medecin/dashboard", status_code=303)
-    
     response.set_cookie(
         key="medecin_access_token",
         value=f"Bearer {access_token}",
@@ -246,9 +297,8 @@ async def login_medecin(
         samesite="lax",
         secure=False
     )
-    
-    return response
 
+    return response
 @router.post("/inscription")
 async def register_medecin(
     request: Request,
@@ -263,6 +313,7 @@ async def register_medecin(
     ville: str = Form(default=None),
     code_postal: str = Form(default=None),
     langues: str = Form(default=None),
+    biographie: str = Form(default=None),
     acceptConditions: str = Form(default=None),
     db: Session = Depends(get_db)
 ):
@@ -320,7 +371,9 @@ async def register_medecin(
             ville=ville.strip().capitalize() if ville else None,
             code_postal=code_postal.strip() if code_postal else None,
             langues=langues.strip() if langues else None,
-            est_actif=True,
+            biographie=biographie.strip() if biographie else None,
+            est_actif=False,
+            statut_inscription=StatutInscription.EN_ATTENTE.value,
             date_creation=datetime.utcnow()
         )
 
@@ -340,7 +393,10 @@ async def register_medecin(
             expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         )
 
-        response = RedirectResponse(url="/medecin/dashboard", status_code=303)
+        response = RedirectResponse(
+            url=f"/medecin/attente-approbation?email={nouveau_medecin.email}",
+            status_code=303
+        )
         response.set_cookie(
             key="medecin_access_token",
             value=f"Bearer {access_token}",

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dokira - Attente d'approbation Médecin</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="card shadow-sm mx-auto" style="max-width: 760px;">
+            <div class="card-body p-4 p-md-5">
+                <h1 class="h4 mb-3">Inscription reçue</h1>
+                <p class="mb-3">Votre compte médecin est en attente d'approbation par un administrateur.</p>
+                <div id="statusBadge" class="badge bg-warning text-dark mb-3">En attente</div>
+                <p id="statusMessage" class="mb-3">Nous vérifions vos informations. Cette page se met à jour automatiquement.</p>
+                <div id="rejectReasonWrap" class="alert alert-danger d-none">
+                    <strong>Motif du refus:</strong>
+                    <span id="rejectReason"></span>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="/medecin/connexionMedecin" class="btn btn-outline-primary">Retour connexion</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const email = params.get('email');
+        const statusBadge = document.getElementById('statusBadge');
+        const statusMessage = document.getElementById('statusMessage');
+        const rejectReasonWrap = document.getElementById('rejectReasonWrap');
+        const rejectReason = document.getElementById('rejectReason');
+
+        async function pollStatus() {
+            if (!email) return;
+            try {
+                const response = await fetch(`/medecin/api/inscription-status?email=${encodeURIComponent(email)}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                const status = (data.status || '').toUpperCase();
+
+                if (status === 'APPROUVEE') {
+                    statusBadge.className = 'badge bg-success mb-3';
+                    statusBadge.textContent = 'Approuvée';
+                    statusMessage.textContent = 'Votre inscription est approuvée. Redirection vers votre interface...';
+                    setTimeout(() => {
+                        window.location.href = '/medecin/dashboard';
+                    }, 1200);
+                    return;
+                }
+
+                if (status === 'REJETEE') {
+                    statusBadge.className = 'badge bg-danger mb-3';
+                    statusBadge.textContent = 'Rejetée';
+                    statusMessage.textContent = 'Votre inscription n\'a pas été validée.';
+                    if (data.motif_refus) {
+                        rejectReasonWrap.classList.remove('d-none');
+                        rejectReason.textContent = data.motif_refus;
+                    }
+                    return;
+                }
+
+                statusBadge.className = 'badge bg-warning text-dark mb-3';
+                statusBadge.textContent = 'En attente';
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        pollStatus();
+        setInterval(pollStatus, 5000);
+    </script>
+</body>
+</html>
