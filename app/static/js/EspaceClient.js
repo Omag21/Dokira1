@@ -2686,18 +2686,18 @@ async function displaySection(sectionName) {
 
     // Bannière de bienvenue pour le dashboard
     if (sectionName === 'dashboard') {
-        const patientName = document.querySelector('.profile-name')?.textContent || 'Patient';
-        html += `
-            <div class="dashboard-header">
-                <div class="welcome-banner">
-                    <div class="welcome-content">
-                        <h1>Bonjour, ${patientName} 👋</h1>
-                        <p>Bienvenue sur votre espace santé personnel. Gérez vos rendez-vous, consultez vos documents médicaux et suivez votre santé en toute simplicité.</p>
-                    </div>
+    const patientName = document.querySelector('.profile-name')?.textContent || 'Patient';
+    html += `
+        <div class="dashboard-header">
+            <div class="welcome-banner">
+                <div class="welcome-content">
+                    <h1>Bonjour, ${patientName} 👋</h1>
+                    <p>Bienvenue sur votre espace santé personnel. Gérez vos rendez-vous, consultez vos documents médicaux et suivez votre santé en toute simplicité.</p>
                 </div>
             </div>
-        `;
-    }
+        </div>
+    `;
+  }
 
     // Statistiques (uniquement pour le dashboard)
     if (data && data.stats) {
@@ -2706,18 +2706,18 @@ async function displaySection(sectionName) {
 
     // Section des cartes
     if (sectionName === 'dashboard') {
-        html += `
-            <div class="content-section">
-                <div class="section-header">
-                    <h2 class="section-title">Activité Récente</h2>
-                    <a href="#" class="view-all-btn">
-                        Tout voir
-                        <i class="fas fa-arrow-right"></i>
-                    </a>
-                </div>
-                ${renderCards(data?.cards)}
+    html += `
+        <div class="content-section">
+            <div class="section-header">
+                <h2 class="section-title">Activité Récente</h2>
+                <a href="#" class="view-all-btn" onclick="displaySection('rendez-vous'); return false;">
+                    Tout voir
+                    <i class="fas fa-arrow-right"></i>
+                </a>
             </div>
-        `;
+            ${renderCards(sectionsData.dashboard.cards)}
+        </div>
+     `;
     } else {
         html += `
             <div class="content-section">
@@ -2730,6 +2730,22 @@ async function displaySection(sectionName) {
     }
 
     mainContent.innerHTML = html;
+
+    setTimeout(() => {
+        initializePatientSearch();
+        
+        // Vider le champ de recherche
+        const searchInput = document.getElementById('patientSearchInput');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        
+        // Cacher les résultats
+        const searchResults = document.getElementById('patientSearchResults');
+        if (searchResults) {
+            searchResults.classList.remove('show');
+        }
+    }, 100);
 }
 
 // Fonction pour obtenir le titre de la section
@@ -2834,7 +2850,10 @@ if (logoutLink) {
 
 // Charger les données au démarrage
 document.addEventListener('DOMContentLoaded', async function() {
-    // 1. CHARGEMENT PARALLÈLE OPTIMISÉ (Promise.all)
+     //1.  Initialiser la recherche
+    initializePatientSearch();
+    
+    //2. CHARGEMENT PARALLÈLE OPTIMISÉ (Promise.all)
     await Promise.all([
         loadPatientData(),
         loadDashboardStats(),
@@ -2842,13 +2861,20 @@ document.addEventListener('DOMContentLoaded', async function() {
         loadDocumentsList(),
         loadOrdonnancesList()
     ]);
+
+    // 3. Mettre à jour les cartes du dashboard avec données réelles
+    await updateDashboardCards();
+    updateHealthStat();
     
-    // 2. Rafraîchir périodiquement (uniquement les notifications légères)
+    // 4. Rafraîchir périodiquement (uniquement les notifications légères)
     setInterval(async () => {
         await refreshNotifications();
-        // On évite de recharger lourdement (messagerie stats) toutes les 30s si l'utilisateur ne bouge pas
-        // await loadMessagerieStats(); 
-    }, 30000);
+        // Rafraîchir les cartes toutes les 5 minutes
+        if (document.querySelector('.nav-link-custom.active')?.getAttribute('data-section') === 'dashboard') {
+            await updateDashboardCards();
+            displaySection('dashboard');
+        }
+    }, 300000);
     
     // 3. Afficher le dashboard
     // Les données sont déjà prêtes grâce au Promise.all ci-dessus.
@@ -4545,4 +4571,497 @@ async function showProfilResume() {
     }
 }
 
+
+
+
+
+// ============================================
+// FONCTION DE RECHERCHE 
+// ============================================
+
+let patientSearchTimeout = null;
+
+function initializePatientSearch() {
+    console.log("🔍 Initialisation de la recherche...");
+    
+    const searchInput = document.getElementById('patientSearchInput');
+    const searchResults = document.getElementById('patientSearchResults');
+    const searchClear = document.querySelector('.patient-search-clear');
+    
+    if (!searchInput || !searchResults) {
+        console.warn("⚠️ Éléments de recherche non trouvés");
+        return;
+    }
+    
+    // Fonction principale de recherche
+    function performPatientSearch() {
+        const searchTerm = searchInput.value.trim().toLowerCase();
+        console.log("🔍 Recherche:", searchTerm);
+        
+        if (searchTerm === '') {
+            searchResults.innerHTML = '';
+            searchResults.classList.remove('show');
+            if (searchClear) searchClear.style.display = 'none';
+            return;
+        }
+        
+        // Afficher le bouton clear
+        if (searchClear) searchClear.style.display = 'block';
+        
+        // Récupérer tout le contenu visible de l'interface patient
+        const mainContent = document.getElementById('mainContent');
+        const sidebarLinks = document.querySelectorAll('.nav-link-custom');
+        
+        const searchResults_list = [];
+        const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        
+        // 1. Rechercher dans le contenu principal
+        if (mainContent && mainContent.textContent) {
+            // Chercher dans le texte visible
+            const textContent = mainContent.textContent || '';
+            const lines = textContent.split('\n').filter(line => line.trim());
+            
+            lines.forEach(line => {
+                if (line.toLowerCase().includes(searchTerm)) {
+                    const matchIndex = line.toLowerCase().indexOf(searchTerm);
+                    const start = Math.max(0, matchIndex - 30);
+                    const end = Math.min(line.length, matchIndex + searchTerm.length + 30);
+                    
+                    let context = line.substring(start, end);
+                    if (start > 0) context = '...' + context;
+                    if (end < line.length) context = context + '...';
+                    
+                    const highlightedContext = context.replace(regex, match => `<mark>${match}</mark>`);
+                    
+                    searchResults_list.push({
+                        type: 'content',
+                        text: line,
+                        context: highlightedContext
+                    });
+                }
+            });
+            
+            // Chercher dans les éléments spécifiques
+            const cards = mainContent.querySelectorAll('.content-card, .stat-card, .rdv-card, .document-card, .profil-card, .card-title, h3, h4, p');
+            cards.forEach(card => {
+                const cardText = card.textContent.toLowerCase();
+                if (cardText.includes(searchTerm)) {
+                    const title = card.querySelector('.card-title, h3, h4')?.textContent || 'Élément';
+                    const preview = card.textContent.substring(0, 100).replace(/\s+/g, ' ').trim();
+                    const highlightedPreview = preview.replace(regex, match => `<mark>${match}</mark>`);
+                    
+                    searchResults_list.push({
+                        type: 'card',
+                        title: title,
+                        context: highlightedPreview,
+                        element: card
+                    });
+                }
+            });
+        }
+        
+        // 2. Rechercher dans les liens de navigation
+        sidebarLinks.forEach(link => {
+            const linkText = link.textContent.toLowerCase();
+            if (linkText.includes(searchTerm)) {
+                searchResults_list.push({
+                    type: 'navigation',
+                    text: link.textContent,
+                    context: `Navigation: ${link.textContent}`,
+                    section: link.getAttribute('data-section'),
+                    element: link
+                });
+            }
+        });
+        
+        // Supprimer les doublons (garder uniquement les résultats uniques par contexte)
+        const uniqueResults = [];
+        const seen = new Set();
+        
+        searchResults_list.forEach(result => {
+            const key = result.context.substring(0, 50);
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueResults.push(result);
+            }
+        });
+        
+        console.log(`✅ ${uniqueResults.length} résultats trouvés`);
+        displayPatientSearchResults(uniqueResults, searchTerm);
+    }
+    
+    function displayPatientSearchResults(results, searchTerm) {
+        if (results.length === 0) {
+            searchResults.innerHTML = `
+                <div class="patient-search-no-results">
+                    <i class="fas fa-search"></i>
+                    <p>Aucun résultat trouvé pour "<strong>${escapeHtml(searchTerm)}</strong>"</p>
+                </div>
+            `;
+        } else {
+            // Limiter à 15 résultats maximum
+            const limitedResults = results.slice(0, 15);
+            
+            let html = '<div class="patient-search-results-container">';
+            
+            // En-tête des résultats
+            html += `
+                <div class="patient-search-header">
+                    <span class="patient-search-count">${results.length} résultat(s) trouvé(s)</span>
+                    <button class="patient-search-close" onclick="closePatientSearch()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+            
+            // Afficher tous les résultats sans catégorisation pour simplifier
+            limitedResults.forEach((result, index) => {
+                let icon = 'fa-file-alt';
+                let action = '';
+                
+                if (result.type === 'navigation') {
+                    icon = 'fa-compass';
+                    action = `navigateToSection('${result.section}')`;
+                } else if (result.type === 'card') {
+                    icon = 'fa-credit-card';
+                    action = `scrollToElement(this, '${escapeHtml(result.title || '')}')`;
+                } else {
+                    icon = 'fa-paragraph';
+                    action = `scrollToText('${escapeHtml(result.text || '')}')`;
+                }
+                
+                html += `
+                    <div class="patient-search-item" onclick="${action}">
+                        <div class="patient-search-item-icon">
+                            <i class="fas ${icon}"></i>
+                        </div>
+                        <div class="patient-search-item-content">
+                            ${result.title ? `<div class="patient-search-item-title">${escapeHtml(result.title)}</div>` : ''}
+                            <div class="patient-search-item-text">${result.context}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // Indiquer s'il y a plus de résultats
+            if (results.length > 15) {
+                html += `
+                    <div class="patient-search-more">
+                        <i class="fas fa-ellipsis-h"></i>
+                        ${results.length - 15} résultat(s) supplémentaire(s)
+                    </div>
+                `;
+            }
+            
+            html += '</div>';
+            searchResults.innerHTML = html;
+        }
+        
+        searchResults.classList.add('show');
+    }
+    
+    // Supprimer les anciens écouteurs pour éviter les doublons
+    const newSearchInput = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+    
+    // Réattacher les écouteurs
+    newSearchInput.addEventListener('input', () => {
+        clearTimeout(patientSearchTimeout);
+        patientSearchTimeout = setTimeout(performPatientSearch, 300);
+    });
+    
+    newSearchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            performPatientSearch();
+        }
+    });
+    
+    // Gestionnaire pour le bouton clear
+    if (searchClear) {
+        const newSearchClear = searchClear.cloneNode(true);
+        searchClear.parentNode.replaceChild(newSearchClear, searchClear);
+        
+        newSearchClear.addEventListener('click', () => {
+            newSearchInput.value = '';
+            newSearchInput.focus();
+            searchResults.innerHTML = '';
+            searchResults.classList.remove('show');
+            newSearchClear.style.display = 'none';
+        });
+    }
+    
+    // Afficher/masquer le bouton clear
+    newSearchInput.addEventListener('input', () => {
+        if (searchClear) {
+            searchClear.style.display = newSearchInput.value ? 'block' : 'none';
+        }
+    });
+    
+    // Fermer en cliquant ailleurs
+    document.removeEventListener('click', closeSearchOnClick);
+    document.addEventListener('click', closeSearchOnClick);
+    
+    function closeSearchOnClick(e) {
+        if (!newSearchInput.contains(e.target) && !searchResults.contains(e.target)) {
+            searchResults.classList.remove('show');
+        }
+    }
+    
+    console.log("✅ Recherche initialisée");
+}
+
+// Fonction pour scroller vers un texte
+window.scrollToText = function(text) {
+    const cleanText = text.replace(/<[^>]*>/g, '').trim();
+    console.log("📍 Scrolling vers:", cleanText);
+    
+    const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode: function(node) {
+                if (node.parentElement.tagName === 'SCRIPT' || 
+                    node.parentElement.tagName === 'STYLE') {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        }
+    );
+    
+    while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (node.nodeValue && node.nodeValue.includes(cleanText)) {
+            node.parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Effet de surbrillance
+            const originalBg = node.parentElement.style.backgroundColor;
+            const originalTransition = node.parentElement.style.transition;
+            
+            node.parentElement.style.backgroundColor = '#fff3cd';
+            node.parentElement.style.transition = 'background-color 0.5s';
+            
+            setTimeout(() => {
+                node.parentElement.style.backgroundColor = originalBg;
+                node.parentElement.style.transition = originalTransition;
+            }, 2000);
+            
+            break;
+        }
+    }
+    
+    closePatientSearch();
+};
+
+// Fermer la recherche
+window.closePatientSearch = function() {
+    const searchResults = document.getElementById('patientSearchResults');
+    if (searchResults) {
+        searchResults.classList.remove('show');
+    }
+};
+
+// Échapper le HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+
+// ============================================
+// MISE À JOUR DES CARTES DU DASHBOARD 
+// ============================================
+
+async function updateDashboardCards() {
+    try {
+        // 1. Récupérer les rendez-vous
+        const rdvResponse = await fetch('/api/rendez-vous');
+        const rendezVous = await rdvResponse.json();
+        
+        // Trouver le prochain rendez-vous (date la plus proche dans le futur)
+        const now = new Date();
+        const prochainsRdv = rendezVous
+            .filter(rdv => new Date(rdv.date_heure) > now && rdv.statut !== 'Annulé')
+            .sort((a, b) => new Date(a.date_heure) - new Date(b.date_heure));
+        
+        const prochainRdv = prochainsRdv.length > 0 ? prochainsRdv[0] : null;
+        
+        // 2. Récupérer les ordonnances
+        const ordResponse = await fetch('/api/ordonnances');
+        const ordonnances = await ordResponse.json();
+        
+        // Compter les ordonnances actives
+        const ordonnancesActives = ordonnances.filter(ord => 
+            ord.statut?.toLowerCase() === 'active' || ord.statut?.toLowerCase() === 'actif'
+        ).length;
+        
+        // 3. Récupérer les analyses/résultats (via les documents)
+        const docsResponse = await fetch('/api/documents');
+        const documents = await docsResponse.json();
+        
+        // Compter les documents de type analyse
+        const analyses = documents.filter(doc => 
+            doc.type_document?.toLowerCase().includes('analyse') ||
+            doc.titre?.toLowerCase().includes('analyse') ||
+            doc.titre?.toLowerCase().includes('résultat')
+        ).length;
+        
+        // 4. Mettre à jour la carte "Prochain Rendez-vous"
+        const rdvCard = sectionsData.dashboard.cards[0];
+        if (prochainRdv) {
+            const date = new Date(prochainRdv.date_heure);
+            const dateFormatee = date.toLocaleDateString('fr-FR', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            rdvCard.subtitle = `Dr. ${prochainRdv.medecin_nom || 'Médecin'}`;
+            rdvCard.description = prochainRdv.motif || 'Consultation médicale';
+            rdvCard.meta = [
+                { icon: 'fa-clock', text: dateFormatee },
+                { icon: 'fa-map-marker-alt', text: prochainRdv.lieu || prochainRdv.type_consultation || 'Cabinet' }
+            ];
+            rdvCard.badge = { type: 'success', text: 'Confirmé' };
+        } else {
+            rdvCard.subtitle = 'Aucun rendez-vous programmé';
+            rdvCard.description = 'Prenez rendez-vous avec votre médecin';
+            rdvCard.meta = [
+                { icon: 'fa-clock', text: 'Aucune date' },
+                { icon: 'fa-map-marker-alt', text: 'En attente' }
+            ];
+            rdvCard.badge = { type: 'warning', text: 'À planifier' };
+        }
+        
+        // 5. Mettre à jour la carte "Ordonnance Active"
+        const ordCard = sectionsData.dashboard.cards[1];
+        if (ordonnancesActives > 0) {
+            const derniereOrdonnance = ordonnances.find(ord => 
+                ord.statut?.toLowerCase() === 'active' || ord.statut?.toLowerCase() === 'actif'
+            );
+            
+            ordCard.subtitle = `${ordonnancesActives} ordonnance(s) active(s)`;
+            ordCard.description = derniereOrdonnance ? 
+                `Prescription du ${new Date(derniereOrdonnance.date_emission).toLocaleDateString('fr-FR')}` : 
+                'Consultez vos ordonnances';
+            ordCard.meta = [
+                { icon: 'fa-pills', text: `${ordonnancesActives} traitement${ordonnancesActives > 1 ? 's' : ''}` },
+                { icon: 'fa-calendar', text: derniereOrdonnance ? new Date(derniereOrdonnance.date_emission).toLocaleDateString('fr-FR') : 'Aucune' }
+            ];
+            ordCard.badge = { type: 'success', text: 'Active' };
+        } else {
+            ordCard.subtitle = 'Aucune ordonnance active';
+            ordCard.description = 'Consultez vos ordonnances dans la section dédiée';
+            ordCard.meta = [
+                { icon: 'fa-pills', text: '0 traitement' },
+                { icon: 'fa-calendar', text: 'Aucune' }
+            ];
+            ordCard.badge = { type: 'info', text: 'Vérifier' };
+        }
+        
+        // 6. Mettre à jour la carte "Résultats Analyses"
+        const anaCard = sectionsData.dashboard.cards[2];
+        if (analyses > 0) {
+            const derniereAnalyse = documents.find(doc => 
+                doc.type_document?.toLowerCase().includes('analyse') ||
+                doc.titre?.toLowerCase().includes('analyse')
+            );
+            
+            anaCard.subtitle = `${analyses} résultat(s) disponible(s)`;
+            anaCard.description = derniereAnalyse ? 
+                derniereAnalyse.titre : 
+                'Consultez vos analyses dans la section dédiée';
+            anaCard.meta = [
+                { icon: 'fa-check-circle', text: `${analyses} résultat${analyses > 1 ? 's' : ''}` },
+                { icon: 'fa-calendar', text: derniereAnalyse ? 
+                    new Date(derniereAnalyse.date_upload).toLocaleDateString('fr-FR') : 
+                    'Aucune date' }
+            ];
+            anaCard.badge = { type: 'success', text: 'Nouveau' };
+        } else {
+            anaCard.subtitle = 'Aucun résultat disponible';
+            anaCard.description = 'Consultez vos analyses dans la section dédiée';
+            anaCard.meta = [
+                { icon: 'fa-check-circle', text: 'Aucun résultat' },
+                { icon: 'fa-calendar', text: 'Aucune date' }
+            ];
+            anaCard.badge = { type: 'info', text: 'Vérifier' };
+        }
+        
+        console.log('✅ Cartes du dashboard mises à jour avec données réelles');
+        
+    } catch (error) {
+        console.error('❌ Erreur mise à jour cartes dashboard:', error);
+    }
+}
+
+// Fonction pour obtenir les statistiques de suivi santé
+function updateHealthStat() {
+    let score = 98; // Score par défaut
+    
+    // Calculer un score basé sur plusieurs facteurs
+    const hasRdv = sectionsData.dashboard.cards[0].badge?.type === 'success' ? 5 : 0;
+    const hasOrdo = sectionsData.dashboard.cards[1].badge?.type === 'success' ? 5 : 0;
+    const hasAnalyse = sectionsData.dashboard.cards[2].badge?.type === 'success' ? 5 : 0;
+    
+    score = 88 + hasRdv + hasOrdo + hasAnalyse; // Base 88% + bonus
+    
+    sectionsData.dashboard.stats[3].value = `${score}%`;
+    sectionsData.dashboard.stats[3].change.text = score >= 95 ? 'Excellent' : 
+                                                   score >= 85 ? 'Bon' : 
+                                                   score >= 75 ? 'Moyen' : 'À améliorer';
+}
+
+// Fonction pour rafraîchir tout le dashboard
+async function refreshDashboard() {
+    await Promise.all([
+        updateDashboardCards(),
+        loadDashboardStats(),
+        loadMessagerieStats(),
+        loadDocumentsList(),
+        loadOrdonnancesList()
+    ]);
+    
+    updateHealthStat();
+    
+    // Re-rendre le dashboard si c'est la section active
+    const activeSection = document.querySelector('.nav-link-custom.active')?.getAttribute('data-section');
+    if (activeSection === 'dashboard') {
+        displaySection('dashboard');
+    }
+}
+
+
+// Fonction de test pour vérifier que la recherche fonctionne
+window.testSearch = function() {
+    console.log("🧪 Test de la recherche...");
+    
+    const searchInput = document.getElementById('patientSearchInput');
+    const searchResults = document.getElementById('patientSearchResults');
+    
+    if (!searchInput) {
+        console.error("❌ Champ de recherche non trouvé");
+        return;
+    }
+    
+    if (!searchResults) {
+        console.error("❌ Conteneur de résultats non trouvé");
+        return;
+    }
+    
+    console.log("✅ Éléments trouvés");
+    
+    // Simuler une recherche
+    searchInput.value = "rendez";
+    searchInput.dispatchEvent(new Event('input'));
+    
+    setTimeout(() => {
+        console.log("📊 Résultats:", searchResults.innerHTML ? "OK" : "Vide");
+    }, 500);
+};
 

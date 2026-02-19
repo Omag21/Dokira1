@@ -11,6 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMedecinsActifsDuJour();
     loadPatientsList();
     loadNominationData();
+    loadRevenueStats();
+    initAnnoncesSection();
+    loadDashboardData();
+    initSearch(); 
 });
 
 async function apiFetch(url, options = {}) {
@@ -78,6 +82,32 @@ function setupEventListeners() {
         });
     }
 
+    // AJOUTER CES LIGNES POUR LES STATISTIQUES
+    const refreshBtn = document.querySelector('.btn-primary .fa-sync-alt')?.closest('button');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            refreshStats();
+        });
+    }
+
+    const periodSelect = document.getElementById('statsPeriod');
+    if (periodSelect) {
+        periodSelect.addEventListener('change', (e) => {
+            const period = e.target.value;
+            loadRevenueStatsWithPeriod(period);
+        });
+    }
+
+    const chartPeriodSelect = document.getElementById('chartPeriod');
+    if (chartPeriodSelect) {
+        chartPeriodSelect.addEventListener('change', (e) => {
+            const period = e.target.value;
+            updateChartPeriod(period);
+        });
+    }
+    // FIN DE L'AJOUT
+
     document.addEventListener('click', e => {
         if (e.target.classList.contains('close-modal')) {
             e.target.closest('.modal')?.classList.remove('show');
@@ -96,6 +126,82 @@ function setupEventListeners() {
         addForm.addEventListener('submit', onNommerAdminSubmit);
     }
 }
+
+
+// Fonction pour charger les stats avec une période spécifique
+async function loadRevenueStatsWithPeriod(period) {
+    try {
+        // Afficher un indicateur de chargement
+        showStatsLoading(true);
+        
+        // Ici vous pouvez appeler une API avec le paramètre period si votre backend le supporte
+        // Pour l'instant, on recharge simplement les données
+        await loadRevenueStats();
+        
+        // Mettre à jour le texte du filtre pour indiquer la période sélectionnée
+        const periodText = {
+            'today': "aujourd'hui",
+            'week': 'cette semaine',
+            'month': 'ce mois',
+            'year': 'cette année'
+        }[period] || '';
+        
+        console.log(`Données actualisées pour ${periodText}`);
+        
+    } catch (error) {
+        console.error('Erreur chargement période:', error);
+    } finally {
+        showStatsLoading(false);
+    }
+}
+
+// Fonction pour mettre à jour la période du graphique
+function updateChartPeriod(period) {
+    console.log(`Mise à jour du graphique pour les ${period} derniers jours`);
+    // Ici vous pouvez recharger le graphique avec de nouvelles données
+    // Pour l'instant, on recharge juste les stats
+    loadRevenueStats();
+}
+
+// Fonction pour afficher/masquer un indicateur de chargement
+function showStatsLoading(show) {
+    const statsCards = document.querySelectorAll('.stat-card');
+    if (show) {
+        statsCards.forEach(card => {
+            card.style.opacity = '0.5';
+            card.style.pointerEvents = 'none';
+        });
+    } else {
+        statsCards.forEach(card => {
+            card.style.opacity = '1';
+            card.style.pointerEvents = 'auto';
+        });
+    }
+}
+
+// Amélioration de la fonction refreshStats existante
+function refreshStats() {
+    // Ajouter un effet visuel sur le bouton
+    const refreshBtn = document.querySelector('.btn-primary .fa-sync-alt')?.closest('button');
+    if (refreshBtn) {
+        const icon = refreshBtn.querySelector('i');
+        if (icon) {
+            icon.classList.add('fa-spin');
+        }
+    }
+    
+    // Recharger les stats
+    loadRevenueStats().finally(() => {
+        // Enlever l'animation après 1 seconde
+        setTimeout(() => {
+            const icon = refreshBtn?.querySelector('i');
+            if (icon) {
+                icon.classList.remove('fa-spin');
+            }
+        }, 1000);
+    });
+}
+
 
 async function loadAdminProfile() {
     try {
@@ -713,3 +819,874 @@ function escapeHtml(value) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
 }
+
+
+// ============= STATISTIQUES AMÉLIORÉES =============
+
+async function loadRevenueStats(period = 'month') {
+    try {
+        // Ajouter le paramètre period à l'URL si votre backend le supporte
+        const url = `/admin/api/statistiques/tableau-bord${period ? `?period=${period}` : ''}`;
+        
+        const [medecins, categories, dashboard] = await Promise.all([
+            apiFetch('/admin/api/statistiques/revenus-medecins'),
+            apiFetch('/admin/api/statistiques/revenus-categories'),
+            apiFetch(url)  // Utiliser l'URL avec période
+        ]);
+
+        updateStatsCards(dashboard);
+        displayRevenueByDoctorsTable(medecins);
+        displayRevenueByCategoryCards(categories);
+        initChart(dashboard);
+    } catch (error) {
+        console.error('Erreur chargement statistiques:', error);
+    }
+}
+
+function updateStatsCards(stats) {
+    // Mettre à jour les cartes principales
+    document.getElementById('totalConsultations').textContent = stats.total_consultations || 0;
+    document.getElementById('totalRevenue').textContent = formatCurrency(stats.total_revenu || 0);
+    document.getElementById('monthRevenue').textContent = formatCurrency(stats.revenu_mois || 0);
+    
+    // Calculer la moyenne par jour
+    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const avgDaily = (stats.revenu_mois || 0) / daysInMonth;
+    document.getElementById('avgDaily').textContent = formatCurrency(avgDaily);
+}
+
+function displayRevenueByDoctorsTable(medecins) {
+    const tbody = document.getElementById('revenueByDoctorsBody');
+    if (!tbody) return;
+
+    if (!medecins || medecins.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Aucune donnée</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = medecins.map(m => {
+        const performance = calculatePerformance(m.total_consultations);
+        const initials = m.nom_complet.split(' ').map(n => n[0]).join('').toUpperCase();
+        
+        return `
+            <tr>
+                <td>
+                    <div class="doctor-info">
+                        <div class="doctor-avatar">${initials}</div>
+                        <strong>${escapeHtml(m.nom_complet)}</strong>
+                    </div>
+                </td>
+                <td><span class="specialty-badge">${escapeHtml(m.specialite)}</span></td>
+                <td><strong>${m.total_consultations}</strong></td>
+                <td><span class="stat-value-small">${formatCurrency(m.revenu_total)}</span></td>
+                <td>
+                    <div class="performance-bar">
+                        <div class="performance-fill" style="width: ${performance}%"></div>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function displayRevenueByCategoryCards(categories) {
+    const container = document.getElementById('revenueByCategoryBody');
+    if (!container) return;
+
+    if (!categories || categories.length === 0) {
+        container.innerHTML = '<p class="empty-state">Aucune donnée</p>';
+        return;
+    }
+
+    const maxRevenue = Math.max(...categories.map(c => c.revenu_total));
+    
+    container.innerHTML = `
+        <div class="category-cards">
+            ${categories.map(c => {
+                const percentage = (c.revenu_total / maxRevenue) * 100;
+                return `
+                    <div class="category-item">
+                        <div class="category-name">
+                            <i class="fas fa-stethoscope"></i>
+                            ${escapeHtml(c.categorie)}
+                        </div>
+                        <div class="category-stats">
+                            <div class="category-stat-row">
+                                <span class="category-stat-label">Médecins</span>
+                                <span class="category-stat-value">${c.medecins_count}</span>
+                            </div>
+                            <div class="category-stat-row">
+                                <span class="category-stat-label">Consultations</span>
+                                <span class="category-stat-value">${c.total_consultations}</span>
+                            </div>
+                            <div class="category-stat-row">
+                                <span class="category-stat-label">Revenu total</span>
+                                <span class="category-stat-value">${formatCurrency(c.revenu_total)}</span>
+                            </div>
+                            <div class="stat-progress">
+                                <div class="stat-progress-bar" style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function initChart(stats) {
+    // Initialiser un graphique simple avec Chart.js si disponible
+    if (typeof Chart !== 'undefined') {
+        const ctx = document.getElementById('consultationsChart')?.getContext('2d');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'],
+                    datasets: [{
+                        label: 'Consultations',
+                        data: [12, 19, 15, stats.total_consultations || 0],
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+    }
+}
+
+function calculatePerformance(consultations) {
+    // Calculer un pourcentage de performance (exemple)
+    const max = 30; // Objectif de consultations
+    return Math.min(100, (consultations / max) * 100);
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: 'XOF',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(amount).replace('XOF', 'FCFA');
+}
+
+function refreshStats() {
+    loadRevenueStats();
+}
+
+function exportToExcel(type) {
+    // Fonction pour exporter les données
+    alert(`Export des données ${type} en cours...`);
+}
+
+
+function updateDashboardWithRevenue(stats) {
+    const revenueCard = document.getElementById('totalRevenueCard');
+    const revenueMonthCard = document.getElementById('revenueMonthCard');
+    const consultationsCard = document.getElementById('totalConsultationsCard');
+
+    if (revenueCard) revenueCard.textContent = (stats.total_revenu || 0).toFixed(2) + ' FCFA';
+    if (revenueMonthCard) revenueMonthCard.textContent = (stats.revenu_mois || 0).toFixed(2) + ' FCFA';
+    if (consultationsCard) consultationsCard.textContent = stats.total_consultations || 0;
+
+    ensureRevenueCards(stats);
+}
+
+function ensureRevenueCards(stats) {
+    const cardsContainer = document.querySelector('#tableau-bord .dashboard-cards');
+    if (!cardsContainer || document.getElementById('totalRevenueCard')) return;
+
+    const revenueCard = document.createElement('div');
+    revenueCard.className = 'card';
+    revenueCard.innerHTML = `
+        <div class="card-icon" style="background:#8b5cf6;"><i class="fas fa-coins"></i></div>
+        <div class="card-content"><h3>Revenus Totaux</h3><p class="card-number" id="totalRevenueCard">${(stats.total_revenu || 0).toFixed(2)} FCFA</p></div>
+    `;
+    cardsContainer.appendChild(revenueCard);
+
+    const revenueMonthCard = document.createElement('div');
+    revenueMonthCard.className = 'card';
+    revenueMonthCard.innerHTML = `
+        <div class="card-icon" style="background:#f59e0b;"><i class="fas fa-dollar-sign"></i></div>
+        <div class="card-content"><h3>Revenus Mois</h3><p class="card-number" id="revenueMonthCard">${(stats.revenu_mois || 0).toFixed(2)} FCFA</p></div>
+    `;
+    cardsContainer.appendChild(revenueMonthCard);
+
+    const consultationsCard = document.createElement('div');
+    consultationsCard.className = 'card';
+    consultationsCard.innerHTML = `
+        <div class="card-icon" style="background:#10b981;"><i class="fas fa-stethoscope"></i></div>
+        <div class="card-content"><h3>Consultations</h3><p class="card-number" id="totalConsultationsCard">${stats.total_consultations || 0}</p></div>
+    `;
+    cardsContainer.appendChild(consultationsCard);
+}
+
+
+
+
+// ============= GESTION DES ANNONCES =============
+
+// Initialiser la section annonces
+function initAnnoncesSection() {
+    const form = document.getElementById('addAnnonceForm');
+    if (form) {
+        // Remplacer le comportement par défaut du formulaire
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // EMPÊCHE LA REDIRECTION
+            await addAnnonce(e);
+        });
+    }
+    
+    // Charger les annonces quand la section est affichée
+    const annoncesLink = document.querySelector('[data-section="annonces"]');
+    if (annoncesLink) {
+        annoncesLink.addEventListener('click', () => {
+            setTimeout(loadAnnonces, 100);
+        });
+    }
+}
+
+// Charger la liste des annonces
+async function loadAnnonces() {
+    const container = document.getElementById('annoncesList');
+    if (!container) return;
+
+    try {
+        const annonces = await apiFetch('/admin/api/annonces');
+        
+        if (!annonces || annonces.length === 0) {
+            container.innerHTML = '<p class="empty-state text-center p-4">Aucune annonce active</p>';
+            return;
+        }
+
+        let html = `
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Image</th>
+                        <th>Titre</th>
+                        <th>Catégorie</th>
+                        <th>Contenu</th>
+                        <th>Date création</th>
+                        <th>Expiration</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        annonces.forEach(annonce => {
+            const imageHtml = annonce.image_url 
+                ? `<img src="${escapeHtml(annonce.image_url)}" alt="${escapeHtml(annonce.titre)}" style="width:50px; height:50px; object-fit:cover; border-radius:4px;">`
+                : '<span class="text-muted">-</span>';
+            
+            const categorieHtml = annonce.categorie 
+                ? `<span class="badge bg-${getCategoryColor(annonce.categorie)}">${escapeHtml(annonce.categorie)}</span>`
+                : '-';
+            
+            const contenuCourt = annonce.contenu.length > 50 
+                ? annonce.contenu.substring(0, 50) + '...' 
+                : annonce.contenu;
+            
+            html += `
+                <tr>
+                    <td>${imageHtml}</td>
+                    <td><strong>${escapeHtml(annonce.titre)}</strong></td>
+                    <td>${categorieHtml}</td>
+                    <td>${escapeHtml(contenuCourt)}</td>
+                    <td>${formatDate(annonce.dateCreation)}</td>
+                    <td>${annonce.date_expiration ? formatDate(annonce.date_expiration) : '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="deleteAnnonce(${annonce.id})">
+                            <i class="fas fa-trash"></i> Supprimer
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                </tbody>
+            </table>
+        `;
+
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Erreur chargement annonces:', error);
+        container.innerHTML = '<p class="empty-state text-danger text-center p-4">Erreur lors du chargement des annonces</p>';
+    }
+}
+
+// Obtenir la couleur de la catégorie pour le badge
+function getCategoryColor(categorie) {
+    const colors = {
+        'promotion': 'success',
+        'info': 'info',
+        'urgence': 'danger',
+        'evenement': 'warning'
+    };
+    return colors[categorie.toLowerCase()] || 'secondary';
+}
+
+// Ajouter une annonce
+async function addAnnonce(event) {
+    event.preventDefault(); // S'assurer que le formulaire ne redirige pas
+    
+    const form = document.getElementById('addAnnonceForm');
+    const formData = new FormData(form);
+    
+    // Ajouter les champs optionnels s'ils sont vides
+    if (!formData.get('description_courte')) {
+        formData.delete('description_courte');
+    }
+    if (!formData.get('lien_cible')) {
+        formData.delete('lien_cible');
+    }
+    if (!formData.get('lien_texte')) {
+        formData.delete('lien_texte');
+    }
+    if (!formData.get('date_expiration')) {
+        formData.delete('date_expiration');
+    }
+    
+    try {
+        // Afficher un indicateur de chargement
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ajout en cours...';
+        submitBtn.disabled = true;
+
+        const response = await fetch('/admin/api/annonces/ajouter', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Erreur lors de l\'ajout');
+        }
+
+        const result = await response.json();
+        
+        // Réinitialiser le formulaire
+        form.reset();
+        
+        // Recharger la liste
+        await loadAnnonces();
+        
+        // Afficher un message de succès
+        alert('✅ Annonce ajoutée avec succès !');
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur lors de l\'ajout de l\'annonce: ' + error.message);
+    } finally {
+        // Restaurer le bouton
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Ajouter l\'annonce';
+        submitBtn.disabled = false;
+    }
+}
+
+// Supprimer une annonce
+async function deleteAnnonce(annonceId) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette annonce ?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/api/annonces/${annonceId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Erreur lors de la suppression');
+        }
+
+        await loadAnnonces(); // Recharger la liste
+        alert('✅ Annonce supprimée avec succès');
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur lors de la suppression: ' + error.message);
+    }
+}
+
+
+
+
+// ============= MISE À JOUR DU TABLEAU DE BORD =============
+
+// Fonction pour charger toutes les données du tableau de bord
+async function loadDashboardData() {
+    try {
+        // Charger le nombre de médecins actifs
+        await loadActiveDoctorsCount();
+        
+        // Charger le nombre total de patients
+        await loadTotalPatientsCount();
+        
+        // Charger le nombre d'inscriptions en attente
+        await loadPendingCount();
+        
+        // Charger les revenus du mois
+        await loadMonthlyRevenue();
+        
+        // Charger les activités récentes
+        await loadRecentActivities();
+        
+    } catch (error) {
+        console.error('Erreur chargement tableau de bord:', error);
+    }
+}
+
+// Fonction pour charger le nombre de médecins actifs
+async function loadActiveDoctorsCount() {
+    try {
+        const medecins = await apiFetch('/admin/api/tous-medecins');
+        const activeDoctors = medecins.filter(m => m.est_actif === true).length;
+        
+        // Mettre à jour l'affichage dans la carte
+        const activeDoctorsCard = document.querySelector('.dashboard-cards .card:nth-child(1) .card-number');
+        if (activeDoctorsCard) {
+            activeDoctorsCard.textContent = activeDoctors;
+        }
+        
+        // Alternative: chercher par le texte "Médecins Actifs"
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            if (card.textContent.includes('Médecins Actifs')) {
+                const numberElement = card.querySelector('.card-number');
+                if (numberElement) numberElement.textContent = activeDoctors;
+            }
+        });
+        
+    } catch (error) {
+        console.error('Erreur chargement médecins actifs:', error);
+    }
+}
+
+// Fonction pour charger le nombre total de patients
+async function loadTotalPatientsCount() {
+    try {
+        const patients = await apiFetch('/admin/api/patients');
+        const totalPatients = patients.length;
+        
+        // Mettre à jour l'affichage dans la carte
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            if (card.textContent.includes('Patients')) {
+                const numberElement = card.querySelector('.card-number');
+                if (numberElement) numberElement.textContent = totalPatients;
+            }
+        });
+        
+    } catch (error) {
+        console.error('Erreur chargement patients:', error);
+    }
+}
+
+
+// Fonction pour charger les revenus du mois
+async function loadMonthlyRevenue() {
+    try {
+        const dashboard = await apiFetch('/admin/api/statistiques/tableau-bord');
+        const monthlyRevenue = dashboard.revenu_mois || 0;
+        
+        // Formater le montant
+        const formattedRevenue = formatCurrency(monthlyRevenue);
+        
+        // Mettre à jour l'affichage dans la carte
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            if (card.textContent.includes('Revenus (Mois)') || card.textContent.includes('Revenus Mois')) {
+                const numberElement = card.querySelector('.card-number');
+                if (numberElement) numberElement.textContent = formattedRevenue;
+            }
+        });
+        
+    } catch (error) {
+        console.error('Erreur chargement revenus du mois:', error);
+    }
+}
+
+// Fonction pour charger les activités récentes de l'admin
+async function loadRecentActivities() {
+    try {
+        // Récupérer les activités depuis différentes sources
+        const activities = [];
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000); // 1 heure
+        
+        // Récupérer les inscriptions approuvées/récentes
+        const inscriptions = await apiFetch('/admin/api/inscriptions/statistiques');
+        
+        // Récupérer les dernières annonces ajoutées
+        const annonces = await apiFetch('/admin/api/annonces');
+        
+        // Construire la liste des activités
+        if (annonces && annonces.length > 0) {
+            const recentAnnonces = annonces.filter(a => {
+                const dateCreation = new Date(a.dateCreation);
+                return dateCreation > oneHourAgo;
+            });
+            
+            recentAnnonces.forEach(annonce => {
+                activities.push({
+                    type: 'annonce',
+                    description: `Nouvelle annonce: "${annonce.titre}"`,
+                    time: new Date(annonce.dateCreation),
+                    icon: 'fa-bullhorn',
+                    color: '#3498db'
+                });
+            });
+        }
+        
+        // Ajouter quelques activités simulées si nécessaire
+        if (activities.length === 0) {
+            activities.push({
+                type: 'info',
+                description: 'Aucune activité récente',
+                time: new Date(),
+                icon: 'fa-info-circle',
+                color: '#95a5a6'
+            });
+        }
+        
+        // Trier par date (plus récent d'abord)
+        activities.sort((a, b) => b.time - a.time);
+        
+        // Afficher les activités
+        displayRecentActivities(activities);
+        
+    } catch (error) {
+        console.error('Erreur chargement activités récentes:', error);
+        
+        // En cas d'erreur, afficher un message
+        const activityContainer = document.querySelector('.dashboard-grid .widget:first-child');
+        if (activityContainer) {
+            activityContainer.innerHTML = `
+                <h3>Activité Récente</h3>
+                <div class="activity-list">
+                    <div class="activity-item">
+                        <i class="fas fa-exclamation-circle" style="color: #e74c3c;"></i>
+                        <div class="activity-content">
+                            <p>Impossible de charger les activités</p>
+                            <small>${formatDateTime(new Date())}</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+}
+
+// Fonction pour afficher les activités récentes
+function displayRecentActivities(activities) {
+    const activityContainer = document.querySelector('.dashboard-grid .widget:first-child');
+    if (!activityContainer) return;
+    
+    const activityHtml = `
+        <h3>Activité Récente</h3>
+        <div class="activity-list">
+            ${activities.map(activity => `
+                <div class="activity-item">
+                    <i class="fas ${activity.icon}" style="color: ${activity.color};"></i>
+                    <div class="activity-content">
+                        <p>${escapeHtml(activity.description)}</p>
+                        <small>${formatTimeAgo(activity.time)}</small>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    
+    activityContainer.innerHTML = activityHtml;
+}
+
+// Fonction pour formater le temps écoulé
+function formatTimeAgo(date) {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    
+    if (diffMins < 1) return "À l'instant";
+    if (diffMins < 60) return `Il y a ${diffMins} minute${diffMins > 1 ? 's' : ''}`;
+    if (diffHours < 24) return `Il y a ${diffHours} heure${diffHours > 1 ? 's' : ''}`;
+    
+    return formatDate(date);
+}
+
+
+// ============= RECHERCHE GLOBALE =============
+
+let searchTimeout = null;
+let allSearchData = {
+    medecins: [],
+    patients: [],
+    annonces: [],
+    inscriptions: []
+};
+
+// Initialiser la recherche
+function initSearch() {
+    const searchInput = document.querySelector('.search-bar input');
+    if (!searchInput) return;
+    
+    // Créer le conteneur de résultats s'il n'existe pas
+    if (!document.getElementById('searchResults')) {
+        const resultsDiv = document.createElement('div');
+        resultsDiv.id = 'searchResults';
+        resultsDiv.className = 'search-results';
+        searchInput.parentElement.appendChild(resultsDiv);
+    }
+    
+    // Ajouter l'écouteur d'événement
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        
+        // Clear previous timeout
+        if (searchTimeout) clearTimeout(searchTimeout);
+        
+        if (query.length < 2) {
+            hideSearchResults();
+            return;
+        }
+        
+        // Debounce pour éviter trop de requêtes
+        searchTimeout = setTimeout(() => performSearch(query), 300);
+    });
+    
+    // Cacher les résultats quand on clique ailleurs
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-bar')) {
+            hideSearchResults();
+        }
+    });
+}
+
+// Effectuer la recherche
+async function performSearch(query) {
+    try {
+        showSearchLoading();
+        
+        // Charger toutes les données si pas déjà fait
+        await loadSearchData();
+        
+        // Rechercher dans les médecins
+        const medecinResults = allSearchData.medecins.filter(m => 
+            (m.nom_complet && m.nom_complet.toLowerCase().includes(query.toLowerCase())) ||
+            (m.email && m.email.toLowerCase().includes(query.toLowerCase())) ||
+            (m.specialite && m.specialite.toLowerCase().includes(query.toLowerCase()))
+        );
+        
+        // Rechercher dans les patients
+        const patientResults = allSearchData.patients.filter(p => 
+            (p.nom_complet && p.nom_complet.toLowerCase().includes(query.toLowerCase())) ||
+            (p.email && p.email.toLowerCase().includes(query.toLowerCase()))
+        );
+        
+        // Rechercher dans les annonces
+        const annonceResults = allSearchData.annonces.filter(a => 
+            (a.titre && a.titre.toLowerCase().includes(query.toLowerCase())) ||
+            (a.contenu && a.contenu.toLowerCase().includes(query.toLowerCase()))
+        );
+        
+        // Rechercher dans les inscriptions en attente
+        const inscriptionResults = allSearchData.inscriptions.filter(i => 
+            (i.nom_complet && i.nom_complet.toLowerCase().includes(query.toLowerCase())) ||
+            (i.email && i.email.toLowerCase().includes(query.toLowerCase()))
+        );
+        
+        displaySearchResults({
+            medecins: medecinResults.slice(0, 5),
+            patients: patientResults.slice(0, 5),
+            annonces: annonceResults.slice(0, 5),
+            inscriptions: inscriptionResults.slice(0, 5)
+        }, query);
+        
+    } catch (error) {
+        console.error('Erreur recherche:', error);
+    }
+}
+
+// Charger toutes les données pour la recherche
+async function loadSearchData() {
+    try {
+        const [medecins, patients, annonces, inscriptions] = await Promise.all([
+            apiFetch('/admin/api/tous-medecins').catch(() => []),
+            apiFetch('/admin/api/patients').catch(() => []),
+            apiFetch('/admin/api/annonces').catch(() => []),
+            apiFetch('/admin/api/inscriptions-en-attente').catch(() => [])
+        ]);
+        
+        allSearchData = {
+            medecins: medecins || [],
+            patients: patients || [],
+            annonces: annonces || [],
+            inscriptions: inscriptions || []
+        };
+    } catch (error) {
+        console.error('Erreur chargement données recherche:', error);
+    }
+}
+
+// Afficher les résultats de recherche
+function displaySearchResults(results, query) {
+    const resultsDiv = document.getElementById('searchResults');
+    if (!resultsDiv) return;
+    
+    const totalResults = results.medecins.length + results.patients.length + 
+                        results.annonces.length + results.inscriptions.length;
+    
+    if (totalResults === 0) {
+        resultsDiv.innerHTML = `
+            <div class="search-result-section">
+                <p class="no-results">Aucun résultat pour "${escapeHtml(query)}"</p>
+            </div>
+        `;
+        resultsDiv.classList.add('show');
+        return;
+    }
+    
+    let html = '';
+    
+    // Résultats médecins
+    if (results.medecins.length > 0) {
+        html += `
+            <div class="search-result-section">
+                <div class="section-title">
+                    <i class="fas fa-user-md"></i> Médecins (${results.medecins.length})
+                </div>
+                ${results.medecins.map(m => `
+                    <div class="search-result-item" onclick="goToMedecin(${m.id})">
+                        <div class="result-icon"><i class="fas fa-user-md"></i></div>
+                        <div class="result-content">
+                            <div class="result-title">${escapeHtml(m.nom_complet || 'Médecin')}</div>
+                            <div class="result-subtitle">${escapeHtml(m.specialite || 'Spécialité non définie')} • ${escapeHtml(m.email || '')}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    // Résultats patients
+    if (results.patients.length > 0) {
+        html += `
+            <div class="search-result-section">
+                <div class="section-title">
+                    <i class="fas fa-user"></i> Patients (${results.patients.length})
+                </div>
+                ${results.patients.map(p => `
+                    <div class="search-result-item" onclick="goToPatient(${p.id})">
+                        <div class="result-icon"><i class="fas fa-user"></i></div>
+                        <div class="result-content">
+                            <div class="result-title">${escapeHtml(p.nom_complet || 'Patient')}</div>
+                            <div class="result-subtitle">${escapeHtml(p.email || '')}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    // Résultats annonces
+    if (results.annonces.length > 0) {
+        html += `
+            <div class="search-result-section">
+                <div class="section-title">
+                    <i class="fas fa-bullhorn"></i> Annonces (${results.annonces.length})
+                </div>
+                ${results.annonces.map(a => `
+                    <div class="search-result-item" onclick="goToAnnonce(${a.id})">
+                        <div class="result-icon"><i class="fas fa-bullhorn"></i></div>
+                        <div class="result-content">
+                            <div class="result-title">${escapeHtml(a.titre)}</div>
+                            <div class="result-subtitle">${escapeHtml(a.contenu.substring(0, 50))}...</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    // Résultats inscriptions
+    if (results.inscriptions.length > 0) {
+        html += `
+            <div class="search-result-section">
+                <div class="section-title">
+                    <i class="fas fa-clock"></i> Inscriptions en attente (${results.inscriptions.length})
+                </div>
+                ${results.inscriptions.map(i => `
+                    <div class="search-result-item" onclick="goToInscription('${i.profil_type}', ${i.id})">
+                        <div class="result-icon"><i class="fas fa-clock"></i></div>
+                        <div class="result-content">
+                            <div class="result-title">${escapeHtml(i.nom_complet || 'Inscription')}</div>
+                            <div class="result-subtitle">${escapeHtml(i.email || '')}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    resultsDiv.innerHTML = html;
+    resultsDiv.classList.add('show');
+}
+
+// Afficher le chargement
+function showSearchLoading() {
+    const resultsDiv = document.getElementById('searchResults');
+    if (!resultsDiv) return;
+    
+    resultsDiv.innerHTML = `
+        <div class="search-loading">
+            <i class="fas fa-spinner fa-spin"></i> Recherche en cours...
+        </div>
+    `;
+    resultsDiv.classList.add('show');
+}
+
+// Cacher les résultats
+function hideSearchResults() {
+    const resultsDiv = document.getElementById('searchResults');
+    if (resultsDiv) {
+        resultsDiv.classList.remove('show');
+    }
+}
+
+// Fonctions de navigation
+window.goToMedecin = function(medecinId) {
+    showSection('tous-medecins');
+    setTimeout(() => viewMedecinProfessionnel(medecinId), 300);
+    hideSearchResults();
+};
+
+window.goToPatient = function(patientId) {
+    showSection('patients');
+    setTimeout(() => viewPatientProfil(patientId), 300);
+    hideSearchResults();
+};
+
+window.goToAnnonce = function(annonceId) {
+    showSection('annonces');
+    hideSearchResults();
+};
+
+window.goToInscription = function(profilType, id) {
+    showSection('tableau-bord');
+    setTimeout(() => viewInscriptionDetails(profilType, id), 300);
+    hideSearchResults();
+};

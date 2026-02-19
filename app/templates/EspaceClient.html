@@ -60,6 +60,21 @@
 
     <!-- Section principale -->
     <div class="main-wrapper">
+
+        <div class="patient-search-container">
+            <div class="patient-search-input-wrapper">
+                <i class="fas fa-search patient-search-icon"></i>
+                <input type="text" 
+                    id="patientSearchInput" 
+                    class="form-control" 
+                    placeholder="Rechercher dans votre espace... (rendez-vous, documents, médecins...)"
+                    autocomplete="off">
+                <button class="patient-search-clear" onclick="document.getElementById('patientSearchInput').value=''; this.style.display='none';">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="patientSearchResults" class="patient-search-results"></div>
+        </div>
         <!-- Barre latérale GAUCHE -->
         <aside class="left-sidebar">
             <div class="sidebar-header">

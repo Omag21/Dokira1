@@ -29,7 +29,7 @@ BASE_DIR = Path(__file__).resolve().parent
 SECRET_KEY = os.environ["SECRET_KEY"]
 ALGORITHM = os.environ["JWT_ALGO"]
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"])
-UPLOAD_DIR = Path("uploads/photos")
+UPLOAD_DIR = Path("app/static/uploads/photos")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Configuration du router et templates
@@ -1640,6 +1640,247 @@ async def send_message(
         db.rollback()
         print(f"Erreur: {e}")
         raise HTTPException(status_code=500, detail="Erreur lors de l'envoi")
+
+
+
+# ============= API ROUTES - ANNONCES PUBLIQUES =============
+
+@router.get("/api/public/annonces")
+async def get_public_annonces(db: Session = Depends(get_db)):
+    """Récupère les annonces actives et valides pour la page d'accueil"""
+    try:
+        now = datetime.utcnow()
+        
+        annonces = db.query(Annonce).filter(
+            Annonce.est_active == True,
+            or_(
+                Annonce.date_expiration.is_(None),
+                Annonce.date_expiration >= now
+            )
+        ).order_by(
+            Annonce.priorite.desc(),
+            Annonce.date_creation.desc()
+        ).all()
+        
+        print(f"Nombre d'annonces trouvées: {len(annonces)}")
+        
+        result = []
+        for a in annonces:
+            # Corriger l'URL de l'image
+            image_url = a.image_url
+            if image_url and 'uploads' in image_url:
+                # Extraire juste le nom du fichier
+                filename = image_url.split('/')[-1].split('\\')[-1]
+                # Construire l'URL correcte
+                image_url = f"/static/uploads/photos/{filename}"
+            
+            annonce_data = {
+                "id": a.id,
+                "titre": a.titre,
+                "contenu": a.contenu,
+                "description_courte": a.description_courte,
+                "image_url": image_url,  # URL corrigée
+                "lien_cible": a.lien_cible,
+                "lien_texte": a.lien_texte,
+                "categorie": a.categorie,
+                "date_creation": a.date_creation.isoformat() if a.date_creation else None,
+                "date_expiration": a.date_expiration.isoformat() if a.date_expiration else None
+            }
+            result.append(annonce_data)
+        
+        return result
+        
+    except Exception as e:
+        print(f"Erreur dans get_public_annonces: {e}")
+        return []
+
+# ============= API ROUTES - STATISTIQUES REVENUS =============
+
+@router.get("/api/statistiques/revenus-medecins")
+async def get_revenus_medecins(request: Request, db: Session = Depends(get_db)):
+    """Récupère les revenus détaillés par médecin"""
+    current_admin = get_current_admin_from_cookie(request, db)
+    
+    if not current_admin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    try:
+        medecins = db.query(Medecin).filter(Medecin.est_actif == True).all()
+        stats = []
+        
+        for medecin in medecins:
+            rendez_vous_count = db.query(RendezVous).filter(
+                RendezVous.medecin_id == medecin.id
+            ).count()
+            
+            consultations_count = 0
+            try:
+                consultations_count = db.query(Consultation).filter(
+                    Consultation.medecin_id == medecin.id
+                ).count()
+            except:
+                consultations_count = 0
+            
+            prix_consultation = medecin.prix_consultation or 0
+            revenu_consultations = rendez_vous_count * prix_consultation
+            revenu_public = consultations_count * prix_consultation
+            revenu_total = revenu_consultations + revenu_public
+            
+            total_consultations = rendez_vous_count + consultations_count
+            
+            stats.append({
+                "medecin_id": medecin.id,
+                "nom_complet": medecin.nom_complet,
+                "email": medecin.email,
+                "specialite": medecin.specialite.value if getattr(medecin.specialite, "value", None) else str(medecin.specialite or ""),
+                "prix_consultation": prix_consultation,
+                "rendez_vous_count": rendez_vous_count,
+                "consultations_publiques_count": consultations_count,
+                "total_consultations": total_consultations,
+                "revenu_rendez_vous": revenu_consultations,
+                "revenu_consultations_publiques": revenu_public,
+                "revenu_total": revenu_total
+            })
+        
+        stats.sort(key=lambda x: x["revenu_total"], reverse=True)
+        return stats
+    except Exception as e:
+        print(f"Erreur: {e}")
+        raise HTTPException(status_code=500, detail="Erreur serveur")
+
+
+@router.get("/api/statistiques/revenus-categories")
+async def get_revenus_categories(request: Request, db: Session = Depends(get_db)):
+    """Récupère les revenus par catégorie/spécialité"""
+    current_admin = get_current_admin_from_cookie(request, db)
+    
+    if not current_admin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    try:
+        medecins = db.query(Medecin).filter(Medecin.est_actif == True).all()
+        categories = {}
+        
+        for medecin in medecins:
+            specialite = medecin.specialite.value if getattr(medecin.specialite, "value", None) else str(medecin.specialite or "Autre")
+            
+            if specialite not in categories:
+                categories[specialite] = {
+                    "rendez_vous_count": 0,
+                    "consultations_publiques_count": 0,
+                    "revenu_total": 0,
+                    "prix_moyen": 0,
+                    "medecins_count": 0
+                }
+            
+            rendez_vous_count = db.query(RendezVous).filter(
+                RendezVous.medecin_id == medecin.id
+            ).count()
+            
+            consultations_count = 0
+            try:
+                consultations_count = db.query(Consultation).filter(
+                    Consultation.medecin_id == medecin.id
+                ).count()
+            except:
+                consultations_count = 0
+            
+            prix_consultation = medecin.prix_consultation or 0
+            revenu = (rendez_vous_count + consultations_count) * prix_consultation
+            
+            categories[specialite]["rendez_vous_count"] += rendez_vous_count
+            categories[specialite]["consultations_publiques_count"] += consultations_count
+            categories[specialite]["revenu_total"] += revenu
+            categories[specialite]["medecins_count"] += 1
+        
+        result = []
+        for cat, data in categories.items():
+            total_consultations = data["rendez_vous_count"] + data["consultations_publiques_count"]
+            result.append({
+                "categorie": cat,
+                "medecins_count": data["medecins_count"],
+                "rendez_vous_count": data["rendez_vous_count"],
+                "consultations_publiques_count": data["consultations_publiques_count"],
+                "total_consultations": total_consultations,
+                "revenu_total": data["revenu_total"],
+                "revenu_moyen_par_medecin": round(data["revenu_total"] / data["medecins_count"], 2) if data["medecins_count"] > 0 else 0
+            })
+        
+        result.sort(key=lambda x: x["revenu_total"], reverse=True)
+        return result
+    except Exception as e:
+        print(f"Erreur: {e}")
+        raise HTTPException(status_code=500, detail="Erreur serveur")
+
+
+@router.get("/api/statistiques/tableau-bord")
+async def get_dashboard_stats_avances(request: Request, db: Session = Depends(get_db)):
+    """Récupère les statistiques complètes pour le tableau de bord"""
+    current_admin = get_current_admin_from_cookie(request, db)
+    
+    if not current_admin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    try:
+        medecins_actifs = db.query(Medecin).filter(Medecin.est_actif == True).count()
+        medecins_en_attente = db.query(Medecin).filter(Medecin.est_actif == False).count()
+        patients_total = db.query(Patient).count()
+        admins_actifs = db.query(Admin).filter(Admin.est_actif == True).count()
+        
+        total_revenu = 0
+        total_consultations = 0
+        
+        medecins = db.query(Medecin).filter(Medecin.est_actif == True).all()
+        
+        for medecin in medecins:
+            rendez_vous_count = db.query(RendezVous).filter(
+                RendezVous.medecin_id == medecin.id
+            ).count()
+            
+            consultations_count = 0
+            try:
+                consultations_count = db.query(Consultation).filter(
+                    Consultation.medecin_id == medecin.id
+                ).count()
+            except:
+                consultations_count = 0
+            
+            prix_consultation = medecin.prix_consultation or 0
+            revenu_medecin = (rendez_vous_count + consultations_count) * prix_consultation
+            
+            total_revenu += revenu_medecin
+            total_consultations += rendez_vous_count + consultations_count
+        
+        today = datetime.utcnow()
+        first_day = datetime(today.year, today.month, 1)
+        
+        consultations_mois = db.query(RendezVous).filter(
+            RendezVous.date_heure >= first_day
+        ).count()
+        
+        revenu_mois = 0
+        for medecin in medecins:
+            consultations_mois_medecin = db.query(RendezVous).filter(
+                RendezVous.medecin_id == medecin.id,
+                RendezVous.date_heure >= first_day
+            ).count()
+            prix_consultation = medecin.prix_consultation or 0
+            revenu_mois += consultations_mois_medecin * prix_consultation
+        
+        return {
+            "medecins_actifs": medecins_actifs,
+            "medecins_en_attente": medecins_en_attente,
+            "patients_total": patients_total,
+            "admins_actifs": admins_actifs,
+            "total_consultations": total_consultations,
+            "total_revenu": round(total_revenu, 2),
+            "consultations_mois": consultations_mois,
+            "revenu_mois": round(revenu_mois, 2),
+            "revenu_moyen_par_consultation": round(total_revenu / total_consultations, 2) if total_consultations > 0 else 0
+        }
+    except Exception as e:
+        print(f"Erreur: {e}")
+        raise HTTPException(status_code=500, detail="Erreur serveur")
 
 
 # ============= API ROUTES - CHAT IA =============

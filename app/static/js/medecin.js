@@ -333,70 +333,241 @@ function setupPatientSearch() {
 
 async function viewPatientDossier(patientId) {
     try {
-        const response = await fetch(`/medecin/api/dossiers/${patientId}`);
-        const dossier = await response.json();
+        console.log(`📋 Chargement du dossier pour le patient ID: ${patientId}`);
         
-        const patientResponse = await fetch(`/medecin/api/patients`);
-        const patients = await patientResponse.json();
+        // 1. Récupérer la liste des patients (pour les infos de base)
+        const patientsResponse = await fetch('/medecin/api/patients');
+        if (!patientsResponse.ok) {
+            throw new Error(`Erreur HTTP ${patientsResponse.status}`);
+        }
+        const patients = await patientsResponse.json();
+        
+        // Trouver le patient correspondant dans la liste
         const patient = patients.find(p => p.id === patientId);
+        if (!patient) {
+            throw new Error('Patient non trouvé dans la liste');
+        }
+        console.log("✅ Patient trouvé:", patient);
         
+        // 2. Récupérer les informations complètes du patient depuis l'API patient
+        // (car l'API /medecin/api/patients ne retourne pas toutes les infos médicales)
+        let patientComplet = patient;
+        
+        try {
+            // Tenter de récupérer les informations complètes du patient
+            // Note: Cette route peut ne pas exister dans votre API médecin
+            const patientDetailResponse = await fetch(`/api/patient/full-info?patient_id=${patientId}`, {
+                credentials: 'include'
+            });
+            
+            if (patientDetailResponse.ok) {
+                patientComplet = await patientDetailResponse.json();
+                console.log("✅ Infos complètes patient:", patientComplet);
+            }
+        } catch (e) {
+            console.warn("Impossible de récupérer les infos complètes, utilisation des infos de base");
+        }
+        
+        // 3. Récupérer les dossiers médicaux du patient
+        const dossiersResponse = await fetch('/medecin/api/dossiers-medicaux');
+        if (!dossiersResponse.ok) {
+            throw new Error(`Erreur HTTP ${dossiersResponse.status}`);
+        }
+        const dossiersData = await dossiersResponse.json();
+        
+        // Filtrer les dossiers pour ce patient
+        const dossiersPatient = dossiersData.dossiers ? dossiersData.dossiers.filter(d => d.patient.id === patientId) : [];
+        
+        // Trouver le dernier dossier (le plus récent) ou créer un objet vide
+        const dernierDossier = dossiersPatient.length > 0 ? dossiersPatient[0] : {};
+        
+        console.log("✅ Dossiers trouvés:", dossiersPatient.length);
+        
+        // 4. Construire le contenu de la modale avec TOUTES les informations
         const modalBody = document.getElementById('patientModalBody');
+        
+        // Formater les allergies (si présentes)
+        const allergies = patientComplet.allergies || 'Aucune allergie renseignée';
+        
+        // Formater les antécédents médicaux
+        const antecedents = patientComplet.antecedents_medicaux || 'Aucun antécédent renseigné';
+        
+        // Formater le groupe sanguin
+        const groupeSanguin = patientComplet.groupe_sanguin || 'Non renseigné';
+        
+        // Formater le numéro de sécurité sociale
+        const numSecu = patientComplet.numero_securite_sociale || 'Non renseigné';
+        
+        // Formater les traitements en cours
+        const traitements = patientComplet.traitements_en_cours || 'Aucun traitement';
+        
+        // Formater l'adresse complète
+        const adresse = patientComplet.adresse ? 
+            `${patientComplet.adresse}${patientComplet.ville ? ', ' + patientComplet.ville : ''}${patientComplet.code_postal ? ' ' + patientComplet.code_postal : ''}` : 
+            'Non renseignée';
+        
         modalBody.innerHTML = `
             <div class="patient-dossier">
-                <h5>${patient.nom_complet}</h5>
-                <div class="dossier-grid">
-                    <div>
-                        <strong>Email:</strong> ${patient.email}
-                    </div>
-                    <div>
-                        <strong>TÃ©lÃ©phone:</strong> ${patient.telephone}
-                    </div>
-                    <div>
-                        <strong>Age:</strong> ${patient.age} ans
-                    </div>
-                    <div>
-                        <strong>Genre:</strong> ${patient.genre || 'N/A'}
+                <h5>${patient.nom_complet || 'Patient'}</h5>
+                
+                <div class="info-section">
+                    <h6><i class="fas fa-address-card"></i> Informations Personnelles</h6>
+                    <div class="dossier-grid">
+                        <div><strong>Email:</strong> ${patient.email || 'Non renseigné'}</div>
+                        <div><strong>Téléphone:</strong> ${patient.telephone || 'Non renseigné'}</div>
+                        <div><strong>Âge:</strong> ${patient.age || 'N/A'} ans</div>
+                        <div><strong>Genre:</strong> ${patient.genre || 'Non renseigné'}</div>
+                        <div><strong>Adresse:</strong> ${adresse}</div>
                     </div>
                 </div>
                 
-                <h6 style="margin-top: 20px; margin-bottom: 10px;">AntÃ©cÃ©dents MÃ©dicaux</h6>
-                <div class="dossier-info">
-                    ${dossier.antecedents_medicaux || 'Aucun antÃ©cÃ©dent renseignÃ©'}
-                </div>
-                
-                <h6 style="margin-top: 15px; margin-bottom: 10px;">Allergies</h6>
-                <div class="dossier-info">
-                    ${dossier.allergies || 'Aucune allergie renseignÃ©e'}
-                </div>
-                
-                <h6 style="margin-top: 15px; margin-bottom: 10px;">Dossiers de Consultation</h6>
-                ${dossier.consultations && dossier.consultations.length > 0 ? `
-                    <div class="consultations-list">
-                        ${dossier.consultations.map(c => `
-                            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                                <strong>${c.date_consultation}</strong><br>
-                                <small>Diagnostic: ${c.diagnostic}</small>
-                            </div>
-                        `).join('')}
+                <div class="info-section">
+                    <h6><i class="fas fa-heartbeat"></i> Informations Médicales</h6>
+                    <div class="dossier-grid">
+                        <div><strong>Groupe sanguin:</strong> ${groupeSanguin}</div>
+                        <div><strong>N° Sécurité sociale:</strong> ${numSecu}</div>
                     </div>
-                ` : '<p class="text-muted">Aucune consultation</p>'}
+                    
+                    <div class="medical-detail">
+                        <strong>Allergies:</strong>
+                        <p>${allergies}</p>
+                    </div>
+                    
+                    <div class="medical-detail">
+                        <strong>Antécédents médicaux:</strong>
+                        <p>${antecedents}</p>
+                    </div>
+                    
+                    <div class="medical-detail">
+                        <strong>Traitements en cours:</strong>
+                        <p>${traitements}</p>
+                    </div>
+                </div>
                 
-                <div style="margin-top: 20px;">
+                <div class="info-section">
+                    <h6><i class="fas fa-notes-medical"></i> Consultations</h6>
+                    ${dossiersPatient.length > 0 ? `
+                        <div class="consultations-list">
+                            ${dossiersPatient.map((d, index) => `
+                                <div class="consultation-item" style="margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-left: 4px solid #0D8ABC; border-radius: 4px;">
+                                    <strong>Consultation du ${d.date_consultation || 'Date inconnue'}</strong><br>
+                                    <small>Motif: ${d.motif || 'Non renseigné'}</small><br>
+                                    <small>Diagnostic: ${d.diagnostic || 'Non renseigné'}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<p class="text-muted">Aucune consultation enregistrée</p>'}
+                </div>
+                
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
                     <button class="btn btn-primary" onclick="newOrdonnance(${patientId}, '${patient.nom_complet}')">
                         <i class="fas fa-prescription-bottle"></i> Nouvelle Ordonnance
+                    </button>
+                    <button class="btn btn-secondary" onclick="sendMessageToPatient(${patientId})">
+                        <i class="fas fa-envelope"></i> Message
                     </button>
                 </div>
             </div>
         `;
         
+        // Ajouter le CSS spécifique si ce n'est pas déjà fait
+        if (!document.getElementById('dossier-patient-css')) {
+            const style = document.createElement('style');
+            style.id = 'dossier-patient-css';
+            style.textContent = `
+                .patient-dossier {
+                    padding: 5px;
+                }
+                
+                .info-section {
+                    background: white;
+                    border-radius: 8px;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                }
+                
+                .info-section h6 {
+                    color: #0D8ABC;
+                    margin-bottom: 15px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    border-bottom: 1px solid #e5e7eb;
+                    padding-bottom: 8px;
+                }
+                
+                .info-section h6 i {
+                    margin-right: 8px;
+                }
+                
+                .dossier-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 12px;
+                    margin-bottom: 15px;
+                }
+                
+                .dossier-grid div {
+                    line-height: 1.5;
+                    color: #374151;
+                }
+                
+                .dossier-grid strong {
+                    color: #4b5563;
+                    font-weight: 600;
+                    margin-right: 5px;
+                }
+                
+                .medical-detail {
+                    margin-top: 12px;
+                    padding: 10px;
+                    background: #f8fafc;
+                    border-radius: 6px;
+                }
+                
+                .medical-detail strong {
+                    color: #4b5563;
+                    display: block;
+                    margin-bottom: 5px;
+                }
+                
+                .medical-detail p {
+                    margin: 0;
+                    color: #1f2937;
+                    white-space: pre-wrap;
+                }
+                
+                .consultations-list {
+                    max-height: 250px;
+                    overflow-y: auto;
+                    padding-right: 5px;
+                }
+                
+                .consultation-item {
+                    transition: all 0.2s ease;
+                }
+                
+                .consultation-item:hover {
+                    transform: translateX(5px);
+                    box-shadow: 0 2px 8px rgba(13,138,188,0.1);
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        // Stocker le patient sélectionné pour un usage ultérieur
+        patientSelectionne = patient;
+        
+        // Afficher la modale
         const modal = new bootstrap.Modal(document.getElementById('patientModal'));
         modal.show();
         
-        patientSelectionne = patient;
     } catch (error) {
-        console.error('Erreur chargement dossier:', error);
+        console.error('❌ Erreur chargement dossier:', error);
+        alert('Erreur lors du chargement des informations du patient: ' + error.message);
     }
 }
+
 
 // ============= ORDONNANCES =============
 
@@ -856,7 +1027,46 @@ function setupParametresListeners() {
 // ============= HELPER FUNCTIONS =============
 
 function sendMessageToPatient(patientId) {
-    alert('FonctionnalitÃ© messagerie en dÃ©veloppement pour patient ' + patientId);
+    if (!patientId) {
+        alert('Impossible d\'identifier le patient');
+        return;
+    }
+    
+    // Fermer la modale
+    const modal = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
+    if (modal) modal.hide();
+    
+    // Aller à la section messagerie
+    const messagerieLink = document.querySelector('[data-section="messagerie"]');
+    if (messagerieLink) {
+        messagerieLink.click();
+        
+        // Attendre que la messagerie soit chargée puis ouvrir la conversation
+        setTimeout(() => {
+            // Chercher la conversation avec ce patient
+            const convItem = document.querySelector(`[data-patient-id="${patientId}"]`);
+            if (convItem) {
+                convItem.click();
+            } else {
+                // Si pas de conversation, ouvrir le formulaire de nouveau message
+                if (typeof openNewMessageModal === 'function') {
+                    // Stocker l'ID pour pré-sélectionner
+                    sessionStorage.setItem('preselectPatientId', patientId);
+                    openNewMessageModal();
+                    
+                    // Après ouverture de la modale, sélectionner le patient
+                    setTimeout(() => {
+                        const select = document.getElementById('newMessagePatient');
+                        if (select) {
+                            select.value = patientId;
+                            // Déclencher l'événement change
+                            select.dispatchEvent(new Event('change'));
+                        }
+                    }, 500);
+                }
+            }
+        }, 1000);
+    }
 }
 
 // ============= EVENT LISTENERS =============
@@ -914,52 +1124,594 @@ async function submitOrdonnance() {
 
 
 // ============= CHARGEMENT RDV =============
+// ============= CHARGEMENT RDV + CONSULTATIONS =============
 async function loadRDV() {
     const tbody = document.getElementById("rdvBody");
 
     try {
-        const response = await fetch("/medecin/api/rendez-vous", {
+        console.log("📅 Chargement des rendez-vous et consultations...");
+        
+        // Récupérer les rendez-vous
+        const rdvResponse = await fetch("/medecin/api/rendez-vous", {
             credentials: "include"
         });
 
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.detail || "Erreur chargement RDV");
+        if (!rdvResponse.ok) {
+            throw new Error(`Erreur HTTP ${rdvResponse.status}`);
+        }
+        const rdvs = await rdvResponse.json();
+        console.log("✅ Rendez-vous reçus:", rdvs.length);
+
+        // Récupérer les consultations
+        const consultationResponse = await fetch("/medecin/api/consultations", {
+            credentials: "include"
+        });
+
+        let consultations = [];
+        if (consultationResponse.ok) {
+            consultations = await consultationResponse.json();
+            console.log("✅ Consultations reçues:", consultations.length);
+        } else {
+            console.warn("⚠️ Impossible de charger les consultations");
         }
 
-        const rdvs = await response.json();
+        // Fusionner les deux listes
+        const tousRendezVous = [...rdvs, ...consultations];
 
-        if (rdvs.length === 0) {
+        if (tousRendezVous.length === 0) {
             tbody.innerHTML = `<tr>
-                <td colspan="5" class="text-center text-muted">Aucun rendez-vous</td>
+                <td colspan="5" class="text-center text-muted">Aucun rendez-vous ou consultation</td>
             </tr>`;
             return;
         }
 
-        tbody.innerHTML = rdvs.map(rdv => `
-            <tr>
-                <td>${rdv.patient.nom_complet}</td>
-                <td>${new Date(rdv.date_heure).toLocaleString()}</td>
-                <td>${rdv.type}</td>
-                <td>${rdv.statut}</td>
-                <td>
-                    <button class="btn-action view" title="Voir">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                </td>
-            </tr>
-        `).join("");
+        // Trier par date (du plus récent au plus ancien)
+        tousRendezVous.sort((a, b) => new Date(b.date_heure) - new Date(a.date_heure));
+
+        tbody.innerHTML = tousRendezVous.map(item => {
+            // Déterminer le type et le statut
+            let type = item.type || "Consultation";
+            let statut = item.statut || "Demandée";
+            
+            // Formater la date
+            const date = new Date(item.date_heure);
+            const dateFormatee = date.toLocaleDateString('fr-FR') + ' ' + 
+                                 date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+            // Déterminer la couleur du badge selon le statut
+            let badgeClass = 'badge-secondary';
+            if (statut.toLowerCase().includes('confirmé') || statut.toLowerCase().includes('confirme')) {
+                badgeClass = 'badge-success';
+            } else if (statut.toLowerCase().includes('planifié') || statut.toLowerCase().includes('planifie')) {
+                badgeClass = 'badge-primary';
+            } else if (statut.toLowerCase().includes('terminé') || statut.toLowerCase().includes('termine')) {
+                badgeClass = 'badge-info';
+            } else if (statut.toLowerCase().includes('annulé') || statut.toLowerCase().includes('annule')) {
+                badgeClass = 'badge-danger';
+            } else if (statut.toLowerCase().includes('demandé') || statut.toLowerCase().includes('demande')) {
+                badgeClass = 'badge-warning';
+            }
+
+            return `
+                <tr>
+                    <td>
+                        <div class="patient-info">
+                            <div class="patient-avatar">
+                                ${item.patient.nom_complet ? item.patient.nom_complet.charAt(0).toUpperCase() : 'P'}
+                            </div>
+                            <div class="patient-details">
+                                <div class="patient-name">${item.patient.nom_complet || 'Patient'}</div>
+                                <div class="patient-meta">${item.patient.email || ''}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${dateFormatee}</td>
+                    <td>
+                        <span class="badge badge-type ${type.toLowerCase()}">${type}</span>
+                    </td>
+                    <td>
+                        <span class="badge ${badgeClass}">${statut}</span>
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn-action view" onclick="viewRdvDetail(${item.id}, '${item.source || 'rdv'}')" title="Voir détails">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-action message" onclick="sendMessageToPatient(${item.patient.id})" title="Message">
+                                <i class="fas fa-envelope"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join("");
 
     } catch (error) {
-        console.error("Erreur RDV:", error);
+        console.error("❌ Erreur RDV:", error);
         tbody.innerHTML = `<tr>
             <td colspan="5" class="text-center text-danger">
-                Erreur de chargement des rendez-vous
+                Erreur de chargement: ${error.message}
             </td>
         </tr>`;
     }
 }
 
+/// Fonction pour voir les détails d'un rendez-vous/consultation
+function viewRdvDetail(id, source) {
+    if (source === 'consultation') {
+        // Récupérer les détails de la consultation
+        fetch(`/medecin/api/consultations/${id}`, {
+            credentials: 'include'
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Erreur chargement');
+            return response.json();
+        })
+        .then(data => {
+            // Formater la date
+            const date = new Date(data.date_heure);
+            const dateFormatee = date.toLocaleDateString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+            const heureFormatee = date.toLocaleTimeString('fr-FR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            // Créer la modale dynamique
+            showConsultationModal(data, dateFormatee, heureFormatee);
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            alert('Impossible de charger les détails de la consultation');
+        });
+    } else {
+        // Pour les rendez-vous
+        fetch(`/medecin/api/rendez-vous/${id}`, {
+            credentials: 'include'
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Erreur chargement');
+            return response.json();
+        })
+        .then(data => {
+            // Formater la date
+            const date = new Date(data.date_heure);
+            const dateFormatee = date.toLocaleDateString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+            const heureFormatee = date.toLocaleTimeString('fr-FR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            // Créer la modale pour rendez-vous
+            showRendezVousModal(data, dateFormatee, heureFormatee);
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            alert('Impossible de charger les détails du rendez-vous');
+        });
+    }
+}
+
+// Fonction pour afficher la modale de consultation
+function showConsultationModal(data, dateFormatee, heureFormatee) {
+    // Déterminer la couleur du badge selon le statut
+    let badgeClass = 'badge-secondary';
+    let badgeText = data.statut || 'Demandée';
+    
+    if (badgeText.toLowerCase().includes('confirmé') || badgeText.toLowerCase().includes('confirme')) {
+        badgeClass = 'badge-success';
+    } else if (badgeText.toLowerCase().includes('planifié') || badgeText.toLowerCase().includes('planifie')) {
+        badgeClass = 'badge-primary';
+    } else if (badgeText.toLowerCase().includes('terminé') || badgeText.toLowerCase().includes('termine')) {
+        badgeClass = 'badge-info';
+    } else if (badgeText.toLowerCase().includes('annulé') || badgeText.toLowerCase().includes('annule')) {
+        badgeClass = 'badge-danger';
+    } else if (badgeText.toLowerCase().includes('demandé') || badgeText.toLowerCase().includes('demande')) {
+        badgeClass = 'badge-warning';
+    }
+    
+    const modalHTML = `
+        <div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius: 16px; overflow: hidden;">
+                    <!-- En-tête avec dégradé -->
+                    <div class="modal-header" style="background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%); color: white; border-bottom: none; padding: 20px 24px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-calendar-check" style="font-size: 24px;"></i>
+                            </div>
+                            <div>
+                                <h5 class="modal-title" style="font-weight: 700; font-size: 1.25rem; margin: 0;">Détails de la consultation</h5>
+                                <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 0.85rem;">ID: #${data.id}</p>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+                    
+                    <div class="modal-body" style="padding: 24px;">
+                        <!-- Badge statut -->
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+                            <span class="badge ${badgeClass}" style="padding: 8px 16px; font-size: 0.9rem; border-radius: 30px;">
+                                ${badgeText}
+                            </span>
+                        </div>
+                        
+                        <!-- Informations patient -->
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                            <h6 style="color: #0d8abc; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-user-circle"></i> Informations patient
+                            </h6>
+                            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
+                                <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #0d8abc, #00bcd4); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 20px;">
+                                    ${data.patient.nom_complet ? data.patient.nom_complet.charAt(0).toUpperCase() : 'P'}
+                                </div>
+                                <div>
+                                    <div style="font-weight: 700; font-size: 1.1rem;">${data.patient.nom_complet || 'Patient'}</div>
+                                    ${data.patient.id ? `<div style="font-size: 0.85rem; color: #6b7280;">ID: #${data.patient.id}</div>` : ''}
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #6b7280;">Email</div>
+                                    <div style="font-weight: 500;">${data.patient.email || 'Non renseigné'}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #6b7280;">Téléphone</div>
+                                    <div style="font-weight: 500;">${data.patient.telephone || 'Non renseigné'}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Informations consultation -->
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                            <h6 style="color: #0d8abc; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-stethoscope"></i> Détails de la consultation
+                            </h6>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #6b7280;">Date</div>
+                                    <div style="font-weight: 500;">${dateFormatee}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #6b7280;">Heure</div>
+                                    <div style="font-weight: 500;">${heureFormatee}</div>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top: 16px;">
+                                <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 4px;">Motif</div>
+                                <div style="background: white; border-radius: 8px; padding: 12px; border: 1px solid #e5e7eb;">
+                                    ${data.motif || 'Non spécifié'}
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top: 12px;">
+                                <div style="font-size: 0.8rem; color: #6b7280;">Médecin</div>
+                                <div style="font-weight: 500;">${data.medecin_nom || currentMedecin.nom_complet || 'Dr. Médecin'}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer" style="border-top: 1px solid #e5e7eb; padding: 16px 24px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 30px; padding: 8px 24px;">Fermer</button>
+                        <button type="button" class="btn btn-primary" onclick="sendMessageToPatient(${data.patient.id})" style="border-radius: 30px; padding: 8px 24px; background: #0d8abc; border: none;">
+                            <i class="fas fa-envelope"></i> Contacter le patient
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Ajouter les styles pour les badges s'ils n'existent pas
+    if (!document.getElementById('badge-styles')) {
+        const style = document.createElement('style');
+        style.id = 'badge-styles';
+        style.textContent = `
+            .badge-success { background-color: #d1fae5; color: #065f46; }
+            .badge-primary { background-color: #dbeafe; color: #1e40af; }
+            .badge-info { background-color: #cffafe; color: #0891b2; }
+            .badge-danger { background-color: #fee2e2; color: #991b1b; }
+            .badge-warning { background-color: #fed7aa; color: #92400e; }
+            .badge-secondary { background-color: #f3f4f6; color: #374151; }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // Supprimer l'ancienne modale si elle existe
+    const oldModal = document.getElementById('detailModal');
+    if (oldModal) oldModal.remove();
+    
+    // Ajouter la nouvelle modale au body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Afficher la modale
+    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+    modal.show();
+    
+    // Nettoyer après fermeture
+    document.getElementById('detailModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
+
+// Fonction pour afficher la modale de rendez-vous
+function showRendezVousModal(data, dateFormatee, heureFormatee) {
+    // Déterminer la couleur du badge selon le statut
+    let badgeClass = 'badge-secondary';
+    let badgeText = data.statut || 'Planifié';
+    
+    if (badgeText.toLowerCase().includes('confirmé') || badgeText.toLowerCase().includes('confirme')) {
+        badgeClass = 'badge-success';
+    } else if (badgeText.toLowerCase().includes('planifié') || badgeText.toLowerCase().includes('planifie')) {
+        badgeClass = 'badge-primary';
+    } else if (badgeText.toLowerCase().includes('terminé') || badgeText.toLowerCase().includes('termine')) {
+        badgeClass = 'badge-info';
+    } else if (badgeText.toLowerCase().includes('annulé') || badgeText.toLowerCase().includes('annule')) {
+        badgeClass = 'badge-danger';
+    }
+    
+    // Icône selon le type
+    let typeIcon = 'fa-calendar';
+    if (data.type?.toLowerCase().includes('cabinet')) typeIcon = 'fa-hospital';
+    else if (data.type?.toLowerCase().includes('vidéo')) typeIcon = 'fa-video';
+    else if (data.type?.toLowerCase().includes('domicile')) typeIcon = 'fa-home';
+    
+    const modalHTML = `
+        <div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius: 16px; overflow: hidden;">
+                    <!-- En-tête avec dégradé -->
+                    <div class="modal-header" style="background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%); color: white; border-bottom: none; padding: 20px 24px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas ${typeIcon}" style="font-size: 24px;"></i>
+                            </div>
+                            <div>
+                                <h5 class="modal-title" style="font-weight: 700; font-size: 1.25rem; margin: 0;">Détails du rendez-vous</h5>
+                                <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 0.85rem;">ID: #${data.id}</p>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+                    
+                    <div class="modal-body" style="padding: 24px;">
+                        <!-- Badge statut et type -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <span class="badge" style="background: #e0f2fe; color: #0369a1; padding: 6px 12px; border-radius: 30px;">
+                                <i class="fas ${typeIcon}"></i> ${data.type || 'Cabinet'}
+                            </span>
+                            <span class="badge ${badgeClass}" style="padding: 8px 16px; font-size: 0.9rem; border-radius: 30px;">
+                                ${badgeText}
+                            </span>
+                        </div>
+                        
+                        <!-- Informations patient -->
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                            <h6 style="color: #0d8abc; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-user-circle"></i> Patient
+                            </h6>
+                            <div style="display: flex; align-items: center; gap: 16px;">
+                                <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #0d8abc, #00bcd4); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 20px;">
+                                    ${data.patient.nom_complet ? data.patient.nom_complet.charAt(0).toUpperCase() : 'P'}
+                                </div>
+                                <div>
+                                    <div style="font-weight: 700; font-size: 1.1rem;">${data.patient.nom_complet || 'Patient'}</div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">${data.patient.telephone || 'Téléphone non renseigné'}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Informations rendez-vous -->
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px;">
+                            <h6 style="color: #0d8abc; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-clock"></i> Date et heure
+                            </h6>
+                            
+                            <div style="display: flex; align-items: center; justify-content: space-between; background: white; border-radius: 8px; padding: 12px; border: 1px solid #e5e7eb; margin-bottom: 12px;">
+                                <div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">Date</div>
+                                    <div style="font-weight: 600;">${dateFormatee}</div>
+                                </div>
+                                <div style="width: 1px; height: 30px; background: #e5e7eb;"></div>
+                                <div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">Heure</div>
+                                    <div style="font-weight: 600;">${heureFormatee}</div>
+                                </div>
+                            </div>
+                            
+                            ${data.motif ? `
+                                <div style="margin-top: 12px;">
+                                    <div style="font-size: 0.85rem; color: #6b7280; margin-bottom: 4px;">Motif</div>
+                                    <div style="background: white; border-radius: 8px; padding: 12px; border: 1px solid #e5e7eb;">
+                                        ${data.motif}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            ${data.lieu ? `
+                                <div style="margin-top: 12px;">
+                                    <div style="font-size: 0.85rem; color: #6b7280; margin-bottom: 4px;">Lieu</div>
+                                    <div style="background: white; border-radius: 8px; padding: 12px; border: 1px solid #e5e7eb;">
+                                        <i class="fas fa-map-marker-alt" style="color: #ef4444; margin-right: 8px;"></i>
+                                        ${data.lieu}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer" style="border-top: 1px solid #e5e7eb; padding: 16px 24px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 30px; padding: 8px 24px;">Fermer</button>
+                        <button type="button" class="btn btn-primary" onclick="sendMessageToPatient(${data.patient.id})" style="border-radius: 30px; padding: 8px 24px; background: #0d8abc; border: none;">
+                            <i class="fas fa-envelope"></i> Contacter
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Supprimer l'ancienne modale si elle existe
+    const oldModal = document.getElementById('detailModal');
+    if (oldModal) oldModal.remove();
+    
+    // Ajouter la nouvelle modale au body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Afficher la modale
+    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+    modal.show();
+    
+    // Nettoyer après fermeture
+    document.getElementById('detailModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
+
+
+// Ajoutez ce CSS dans votre fichier de styles ou injectez-le
+const rdvStyles = `
+    <style>
+        .badge-type {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .badge-type.cabinet {
+            background-color: #e3f2fd;
+            color: #0d47a1;
+        }
+        
+        .badge-type.vidéo, .badge-type.video {
+            background-color: #f3e5f5;
+            color: #4a148c;
+        }
+        
+        .badge-type.domicile {
+            background-color: #e8f5e8;
+            color: #1b5e20;
+        }
+        
+        .badge-type.consultation {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+        
+        .badge-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .badge-primary {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+        
+        .badge-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .badge-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .badge-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .badge-secondary {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+        
+        .patient-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .patient-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0d8abc, #00bcd4);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+        }
+        
+        .patient-details {
+            line-height: 1.4;
+        }
+        
+        .patient-name {
+            font-weight: 600;
+            color: #1a2b3c;
+        }
+        
+        .patient-meta {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-action {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+        }
+        
+        .btn-action.view {
+            background-color: #0d8abc;
+        }
+        
+        .btn-action.message {
+            background-color: #10b981;
+        }
+        
+        .btn-action:hover {
+            transform: scale(1.1);
+            opacity: 0.9;
+        }
+    </style>
+`;
+
+// Injecter les styles
+if (!document.getElementById('rdv-styles')) {
+    const styleElement = document.createElement('style');
+    styleElement.id = 'rdv-styles';
+    styleElement.textContent = rdvStyles.replace(/<\/?style>/g, '');
+    document.head.appendChild(styleElement);
+}
 
 // ============= LOGOUT =============
 

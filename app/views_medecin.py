@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 
 # Imports locaux
 from app.database import get_db, engine
-from app.models import Medecin, Patient, RendezVous, DossierMedical, Message , StatutMessage, Document, Ordonnance, Specialite, StatutInscription
+from app.models import Medecin, Patient, RendezVous, DossierMedical, Message , StatutMessage, Document, Ordonnance, Specialite, StatutInscription, Consultation
 from app.inscription_schema import ensure_inscription_schema
 
 # Charger les variables d'environnement
@@ -643,6 +643,175 @@ async def get_rendez_vous(
         })
 
     return results
+
+
+# ============= API - RENDEZ-VOUS DÉTAILLÉS =============
+
+@router.get("/api/rendez-vous/{rdv_id}")
+async def get_rendez_vous_detail(
+    rdv_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Récupère les détails d'un rendez-vous spécifique"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    rdv = db.query(RendezVous).filter(
+        RendezVous.id == rdv_id,
+        RendezVous.medecin_id == current_medecin.id
+    ).first()
+    
+    if not rdv:
+        raise HTTPException(status_code=404, detail="Rendez-vous non trouvé")
+    
+    # Récupérer les informations du patient
+    patient = rdv.patient
+    
+    # Gestion sécurisée du type_consultation
+    if hasattr(rdv.type_consultation, 'value'):
+        type_safe = rdv.type_consultation.value
+    else:
+        type_safe = rdv.type_consultation or "Cabinet"
+    
+    # Gestion sécurisée du statut
+    if hasattr(rdv.statut, 'value'):
+        statut_safe = rdv.statut.value
+    else:
+        statut_safe = rdv.statut or "Planifié"
+    
+    return {
+        "id": rdv.id,
+        "patient": {
+            "id": patient.id if patient else None,
+            "nom_complet": patient.nom_complet if patient else "Patient supprimé",
+            "email": patient.email if patient else "",
+            "telephone": patient.telephone if patient else ""
+        },
+        "date_heure": rdv.date_heure.isoformat(),
+        "motif": rdv.motif or "",
+        "type": type_safe,
+        "statut": statut_safe,
+        "lieu": rdv.lieu or "",
+        "source": "rdv"
+    }
+
+# ============= API - CONSULTATIONS =============
+
+@router.get("/api/consultations")
+async def get_consultations_medecin(
+    request: Request,
+    filtre: str = "tous",
+    db: Session = Depends(get_db)
+):
+    """Récupère toutes les consultations du médecin depuis la table consultations"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    # Récupérer toutes les consultations du médecin
+    query = db.query(Consultation).filter(
+        Consultation.medecin_id == current_medecin.id
+    )
+    
+    # Filtres temporels
+    today = datetime.now().date()
+    
+    if filtre == "aujourd_hui":
+        query = query.filter(
+            Consultation.date_heure >= datetime.combine(today, datetime.min.time()),
+            Consultation.date_heure < datetime.combine(today, datetime.max.time())
+        )
+    elif filtre == "semaine":
+        start_week = today - timedelta(days=today.weekday())
+        query = query.filter(
+            Consultation.date_heure >= datetime.combine(start_week, datetime.min.time())
+        )
+    elif filtre == "mois":
+        query = query.filter(
+            Consultation.date_heure >= datetime(today.year, today.month, 1)
+        )
+    
+    consultations = query.order_by(Consultation.date_heure.desc()).all()
+    
+    results = []
+    for cons in consultations:
+        # Chercher le patient correspondant dans la table patients par email
+        patient = db.query(Patient).filter(
+            func.lower(Patient.email) == cons.visiteur_email.lower()
+        ).first()
+        
+        # Si le patient est trouvé, utiliser son nom complet, sinon utiliser le nom du visiteur
+        if patient:
+            patient_nom = patient.nom_complet
+            patient_id = patient.id
+        else:
+            patient_nom = f"{cons.visiteur_prenom} {cons.visiteur_nom}".strip()
+            patient_id = None
+        
+        results.append({
+            "id": cons.id,
+            "patient": {
+                "id": patient_id,
+                "nom_complet": patient_nom,
+                "email": cons.visiteur_email,
+                "telephone": cons.visiteur_telephone
+            },
+            "date_heure": cons.date_heure.isoformat(),
+            "motif": cons.motif_consultation,
+            "type": "Consultation",  # Type par défaut
+            "statut": cons.statut or "Demandée",
+            "source": "consultation"  # Pour distinguer des rendez-vous
+        })
+    
+    return results
+
+
+# ============= API - CONSULTATIONS DÉTAILLÉES =============
+
+@router.get("/api/consultations/{consultation_id}")
+async def get_consultation_detail(
+    consultation_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Récupère les détails d'une consultation spécifique"""
+    current_medecin = get_current_medecin_from_cookie(request, db)
+    
+    if not current_medecin:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+    
+    consultation = db.query(Consultation).filter(
+        Consultation.id == consultation_id,
+        Consultation.medecin_id == current_medecin.id
+    ).first()
+    
+    if not consultation:
+        raise HTTPException(status_code=404, detail="Consultation non trouvée")
+    
+    # Chercher le patient correspondant
+    patient = db.query(Patient).filter(
+        func.lower(Patient.email) == consultation.visiteur_email.lower()
+    ).first()
+    
+    return {
+        "id": consultation.id,
+        "patient": {
+            "id": patient.id if patient else None,
+            "nom_complet": patient.nom_complet if patient else f"{consultation.visiteur_prenom} {consultation.visiteur_nom}",
+            "email": consultation.visiteur_email,
+            "telephone": consultation.visiteur_telephone
+        },
+        "date_heure": consultation.date_heure.isoformat(),
+        "motif": consultation.motif_consultation,
+        "statut": consultation.statut,
+        "date_creation": consultation.date_creation.isoformat(),
+        "medecin_nom": consultation.medecin_nom,
+        "source": "consultation"
+    }
 
 
 @router.get("/api/historique")
