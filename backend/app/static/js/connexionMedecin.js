@@ -1,48 +1,62 @@
 // ==================== INITIALISATION DU DOM ====================
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('✅ Page de connexion médecin chargée');
-    
-    // Initialiser les composants
+document.addEventListener('DOMContentLoaded', function () {
     initializePasswordToggle();
     initializeFormValidation();
     initializeErrorHandling();
     initializeFormSubmit();
 
-
-    // ========== GESTION DES RÔLES ==========
     const roleOptions = document.querySelectorAll('.role-option');
     const roleInput = document.getElementById('roleInput');
     const loginForm = document.getElementById('loginForm');
     const createAccountLink = document.querySelector('.toggle-form a');
+    const formTitle = document.querySelector('.form-title');
 
-    // Fonction pour mettre à jour le formulaire dynamiquement
-  function updateFormAction(role) {
-
-    if (role === 'medecin') {
-        loginForm.action = "/medecin/connexion";
-        createAccountLink.style.display = "block";
-        createAccountLink.href = "/medecin/inscriptionMedecin";
-    } else {
-        loginForm.action = "medecin/connexion";
-        createAccountLink.style.display = "block";
-        createAccountLink.href = "admin/inscription";
+    function updateFormAction(role) {
+        if (role === 'admin') {
+            loginForm.action = '/admin/connexion';
+            createAccountLink.style.display = 'block';
+            createAccountLink.href = '/admin/inscriptionAdmin';
+            if (formTitle) formTitle.textContent = 'Connexion Administrateur';
+        } else {
+            loginForm.action = '/medecin/connexion';
+            createAccountLink.style.display = 'block';
+            createAccountLink.href = '/medecin/inscriptionMedecin';
+            if (formTitle) formTitle.textContent = 'Connexion Medecin';
+        }
     }
 
-    console.log("🔄 Formulaire mis à jour pour :", role);
-}
+    function selectRole(role) {
+        roleOptions.forEach(opt => {
+            const isActive = opt.getAttribute('data-role') === role;
+            opt.classList.toggle('active', isActive);
+        });
 
+        if (roleInput) {
+            roleInput.value = role;
+        }
+
+        updateFormAction(role);
+    }
 
     roleOptions.forEach(option => {
-        option.addEventListener('click', function() {
-            roleOptions.forEach(opt => opt.classList.remove('active'));
-            this.classList.add('active');
-
+        option.addEventListener('click', function () {
             const role = this.getAttribute('data-role');
-            roleInput.value = role;
+            selectRole(role);
+        });
 
-            updateFormAction(role);
+        option.addEventListener('mouseenter', function () {
+            const role = this.getAttribute('data-role');
+            selectRole(role);
         });
     });
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const requestedRole = urlParams.get('role');
+    if (requestedRole === 'admin') {
+        selectRole('admin');
+    } else {
+        selectRole('medecin');
+    }
 });
 
 // ==================== GESTION MOT DE PASSE ====================
@@ -51,13 +65,12 @@ function initializePasswordToggle() {
     const passwordInput = document.getElementById('password');
 
     if (!togglePassword || !passwordInput) {
-        console.warn('⚠️ Éléments mot de passe introuvables');
         return;
     }
 
-    togglePassword.addEventListener('click', function(e) {
+    togglePassword.addEventListener('click', function (e) {
         e.preventDefault();
-        
+
         const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
         passwordInput.setAttribute('type', type);
 
@@ -67,36 +80,29 @@ function initializePasswordToggle() {
             icon.classList.toggle('fa-eye-slash');
         }
     });
-
-    console.log('✅ Toggle mot de passe initialisé');
 }
 
 // ==================== GESTION DES ERREURS ====================
 function initializeErrorHandling() {
-    // Vérifier si une erreur est passée en paramètre URL
     const urlParams = new URLSearchParams(window.location.search);
     const error = urlParams.get('error');
-    
+
     if (error) {
         showError(decodeURIComponent(error));
     }
-
-    console.log('✅ Gestion des erreurs initialisée');
 }
 
 function showError(message) {
     const errorAlert = document.getElementById('errorAlert');
     const errorMessage = document.getElementById('errorMessage');
-    
+
     if (!errorAlert || !errorMessage) {
-        console.warn('⚠️ Éléments d\'alerte introuvables');
         return;
     }
 
     errorMessage.textContent = message;
     errorAlert.style.display = 'block';
 
-    // Masquer l'erreur après 5 secondes
     setTimeout(() => {
         errorAlert.style.display = 'none';
     }, 5000);
@@ -105,25 +111,20 @@ function showError(message) {
 // ==================== VALIDATION DU FORMULAIRE ====================
 function initializeFormValidation() {
     const inputs = document.querySelectorAll('.form-control');
-    
+
     inputs.forEach(input => {
-        // Animation au focus
-        input.addEventListener('focus', function() {
+        input.addEventListener('focus', function () {
             this.style.borderColor = 'var(--primary)';
         });
 
-        // Validation au blur
-        input.addEventListener('blur', function() {
+        input.addEventListener('blur', function () {
             validateInput(this);
         });
 
-        // Validation en temps réel
-        input.addEventListener('input', function() {
+        input.addEventListener('input', function () {
             clearInputError(this);
         });
     });
-
-    console.log('✅ Validation du formulaire initialisée');
 }
 
 function validateInput(input) {
@@ -131,20 +132,20 @@ function validateInput(input) {
     const type = input.getAttribute('type');
 
     if (!value) {
-        showInputError(input, 'Ce champ est requis');
+        showInputError(input);
         return false;
     }
 
     if (type === 'email') {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(value)) {
-            showInputError(input, 'Email invalide');
+            showInputError(input);
             return false;
         }
     }
 
     if (type === 'password' && value.length < 6) {
-        showInputError(input, 'Le mot de passe doit contenir au moins 6 caractères');
+        showInputError(input);
         return false;
     }
 
@@ -152,7 +153,7 @@ function validateInput(input) {
     return true;
 }
 
-function showInputError(input, message) {
+function showInputError(input) {
     input.style.borderColor = '#ef4444';
     input.style.backgroundColor = '#ffe6e6';
 }
@@ -167,15 +168,13 @@ function initializeFormSubmit() {
     const loginForm = document.getElementById('loginForm');
 
     if (!loginForm) {
-        console.warn('⚠️ Formulaire introuvable');
         return;
     }
 
-    loginForm.addEventListener('submit', function(e) {
+    loginForm.addEventListener('submit', function (e) {
         const email = document.getElementById('email');
         const password = document.getElementById('password');
 
-        // Valider les champs
         const emailValid = validateInput(email);
         const passwordValid = validateInput(password);
 
@@ -185,7 +184,6 @@ function initializeFormSubmit() {
             return false;
         }
 
-        // Afficher le loader sur le bouton
         const submitBtn = this.querySelector('button[type="submit"]');
         if (submitBtn) {
             submitBtn.disabled = true;
@@ -194,8 +192,6 @@ function initializeFormSubmit() {
 
         return true;
     });
-
-    console.log('✅ Soumission formulaire initialisée');
 }
 
 // ==================== UTILITAIRES ====================
@@ -205,10 +201,4 @@ function trimInputs() {
     });
 }
 
-// Trim les inputs au chargement
 document.addEventListener('DOMContentLoaded', trimInputs);
-
-// ==================== LOGS DEBUG ====================
-console.log('📍 URL actuelle:', window.location.href);
-console.log('🔐 Rôle utilisateur: Médecin');
-console.log('📋 Formulaire action:', document.getElementById('loginForm')?.action || 'Introuvable');

@@ -368,6 +368,104 @@
     transform: rotate(90deg);
 }
 
+.chat-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+}
+
+.btn-action-call {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid #dbe4ea;
+    background: #ffffff;
+    color: #0d8abc;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all .2s ease;
+}
+
+.btn-action-call:hover {
+    background: linear-gradient(135deg, #0d8abc, #00bcd4);
+    color: #fff;
+    border-color: transparent;
+    transform: translateY(-1px);
+}
+
+.chat-actions-menu {
+    display: none;
+    position: absolute;
+    right: 48px;
+    top: 44px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+    min-width: 190px;
+    z-index: 10;
+    overflow: hidden;
+}
+
+.chat-menu-item {
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+    padding: 11px 12px;
+    color: #334155;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.chat-menu-item:hover {
+    background: #f1f5f9;
+    color: #0d8abc;
+}
+
+.chat-call-panel {
+    margin: 12px 18px 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.call-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f8fafc;
+}
+
+.call-patient-name {
+    margin-left: 10px;
+    color: #64748b;
+    font-size: .9rem;
+}
+
+.btn-end-call {
+    border: none;
+    border-radius: 8px;
+    padding: 7px 10px;
+    color: #fff;
+    background: #ef4444;
+    cursor: pointer;
+}
+
+.call-frame {
+    width: 100%;
+    height: 380px;
+    border: none;
+    background: #0f172a;
+}
+
 /* ============= MESSAGES CONTAINER =============*/
 
 .messages-container {

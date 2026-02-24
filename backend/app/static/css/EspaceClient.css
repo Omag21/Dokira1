@@ -1,4 +1,4 @@
-/* ====== Chat Professional Styles ====== */
+﻿/* ====== Chat Professional Styles ====== */
 .chat-header {
     display: flex;
     align-items: center;
@@ -435,13 +435,13 @@
         }
 
         /* Menu principal */
-        .main-wrapper {
-            margin-top: var(--navbar-height);
+.main-wrapper {
+            margin-top: 0;
             display: flex;
             min-height: calc(100vh - var(--navbar-height));
         }
 
-        /* Barre latérale - POSITIONNÉE À GAUCHE */
+        /* Barre latÃ©rale - POSITIONNÃ‰E Ã€ GAUCHE */
         .left-sidebar {
             position: fixed;
             left: 0;
@@ -456,11 +456,11 @@
             box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
         }
         
-        /* Zone de contenu - AJUSTÉE POUR BARRE LATÉRALE GAUCHE */
+        /* Zone de contenu - AJUSTÃ‰E POUR BARRE LATÃ‰RALE GAUCHE */
         .content-area {
             flex: 1;
             padding: 30px;
-            margin-left: var(--sidebar-width); /* Décalage pour la barre latérale gauche */
+            margin-left: var(--sidebar-width); /* DÃ©calage pour la barre latÃ©rale gauche */
            /* width: calc(100% - var(--sidebar-width));  Calcul correct de la largeur */
             width: auto; 
             min-width: 0; 
@@ -1350,7 +1350,7 @@
 }
 
 
-/* ============= CHAT IA - DESIGN COMPLÈTEMENT REVU ============= */
+/* ============= CHAT IA - DESIGN COMPLÃˆTEMENT REVU ============= */
 
 .chat-ia-container {
     display: flex;
@@ -1626,9 +1626,9 @@
     }
 }
 
-/* ======== RENDEZ-VOUS - STYLES AMÉLIORÉS ======== */
+/* ======== RENDEZ-VOUS - STYLES AMÃ‰LIORÃ‰S ======== */
 
-/* Container général */
+/* Container gÃ©nÃ©ral */
 .rendez-vous-interface {
     padding: 24px;
     background-color: #f8f9fa;
@@ -1649,7 +1649,7 @@
     border-bottom: 3px solid #e7f1ff;
 }
 
-/* Onglets améliorés */
+/* Onglets amÃ©liorÃ©s */
 .rdv-tabs {
     display: flex;
     gap: 12px;
@@ -1691,7 +1691,7 @@
     transform: translateY(-2px);
 }
 
-/* Form sections améliorées */
+/* Form sections amÃ©liorÃ©es */
 .rdv-form .form-section {
     background-color: #ffffff;
     padding: 28px;
@@ -1707,7 +1707,7 @@
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
 }
 
-/* Section titres améliorés */
+/* Section titres amÃ©liorÃ©s */
 .rdv-form h3 {
     font-family: 'Montserrat', sans-serif;
     font-weight: 600;
@@ -1728,7 +1728,7 @@
     border-radius: 50%;
 }
 
-/* Médecins grid amélioré */
+/* MÃ©decins grid amÃ©liorÃ© */
 .medecins-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -1781,7 +1781,7 @@
     box-shadow: 0 6px 20px rgba(13, 110, 253, 0.15);
 }
 .medecin-card-selectable input[type="radio"]:checked + label::before {
-    content: "✓";
+    content: "âœ“";
     position: absolute;
     top: 10px;
     right: 10px;
@@ -1798,7 +1798,7 @@
     z-index: 10;
 }
 
-/* Médecin label amélioré */
+/* MÃ©decin label amÃ©liorÃ© */
 .medecin-label {
     display: flex;
     align-items: center;
@@ -1855,7 +1855,7 @@
     border: 1px solid #dee2e6;
 }
 
-/* Type consultation amélioré */
+/* Type consultation amÃ©liorÃ© */
 .consultation-types {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1907,7 +1907,7 @@
 }
 
 .type-option input[type="radio"]:checked + label::before {
-    content: "✓";
+    content: "âœ“";
     position: absolute;
     top: 15px;
     right: 15px;
@@ -1961,7 +1961,7 @@
     margin: 0;
 }
 
-/* Champ lieu amélioré */
+/* Champ lieu amÃ©liorÃ© */
 #lieu-container {
     margin-top: 20px;
     padding: 20px;
@@ -1982,7 +1982,7 @@
     }
 }
 
-/* Champs de formulaire améliorés */
+/* Champs de formulaire amÃ©liorÃ©s */
 .form-group {
     margin-bottom: 24px;
 }
@@ -2021,7 +2021,7 @@ textarea.form-control {
     min-height: 100px;
 }
 
-/* Bouton confirmer amélioré */
+/* Bouton confirmer amÃ©liorÃ© */
 .form-actions {
     text-align: center;
     margin-top: 32px;
@@ -2075,7 +2075,7 @@ textarea.form-control {
     }
 }
 
-/* Mes RDV amélioré */
+/* Mes RDV amÃ©liorÃ© */
 .rdv-cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -2191,7 +2191,7 @@ textarea.form-control {
     transform: translateY(-2px);
 }
 
-/* Empty state amélioré */
+/* Empty state amÃ©liorÃ© */
 .empty-state {
     text-align: center;
     padding: 60px 40px;
@@ -2264,7 +2264,7 @@ textarea.form-control {
 
 
 
-/* ============= STYLE POUR LE DOSSIER MÉDICAL ============= */
+/* ============= STYLE POUR LE DOSSIER MÃ‰DICAL ============= */
 
 .medical-details-modal {
     animation: fadeIn 0.3s ease;
@@ -2294,7 +2294,7 @@ textarea.form-control {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* Style pour les cartes du dossier médical */
+/* Style pour les cartes du dossier mÃ©dical */
 .content-card[data-card-type="dossier"] {
     cursor: pointer;
     position: relative;
@@ -2302,7 +2302,7 @@ textarea.form-control {
 }
 
 .content-card[data-card-type="dossier"]::after {
-    content: "📋";
+    content: "ðŸ“‹";
     position: absolute;
     right: 15px;
     bottom: 15px;
@@ -2315,7 +2315,7 @@ textarea.form-control {
     opacity: 0.6;
 }
 
-/* Badges spécifiques pour le dossier médical */
+/* Badges spÃ©cifiques pour le dossier mÃ©dical */
 .badge-warning {
     background: rgba(245, 158, 11, 0.15);
     color: #f59e0b;
@@ -2449,3 +2449,1654 @@ textarea.form-control {
         font-size: 14px;
     }
 }
+
+/* =========== Styles pour le visualiseur de documents =========== */
+.document-viewer-modal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 999999 !important;
+    visibility: hidden;
+    opacity: 0;
+    transition: visibility 0.3s, opacity 0.3s;
+    pointer-events: none;
+}
+
+.document-viewer-modal.active {
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+.document-viewer-overlay {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background-color: rgba(0, 0, 0, 0.85) !important;
+    z-index: 1 !important;
+    cursor: pointer;
+}
+
+.document-viewer-container {
+    position: relative !important;
+    width: 90% !important;
+    max-width: 1200px !important;
+    max-height: 90vh !important;
+    background-color: white !important;
+    border-radius: 16px !important;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5) !important;
+    z-index: 2 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    animation: modal-appear 0.3s ease-out;
+}
+
+@keyframes modal-appear {
+    from {
+        transform: scale(0.9) translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+.document-viewer-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 18px 24px !important;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+    border-bottom: 2px solid #dee2e6 !important;
+}
+
+.document-viewer-header h2 {
+    margin: 0 !important;
+    font-size: 1.3rem !important;
+    font-weight: 600 !important;
+    color: #1a2b3c !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    max-width: 60% !important;
+}
+
+.document-viewer-actions {
+    display: flex !important;
+    gap: 12px !important;
+}
+
+.btn-viewer-action {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 10px 20px !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    text-decoration: none !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
+}
+
+.btn-viewer-action.btn-download {
+    background: linear-gradient(135deg, #0D8ABC 0%, #0a6d9e 100%) !important;
+    color: white !important;
+}
+
+.btn-viewer-action.btn-download:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 5px 15px rgba(13, 138, 188, 0.4) !important;
+}
+
+.btn-viewer-action.btn-close {
+    background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%) !important;
+    color: white !important;
+}
+
+.btn-viewer-action.btn-close:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4) !important;
+}
+
+.document-viewer-content {
+    flex: 1 !important;
+    overflow: auto !important;
+    padding: 30px !important;
+    background-color: white !important;
+    min-height: 500px !important;
+    max-height: calc(90vh - 80px) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Styles pour les images */
+.document-image-viewer {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    object-fit: contain !important;
+    display: block !important;
+    margin: 0 auto !important;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1) !important;
+    border-radius: 8px !important;
+}
+
+/* Styles pour les PDF */
+.pdf-viewer .document-viewer-content {
+    padding: 0 !important;
+    background-color: #2d2d2d !important;
+}
+
+.pdf-content {
+    height: 700px !important;
+    width: 100% !important;
+}
+
+.pdf-content iframe {
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+    background-color: white !important;
+}
+
+/* Styles pour le message de prÃ©visualisation */
+.document-preview-message {
+    text-align: center !important;
+    padding: 60px 30px !important;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+    border-radius: 16px !important;
+    max-width: 500px !important;
+    margin: 0 auto !important;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.05) !important;
+}
+
+.document-preview-message i {
+    color: #0D8ABC !important;
+    margin-bottom: 20px !important;
+}
+
+.document-preview-message p {
+    margin: 15px 0 !important;
+    color: #495057 !important;
+    font-size: 1.1rem !important;
+    line-height: 1.6 !important;
+}
+
+.document-preview-message p:first-of-type {
+    font-weight: 600 !important;
+    color: #1a2b3c !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .document-viewer-container {
+        width: 95% !important;
+        max-height: 95vh !important;
+    }
+    
+    .document-viewer-header {
+        padding: 15px 20px !important;
+    }
+    
+    .document-viewer-header h2 {
+        font-size: 1.1rem !important;
+        max-width: 50% !important;
+    }
+    
+    .btn-viewer-action span {
+        display: none !important;
+    }
+    
+    .btn-viewer-action {
+        padding: 10px 15px !important;
+    }
+    
+    .btn-viewer-action i {
+        margin: 0 !important;
+        font-size: 1.2rem !important;
+    }
+    
+    .document-viewer-content {
+        padding: 20px !important;
+        min-height: 400px !important;
+    }
+    
+    .pdf-content {
+        height: 500px !important;
+    }
+}
+
+
+/* Styles supplÃ©mentaires pour la recherche */
+.patient-search-container {
+    width: min(1100px, calc(100% - 24px));
+    margin: calc(var(--navbar-height) + 10px) auto 10px auto;
+    position: relative;
+    z-index: 950;
+}
+
+.patient-search-input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.patient-search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 8px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    z-index: 1000;
+    display: none;
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+}
+
+.patient-search-results.show {
+    display: block;
+}
+
+.patient-search-results-container {
+    padding: 8px;
+}
+
+.patient-search-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 8px;
+}
+
+.patient-search-count {
+    font-size: 13px;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.patient-search-close {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.patient-search-close:hover {
+    background: #f3f4f6;
+    color: #ef4444;
+}
+
+.patient-search-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 10px 12px;
+    margin: 2px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.patient-search-item:hover {
+    background-color: #f3f4f6;
+}
+
+.patient-search-item-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    color: #0D8ABC;
+    font-size: 14px;
+}
+
+.patient-search-item-content {
+    flex: 1;
+}
+
+.patient-search-item-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 4px;
+}
+
+.patient-search-item-text {
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.4;
+}
+
+.patient-search-item-text mark {
+    background-color: #fff3cd;
+    padding: 2px 0;
+    border-radius: 2px;
+    font-weight: 500;
+}
+
+.patient-search-no-results {
+    text-align: center;
+    padding: 40px 20px;
+    color: #9ca3af;
+}
+
+.patient-search-no-results i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.patient-search-no-results p {
+    font-size: 14px;
+    margin: 0;
+}
+
+.patient-search-no-results strong {
+    color: #1f2937;
+}
+
+.patient-search-more {
+    text-align: center;
+    padding: 12px;
+    font-size: 13px;
+    color: #9ca3af;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 8px;
+}
+
+.patient-search-more i {
+    margin-right: 6px;
+}
+
+
+
+/* ============= MEDIA QUERIES ============= */
+
+/* TrÃ¨s grands Ã©crans (1600px et plus) */
+@media (min-width: 1600px) {
+    .main-wrapper {
+        max-width: 1800px;
+        margin: 0 auto;
+    }
+    
+    .content-area {
+        padding: 40px;
+    }
+    
+    .cards-grid {
+        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .welcome-banner {
+        padding: 45px 50px;
+    }
+    
+    .welcome-banner h1 {
+        font-size: 38px;
+    }
+}
+
+/* Grands Ã©crans (1200px - 1599px) */
+@media (min-width: 1200px) and (max-width: 1599px) {
+    .cards-grid {
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .documents-grid {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    }
+}
+
+/* Ã‰crans moyens (992px - 1199px) */
+@media (min-width: 992px) and (max-width: 1199px) {
+    .content-area {
+        padding: 25px;
+    }
+    
+    .cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .welcome-banner {
+        padding: 30px 35px;
+    }
+    
+    .welcome-banner h1 {
+        font-size: 28px;
+    }
+    
+    .documents-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .medecins-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .consultation-types {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Tablettes (768px - 991px) */
+@media (min-width: 768px) and (max-width: 991px) {
+    .top-navbar {
+        padding: 0 20px;
+    }
+    
+    .navbar-center {
+        display: none; /* Cacher la recherche sur tablette */
+    }
+    
+    .profile-info {
+        display: none; /* Cacher le texte du profil */
+    }
+    
+    .profile-section {
+        padding: 8px;
+    }
+    
+    .left-sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 1000;
+    }
+    
+    .left-sidebar.open {
+        transform: translateX(0);
+        box-shadow: 2px 0 20px rgba(0, 0, 0, 0.15);
+    }
+    
+    .content-area {
+        margin-left: 0;
+        padding: 20px;
+        width: 100%;
+    }
+    
+    .cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    
+    .welcome-banner {
+        padding: 25px 30px;
+    }
+    
+    .welcome-banner h1 {
+        font-size: 24px;
+    }
+    
+    .welcome-banner p {
+        font-size: 14px;
+    }
+    
+    .documents-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    
+    .medecins-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    
+    .consultation-types {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    
+    .rdv-cards {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    
+    .profil-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .document-viewer-header h2 {
+        max-width: 40%;
+        font-size: 1.1rem;
+    }
+}
+
+/* Grands mobiles (576px - 767px) */
+@media (min-width: 576px) and (max-width: 767px) {
+    .top-navbar {
+        padding: 0 15px;
+    }
+    
+    .navbar-brand {
+        font-size: 20px;
+    }
+    
+    .navbar-brand .brand-icon {
+        width: 35px;
+        height: 35px;
+        font-size: 18px;
+    }
+    
+    .navbar-center {
+        display: none;
+    }
+    
+    .profile-info {
+        display: none;
+    }
+    
+    .profile-section {
+        padding: 5px;
+    }
+    
+    .profile-avatar {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .notification-btn {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .left-sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 1000;
+        width: 260px;
+    }
+    
+    .left-sidebar.open {
+        transform: translateX(0);
+    }
+    
+    .content-area {
+        margin-left: 0;
+        padding: 15px;
+        width: 100%;
+    }
+    
+    .cards-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .welcome-banner {
+        padding: 20px 25px;
+    }
+    
+    .welcome-banner h1 {
+        font-size: 22px;
+    }
+    
+    .welcome-banner p {
+        font-size: 13px;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .section-title {
+        font-size: 18px;
+    }
+    
+    .view-all-btn {
+        align-self: flex-start;
+    }
+    
+    .documents-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .document-card {
+        max-width: 100%;
+    }
+    
+    .medecins-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .consultation-types {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .rdv-cards {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .rdv-form .form-section {
+        padding: 20px;
+    }
+    
+    .rdv-tabs {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .rdv-tabs .tab-btn {
+        width: 100%;
+    }
+    
+    .profil-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .profil-header-card {
+        flex-direction: column;
+        text-align: center;
+        padding: 20px;
+    }
+    
+    .profil-avatar-large {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto;
+    }
+    
+    .profil-completion {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .info-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .info-label {
+        width: 100%;
+    }
+    
+    .form-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .document-viewer-header {
+        padding: 12px 16px;
+    }
+    
+    .document-viewer-header h2 {
+        max-width: 40%;
+        font-size: 1rem;
+    }
+    
+    .btn-viewer-action span {
+        display: none;
+    }
+    
+    .btn-viewer-action {
+        padding: 8px 12px;
+    }
+    
+    .document-viewer-content {
+        padding: 15px;
+        min-height: 300px;
+    }
+    
+    .pdf-content {
+        height: 400px;
+    }
+    
+    .patient-search-container {
+        padding: 0 15px;
+    }
+    
+    .patient-search-input-wrapper {
+        max-width: 100%;
+    }
+    
+    .patient-search-results {
+        max-width: calc(100% - 30px);
+        margin: 8px 15px 0;
+    }
+}
+
+/* Petits mobiles (moins de 576px) */
+@media (max-width: 575px) {
+    .top-navbar {
+        padding: 0 10px;
+    }
+    
+    .navbar-brand {
+        font-size: 18px;
+    }
+    
+    .navbar-brand .brand-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 16px;
+    }
+    
+    .navbar-center {
+        display: flex;
+        width: 100%;
+        gap: 8px;
+        margin-top: 6px;
+    }
+    
+    .profile-info {
+        display: none;
+    }
+    
+    .profile-section {
+        padding: 5px;
+    }
+    
+    .profile-avatar {
+        width: 38px;
+        height: 38px;
+    }
+    
+    .notification-btn {
+        width: 38px;
+        height: 38px;
+    }
+    
+    .notification-badge {
+        width: 16px;
+        height: 16px;
+        font-size: 9px;
+    }
+    
+    .left-sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 1000;
+        width: 240px;
+    }
+    
+    .left-sidebar.open {
+        transform: translateX(0);
+    }
+    
+    .content-area {
+        margin-left: 0;
+        padding: 12px;
+        width: 100%;
+    }
+    
+    .cards-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .stat-card {
+        padding: 18px;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+    }
+    
+    .welcome-banner {
+        padding: 18px 20px;
+    }
+    
+    .welcome-banner h1 {
+        font-size: 20px;
+    }
+    
+    .welcome-banner p {
+        font-size: 12px;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+    
+    .section-title {
+        font-size: 18px;
+    }
+    
+    .view-all-btn {
+        align-self: flex-start;
+        font-size: 13px;
+    }
+    
+    .content-card {
+        padding: 18px;
+    }
+    
+    .card-icon-wrapper {
+        width: 48px;
+        height: 48px;
+        font-size: 22px;
+    }
+    
+    .card-title {
+        font-size: 15px;
+    }
+    
+    .card-description {
+        font-size: 13px;
+    }
+    
+    .card-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .documents-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .document-card-header {
+        padding: 12px;
+    }
+    
+    .document-icon {
+        font-size: 20px;
+    }
+    
+    .document-title {
+        font-size: 15px;
+    }
+    
+    .document-description {
+        font-size: 12px;
+    }
+    
+    .document-card-actions {
+        flex-direction: column;
+        gap: 6px;
+    }
+    
+    .btn-action {
+        width: 100%;
+    }
+    
+    .medecins-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .medecin-card-selectable .medecin-label {
+        padding: 12px;
+    }
+    
+    .medecin-avatar {
+        width: 50px;
+        height: 50px;
+        font-size: 1.5rem;
+    }
+    
+    .consultation-types {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .type-option label {
+        padding: 18px 15px;
+    }
+    
+    .type-option i {
+        font-size: 2rem;
+    }
+    
+    .type-option span {
+        font-size: 1rem;
+    }
+    
+    .type-option p {
+        font-size: 0.85rem;
+    }
+    
+    .rdv-cards {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .rdv-card {
+        padding: 16px;
+    }
+    
+    .rdv-header {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .rdv-header h3 {
+        font-size: 1rem;
+    }
+    
+    .rdv-status {
+        align-self: flex-start;
+    }
+    
+    .rdv-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .rdv-actions .btn {
+        width: 100%;
+    }
+    
+    .rdv-form .form-section {
+        padding: 18px;
+    }
+    
+    .rdv-form h3 {
+        font-size: 1.1rem;
+    }
+    
+    .rdv-tabs {
+        flex-direction: column;
+        gap: 6px;
+    }
+    
+    .rdv-tabs .tab-btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 0.95rem;
+    }
+    
+    .profil-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .profil-header-card {
+        flex-direction: column;
+        text-align: center;
+        padding: 18px;
+        gap: 12px;
+    }
+    
+    .profil-avatar-large {
+        width: 70px;
+        height: 70px;
+        margin: 0 auto;
+    }
+    
+    .profil-header-info h1 {
+        font-size: 20px;
+    }
+    
+    .profil-completion {
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .completion-bar-container {
+        width: 100%;
+        max-width: 200px;
+    }
+    
+    .profil-card {
+        padding: 16px;
+    }
+    
+    .profil-card-header {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .profil-card-header h2 {
+        font-size: 16px;
+        min-width: 120px;
+    }
+    
+    .info-row {
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 10px;
+    }
+    
+    .info-label {
+        width: 100%;
+        font-size: 13px;
+    }
+    
+    .info-value {
+        font-size: 14px;
+        padding-left: 20px;
+    }
+    
+    .card-edit-btn {
+        font-size: 13px;
+    }
+    
+    .form-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .form-group {
+        margin-bottom: 16px;
+    }
+    
+    .form-control {
+        padding: 10px 12px;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .form-actions .btn {
+        width: 100%;
+        margin: 0;
+    }
+    
+    .upload-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .upload-zone {
+        padding: 25px;
+    }
+    
+    .upload-zone h3 {
+        font-size: 16px;
+    }
+    
+    .upload-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .document-viewer-header {
+        padding: 10px 12px;
+    }
+    
+    .document-viewer-header h2 {
+        max-width: 35%;
+        font-size: 0.9rem;
+    }
+    
+    .btn-viewer-action {
+        padding: 6px 10px;
+    }
+    
+    .btn-viewer-action span {
+        display: none;
+    }
+    
+    .document-viewer-content {
+        padding: 10px;
+        min-height: 250px;
+    }
+    
+    .pdf-content {
+        height: 350px;
+    }
+    
+    .patient-search-container {
+        padding: 0 10px;
+    }
+    
+    .patient-search-input-wrapper {
+        max-width: 100%;
+    }
+    
+    .patient-search-input-wrapper input {
+        font-size: 14px;
+        padding: 10px 35px 10px 40px;
+    }
+    
+    .patient-search-icon {
+        left: 12px;
+        font-size: 16px;
+    }
+    
+    .patient-search-clear {
+        right: 12px;
+        font-size: 16px;
+    }
+    
+    .patient-search-results {
+        max-width: calc(100% - 20px);
+        margin: 8px 10px 0;
+        max-height: 300px;
+    }
+    
+    .patient-search-item {
+        padding: 8px 10px;
+    }
+    
+    .patient-search-item-icon {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+    }
+    
+    .patient-search-item-title {
+        font-size: 13px;
+    }
+    
+    .patient-search-item-text {
+        font-size: 12px;
+    }
+    
+    .patient-search-no-results {
+        padding: 30px 15px;
+    }
+    
+    .patient-search-no-results i {
+        font-size: 40px;
+    }
+    
+    .chat-ia-container {
+        border-radius: 12px;
+    }
+    
+    .chat-ia-header {
+        padding: 15px 16px;
+    }
+    
+    .chat-ia-avatar {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+    }
+    
+    .chat-header-info h2 {
+        font-size: 1.1rem;
+    }
+    
+    .chat-bubble {
+        max-width: 85%;
+        font-size: 0.9rem;
+        padding: 10px 12px;
+    }
+    
+    .chat-ia-input-area {
+        padding: 10px 12px;
+    }
+    
+    .input-wrapper {
+        padding: 4px;
+    }
+    
+    .chat-textarea {
+        font-size: 0.9rem;
+    }
+    
+    .chat-send-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+    
+    .input-hint {
+        font-size: 0.7rem;
+    }
+    
+    .messagerie-wrapper {
+        flex-direction: column;
+    }
+    
+    .conversations-sidebar {
+        width: 100%;
+        max-height: 300px;
+    }
+    
+    .conversation-main {
+        width: 100%;
+        height: 500px;
+    }
+    
+    .conversation-header-professional {
+        padding: 12px 15px;
+    }
+    
+    .header-avatar {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
+    
+    .header-name {
+        font-size: 16px;
+    }
+    
+    .header-specialty {
+        font-size: 12px;
+    }
+    
+    .messages-container {
+        padding: 15px;
+    }
+    
+    .message-bubble {
+        max-width: 85%;
+        padding: 8px 12px;
+    }
+    
+    .message-text {
+        font-size: 14px;
+    }
+    
+    .message-input-area {
+        padding: 10px 12px;
+    }
+    
+    .message-textarea {
+        font-size: 14px;
+        padding: 8px 12px;
+    }
+}
+
+/* ============= CORRECTIONS DU MENU HAMBURGER ============= */
+
+/* Bouton menu toggle */
+.menu-toggle {
+    display: none; /* Cache par defaut sur desktop */
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    background: var(--primary-color);
+    border-radius: 10px;
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 102, 204, 0.25);
+    z-index: 1102;
+    cursor: pointer;
+    font-size: 18px;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.menu-toggle:hover {
+    transform: scale(1.1);
+    background: var(--secondary-color);
+    box-shadow: 0 6px 16px rgba(0, 102, 204, 0.5);
+}
+
+.menu-toggle:active {
+    transform: scale(0.95);
+}
+
+/* Afficher le bouton sur tous les Ã©crans MOINS DE 992px */
+@media (max-width: 991px) {
+    .menu-toggle {
+        display: flex !important; /* FORCER l'affichage */
+    }
+}
+
+/* Ajustement pour trÃ¨s petits Ã©crans */
+@media (max-width: 575px) {
+    .menu-toggle {
+        top: 10px;
+        right: 10px;
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+    }
+}
+
+
+/* Animation pour la sidebar - dÃ©jÃ  prÃ©sent dans votre CSS */
+.left-sidebar {
+    transition: transform 0.3s ease;
+}
+
+/* Overlay pour mobile - dÃ©jÃ  prÃ©sent dans votre CSS */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 998;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+/* ============= FIN DES CORRECTIONS ============= */
+
+/* AccessibilitÃ© - taille des Ã©lÃ©ments tactiles */
+@media (max-width: 767px) {
+    .nav-link-custom,
+    .btn,
+    .btn-action,
+    .tab-btn,
+    .rdv-actions .btn,
+    .form-actions .btn,
+    .patient-search-item,
+    .chat-send-btn,
+    .message-send-btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    input,
+    select,
+    textarea {
+        font-size: 16px !important; /* EmpÃªche le zoom automatique sur iOS */
+    }
+}
+
+/* Impression */
+@media print {
+    .left-sidebar,
+    .top-navbar,
+    .menu-toggle,
+    .btn,
+    .form-actions,
+    .rdv-actions,
+    .document-card-actions,
+    .chat-ia-input-area,
+    .message-input-area,
+    .patient-search-container {
+        display: none !important;
+    }
+    
+    .content-area {
+        margin-left: 0;
+        padding: 20px;
+    }
+    
+    .card,
+    .stat-card,
+    .document-card,
+    .rdv-card,
+    .profil-card {
+        break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+}
+
+
+/* Ajustement de la recherche sur mobile */
+@media (max-width: 991px) {
+    .patient-search-container {
+        margin-top: 10px;
+        padding: 0 15px;
+        width: 100%;
+    }
+    
+    .patient-search-input-wrapper {
+        max-width: 100%;
+    }
+    
+    .patient-search-input-wrapper input {
+        font-size: 14px;
+        padding: 12px 40px 12px 45px;
+    }
+    
+    .patient-search-results {
+        max-width: calc(100% - 30px);
+        margin-left: 15px;
+        margin-right: 15px;
+    }
+}
+
+/* TrÃ¨s petits Ã©crans */
+@media (max-width: 575px) {
+    .patient-search-container {
+        padding: 0 10px;
+    }
+    
+    .patient-search-results {
+        max-width: calc(100% - 20px);
+        margin-left: 10px;
+        margin-right: 10px;
+    }
+}
+
+/* ============= MEDIA QUERIES SUPPLÃ‰MENTAIRES ============= */
+@media (max-width: 1199px) {
+    .content-area {
+        padding: 16px;
+    }
+
+    .top-navbar {
+        padding: 0 14px;
+    }
+}
+
+@media (max-width: 767px) {
+    .navbar-center {
+        width: 100%;
+        margin-top: 8px;
+        gap: 8px;
+    }
+
+    .top-navbar {
+        height: auto;
+        min-height: 70px;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding-bottom: 8px;
+    }
+
+    .content-card-grid,
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .chat-ia-container {
+        min-height: 68vh;
+    }
+}
+
+@media (max-width: 480px) {
+    .chat-ia-input-area {
+        padding: 10px;
+    }
+
+    .chat-send-btn,
+    .message-send-btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+@media (max-width: 768px) {
+    .main-wrapper {
+        margin-top: 0 !important;
+        min-height: calc(100vh - 64px) !important;
+    }
+
+    .content-area {
+        margin-left: 0 !important;
+        width: 100% !important;
+        padding: 12px !important;
+        min-height: calc(100vh - 64px) !important;
+    }
+
+    #mainContent {
+        min-height: 60vh;
+    }
+
+    .left-sidebar {
+        top: 64px !important;
+        height: calc(100vh - 64px) !important;
+        width: min(88vw, 320px) !important;
+        z-index: 1101 !important;
+            display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .top-navbar {
+        min-height: 64px !important;
+        padding: 10px 54px 10px 12px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+
+    .navbar-action {
+        margin-left: auto;
+        gap: 10px;
+    }
+
+    .navbar-center {
+        display: flex !important;
+        width: 100%;
+        gap: 8px;
+        order: 3;
+    }
+
+    .navbar-center .search-bar {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .navbar-langage {
+        flex-shrink: 0;
+    }
+
+    .patient-search-container {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+    }
+
+    .left-sidebar > div:last-child {
+        position: sticky;
+        bottom: 0;
+        background: #ffffff;
+        z-index: 2;
+    }
+}
+
+/* ============= STABILISATION RECHERCHE PATIENT ============= */
+.patient-search-input-wrapper input {
+    width: 100%;
+    height: 46px;
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 10px 42px 10px 42px;
+    font-size: 14px;
+    color: #1f2937;
+}
+
+.patient-search-input-wrapper input:focus {
+    outline: none;
+    border-color: #0d8abc;
+    box-shadow: 0 0 0 3px rgba(13, 138, 188, 0.12);
+}
+
+.patient-search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6b7280;
+    font-size: 15px;
+    pointer-events: none;
+}
+
+.patient-search-clear {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 999px;
+    background: #f3f4f6;
+    color: #6b7280;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.patient-search-clear:hover {
+    background: #e5e7eb;
+    color: #111827;
+}
+
+@media (max-width: 768px) {
+    .patient-search-container {
+        width: calc(100% - 20px) !important;
+        margin: 8px auto 10px auto !important;
+        padding: 0 !important;
+    }
+
+    .main-wrapper {
+        display: block !important;
+    }
+
+    .content-area {
+        margin-left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+}
+
+
+

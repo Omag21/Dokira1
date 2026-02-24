@@ -1353,3 +1353,139 @@ body {
         max-height: 70vh;
         overflow-y: auto;
     }
+
+/* ============= CHAT IA (SECTION MÉDECIN) ============= */
+.medecin-chat-ia-container {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    min-height: 70vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.medecin-chat-ia-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    background: linear-gradient(135deg, #0d8abc, #00a3c4);
+    color: #fff;
+    border-radius: 14px 14px 0 0;
+}
+
+.medecin-chat-ia-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.medecin-chat-ia-header p {
+    margin: 6px 0 0;
+    opacity: 0.95;
+    font-size: 0.92rem;
+}
+
+.medecin-chat-ia-disclaimer {
+    margin: 12px 14px 0;
+    padding: 10px 12px;
+    border-left: 4px solid #f59e0b;
+    background: #fffbeb;
+    color: #92400e;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.medecin-chat-ia-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    background: #f8fafc;
+}
+
+.medecin-chat-msg {
+    max-width: 82%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.medecin-chat-msg.ia {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+}
+
+.medecin-chat-msg.user {
+    margin-left: auto;
+    background: #0d8abc;
+    color: #fff;
+}
+
+.medecin-chat-ia-form {
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    border-top: 1px solid #e2e8f0;
+    background: #fff;
+    border-radius: 0 0 14px 14px;
+}
+
+.medecin-chat-ia-form textarea {
+    flex: 1;
+    resize: vertical;
+    min-height: 48px;
+    max-height: 160px;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    padding: 10px 12px;
+}
+
+.medecin-chat-ia-form button {
+    border: none;
+    border-radius: 10px;
+    padding: 0 14px;
+    background: #0d8abc;
+    color: #fff;
+    font-weight: 600;
+}
+
+/* ============= MEDIA QUERIES RENFORCÉES ============= */
+@media (max-width: 991px) {
+    .top-navbar {
+        padding: 0 12px;
+    }
+
+    .navbar-search {
+        max-width: none;
+    }
+
+    .main-content {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 767px) {
+    .navbar-actions {
+        gap: 10px;
+    }
+
+    .language-selector {
+        padding: 6px 10px;
+    }
+
+    .medecin-chat-ia-container {
+        min-height: 72vh;
+    }
+
+    .medecin-chat-msg {
+        max-width: 92%;
+    }
+
+    .medecin-chat-ia-form {
+        flex-direction: column;
+    }
+
+    .medecin-chat-ia-form button {
+        min-height: 44px;
+    }
+}

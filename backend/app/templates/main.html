@@ -1,13 +1,18 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0D8ABC">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>Dokira 2.0</title>
     <!-- Bostrap ccs-->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZmK9OfeUAG+XnMDdC4r5HrPoDlbmK1vwvY+fA6p7O0p/We3hVb8lJ0C2Al4uYgS9g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
     <!-- Google Fonts -->
      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
@@ -15,8 +20,8 @@
     <!--<link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}"> -->
     <link rel="stylesheet" href="/static/css/styles.css">
 
-    <link rel="icon" type="image/png" href="/static/images/favicon.png">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+    <link rel="icon" type="image/png" href="/static/images/hero-image.png">
+   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 </head>
 <body class="body1">
     <!-- Navigation -->
@@ -29,7 +34,7 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
+                                <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
                         <a class="nav-link active" href="#">Accueil</a>
                     </li>
@@ -39,13 +44,34 @@
                     <li class="nav-item">
                         <a class="nav-link" href="#stats">Statistiques</a>
                     </li>
-                    <li class="nav-item ms-lg-3 ">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#temoignages">Témoignages</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="/connexion">Connexion</a>
                     </li>
-                    <li class="nav-item ms-lg-2">
+                    <li class="nav-item">
                         <a class="nav-link" href="/inscription">Inscription</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link2" href="#contact">
+                            <i class="fas fa-envelope"></i> Contact
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="telechargementBtn">
+                            <i class="fas fa-download"></i> 
+                            <span>Télécharger l'application</span>
+                        </a>
+                    </li>
                 </ul>
+                <div class="navbar-langage">
+                    <select id="languageSelect" onchange="changelanguage(this.value)">
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="en">🇬🇧 English</option>
+                        <option value="es">🇪🇸 Español</option>
+                    </select>
+                </div>
             </div>
         </div>
     </nav>
@@ -57,9 +83,20 @@
             <div class="row align-items-center">
                 <div class="col-md-6 hero-content">
                     <h1 class="display-4">Bienvenue sur Dokira</h1>
-                    <h6 class="mb-4">La plateforme de gestion médicale tout-en-un pour les professionnels de santé</h6>
-                    <p class="lead">Optimisez votre pratique médicale avec notre solution complète de gestion des patients, de téléconsultations et de suivi médical.</p>
-                    <a href="#" class="btn btn-primary btn-lg me-2 mb-2">Prendre un rendez-vous</a>
+                    <h6 class="mb-4">Consultez un spécialiste de santé sans se déplacer.</h6>
+                    <p class="lead">Réservez un test laboratoire</p>
+
+                    <!-- SECTION DE RECHERCHE -->
+                    <div class="search-section my-4">
+                        <div class="input-group">
+                            <input type="text" id="searchInput" class="form-control form-control-lg" placeholder="Taper ici pour rechercher..." aria-label="Rechercher sur la page">
+                            <button class="btn btn-primary btn-lg" type="button" id="searchButton">
+                                <i class="fas fa-search"></i> Rechercher
+                            </button>
+                        </div>
+                        <div id="searchResults" class="mt-3"></div>
+                    </div>
+                    <a href="#specialists" id="heroRdvBtn" class="btn btn-primary btn-lg me-2 mb-2">Prendre un rendez-vous</a>
                 </div>
                 <div class="col-md-6">
                     <img src="/static/images/hero-image.png" alt="Hero Image" class="img-fluid">
@@ -67,6 +104,8 @@
             </div>
         </div>
     
+        <!-- Annonces -->
+    <div id="announcementsContainer"></div>
 
     <!--Section des Services-->
     <section class="services-section py-5" id="services">
@@ -146,59 +185,66 @@
 
   <section class="specialists-section py-5" id="specialists">
     <div class="container">
-
-        <!-- Titre -->
         <div class="row text-center mb-5">
             <div class="col">
                 <h2 class="text-white">Nos Spécialistes</h2>
-                <p class="text-light">
-                    Une équipe médicale qualifiée à votre service.
-                </p>
+                <p class="text-light">Une équipe médicale qualifiée à votre service.</p>
             </div>
         </div>
-
-        <!-- Cartes -->
-        <div class="row g-4">
-
-            <!-- Spécialiste 1 -->
-            <div class="col-md-6 col-lg-4">
-                <div class="specialist-card text-center">
-                    <div class="specialist-photo">
-                        <img src="https://th.bing.com/th/id/OIP.GLZw8Du6p7Czi9Ln4AFKkgAAAA?w=115&h=182&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3"
-                             alt="Dr. Marie Dupont">
-                    </div>
-                    <h5>Dr. Marie Dupont</h5>
-                    <p>Médecin Généraliste</p>
-                </div>
-            </div>
-
-            <!-- Spécialiste 2 -->
-            <div class="col-md-6 col-lg-4">
-                <div class="specialist-card text-center">
-                    <div class="specialist-photo">
-                        <img src="https://th.bing.com/th/id/OIP.HaTN608pZmxrSd9jtS9yoQHaE8"
-                             alt="Dr. Ahmed Benali">
-                    </div>
-                    <h5>Dr. Ahmed Benali</h5>
-                    <p>Cardiologue</p>
-                </div>
-            </div>
-
-            <!-- Spécialiste 3 -->
-            <div class="col-md-6 col-lg-4">
-                <div class="specialist-card text-center">
-                    <div class="specialist-photo">
-                        <img src="https://th.bing.com/th/id/OIP.IOtII7_Y8QpyR9PY5S5amAHaE8"
-                             alt="Dr. Sophie Martin">
-                    </div>
-                    <h5>Dr. Sophie Martin</h5>
-                    <p>Pédiatre</p>
-                </div>
-            </div>
-
-        </div>
+        <div class="row g-4" id="specialistsGrid"></div>
     </div>
 </section>
+
+<div class="modal fade" id="rdvModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Prendre un rendez-vous</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <form id="publicConsultationForm">
+                    <input type="hidden" id="consultMedecinId">
+                    <div class="mb-3">
+                        <label class="form-label">Nom du médecin</label>
+                        <input type="text" class="form-control" id="consultMedecinNom" placeholder="Médecin sélectionné automatiquement" readonly>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Votre prénom</label>
+                            <input type="text" class="form-control" id="consultPrenom" placeholder="Ex: Alice" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Votre nom</label>
+                            <input type="text" class="form-control" id="consultNom" placeholder="Ex: Juvence" required>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Motif de consultation</label>
+                        <textarea class="form-control" id="consultMotif" rows="3" placeholder="Ex: Douleur oculaire, consultation de suivi..." required></textarea>
+                    </div>
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <label class="form-label">Jour et heure</label>
+                            <input type="datetime-local" class="form-control" id="consultDateHeure" placeholder="Choisir date et heure" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="consultEmail" placeholder="Ex: nom@email.com" required>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Numéro de téléphone</label>
+                        <input type="text" class="form-control" id="consultTelephone" placeholder="Ex: 077123456" required>
+                    </div>
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">Soumettre</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
 
        
@@ -230,7 +276,7 @@
     </section>
 
     <!-- Section des témoignages -->
-<section class="py-5">
+<section class="py-5" id="temoignages">
     <div class="container">
         <div class="row justify-content-center mb-5">
             <div class="col-lg-8 text-center">
@@ -241,7 +287,7 @@
 
         <div class="row">
 
-            <!-- Témoignage 1 -->
+            <!-- TÃ©moignage 1 -->
             <div class="col-lg-4 fade-in">
                 <div class="testimonial-card">
                     <div class="testimonial-text">
@@ -283,7 +329,7 @@
             <div class="col-lg-4 fade-in">
                 <div class="testimonial-card">
                     <div class="testimonial-text">
-                        L'interface est intuitive et les fonctionnalités sont parfaitement adaptées à mes besoins.
+                        L'interface est intuitive et les fonctionnalités sont parfaitement adaptées à  mes besoins.
                     </div>
 
                     <div class="testimonial-author">
@@ -301,6 +347,126 @@
         </div>
     </div>
 </section>
+
+<!-- SECTION PARTENAIRES -->
+<section class="partenaires-section">
+    <div class="container">
+        <h2 class="section-title">Nos Partenaires</h2>
+        <div class="partenaires-grid" id="partenairesGrid">
+            <!-- Les partenaires seront chargés ici -->
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Chargement...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+// Charger les partenaires sur la page d'accueil
+async function loadPublicPartenaires() {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
+        const response = await fetch('/api/public/partenaires', { signal: controller.signal });
+        clearTimeout(timeout);
+        const partenaires = await response.json();
+        
+        const grid = document.getElementById('partenairesGrid');
+        
+        if (partenaires.length === 0) {
+            grid.innerHTML = '<p class="text-center text-muted">Aucun partenaire pour le moment</p>';
+            return;
+        }
+        
+        let html = '';
+        partenaires.forEach(p => {
+            html += `
+                <div class="partenaire-card">
+                    <div class="partenaire-logo">
+                        <img src="${p.logo_url || 'https://via.placeholder.com/150x80?text=Logo'}" 
+                             alt="${p.nom}">
+                    </div>
+                    <h3 class="partenaire-nom">${p.nom}</h3>
+                    <span class="partenaire-type">${p.type}</span>
+                </div>
+            `;
+        });
+        
+        grid.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Erreur chargement partenaires:', error);
+        document.getElementById('partenairesGrid').innerHTML = 
+            '<p class="text-center text-muted">Erreur de chargement</p>';
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadPublicPartenaires);
+} else {
+    loadPublicPartenaires();
+}
+</script>
+
+<style>
+.partenaires-section {
+    padding: 60px 0;
+    background: #f8fafc;
+}
+
+.partenaires-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 30px;
+    margin-top: 40px;
+}
+
+.partenaire-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    transition: transform 0.3s ease;
+}
+
+.partenaire-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.partenaire-logo {
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 15px;
+}
+
+.partenaire-logo img {
+    max-width: 100%;
+    max-height: 80px;
+    object-fit: contain;
+}
+
+.partenaire-nom {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: #1e293b;
+}
+
+.partenaire-type {
+    font-size: 13px;
+    color: #0D8ABC;
+    background: #e3f2fd;
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-block;
+}
+</style>
 
 <!--Newsletter Section-->  
 <section class="newsletter-section py-5 ">
@@ -400,29 +566,20 @@
             </div>
 
             <!-- Colonne 4 : Contact -->
-            <div class="col-lg-3 col-md-6">
+            <div class="col-lg-3 col-md-6" id="contact">
                 <h5 class="text-white mb-4">Contact</h5>
-                <ul class="footer-contact list-unstyled">
-                    <li class="mb-3 d-flex align-items-start">
-                        <i class="fas fa-envelope text-dokira-primary me-2 mt-1"></i>
-                        <div>
-                            <span class="d-block text-dokira-light small">Email</span>
-                            <a href="mailto:contact@dokira.fr" class="footer-link dokira-link">contact@dokira.fr</a>
-                        </div>
+                <ul class="footer-nav list-unstyled">
+                    <li class="mb-2">
+                        <span class="d-block text-dokira-light small">Email</span>
+                        <a href="mailto:contact@dokira.fr" class="footer-link dokira-link">contact@dokira.fr</a>
                     </li>
-                    <li class="mb-3 d-flex align-items-start">
-                        <i class="fas fa-phone text-dokira-primary me-2 mt-1"></i>
-                        <div>
-                            <span class="d-block text-dokira-light small">Téléphone</span>
-                            <a href="tel:+24176362541" class="footer-link dokira-link">+241 76 36 25 41</a>
-                        </div>
+                    <li class="mb-2">
+                        <span class="d-block text-dokira-light small">Téléphone</span>
+                        <a href="tel:+24176362541" class="footer-link dokira-link">+241 76 36 25 41</a>
                     </li>
-                    <li class="mb-3 d-flex align-items-start">
-                        <i class="fas fa-map-marker-alt text-dokira-primary me-2 mt-1"></i>
-                        <div>
-                            <span class="d-block text-dokira-light small">Adresse</span>
-                            <span class="text-dokira-light">Centre Médical Dokira, Libreville</span>
-                        </div>
+                    <li class="mb-2">
+                        <span class="d-block text-dokira-light small">Adresse</span>
+                        <span class="text-dokira-light">Centre Médical Dokira, Libreville</span>
                     </li>
                 </ul>
             </div>
@@ -455,5 +612,5 @@
     </div>
 </footer>
     <!-- Bootstrap JS Bundle -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-ENjdO4Dr2bkBIFxQpeoTz1HIcje39Wm4jDKdf19U8gI4ddQ3GYNS7NTKfAdVQSZe" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
     <script src="/static/js/main.js"></script>

@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
@@ -15,7 +15,7 @@
   
 </head>
 <body>
-    <!-- Barre de navigation supérieure -->
+    <!-- Barre de navigation supÃ©rieure -->
     <nav class="top-navbar">
         <a href="#" class="navbar-brand">
             <div class="brand-icon">
@@ -39,7 +39,7 @@
         <div class="navbar-action">
             <button class="notification-btn">
                 <i class="fas fa-bell"></i>
-                <span class="notification-badge">3</span>
+                <span class="notification-badge">0</span>
             </button>
             <div class="profile-section">
                 <div class="profile-avatar-container">
@@ -58,9 +58,24 @@
         </div>
     </nav>
 
+    <div class="patient-search-container">
+        <div class="patient-search-input-wrapper">
+            <i class="fas fa-search patient-search-icon"></i>
+            <input type="text" 
+                id="patientSearchInput" 
+                class="form-control" 
+                placeholder="Rechercher dans votre espace... (rendez-vous, documents, médecins...)"
+                autocomplete="off">
+            <button class="patient-search-clear" onclick="document.getElementById('patientSearchInput').value=''; this.style.display='none';">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="patientSearchResults" class="patient-search-results"></div>
+    </div>
+
     <!-- Section principale -->
     <div class="main-wrapper">
-        <!-- Barre latérale GAUCHE -->
+        <!-- Barre latÃ©rale GAUCHE -->
         <aside class="left-sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-title">Navigation</div>
@@ -95,6 +110,12 @@
                             <i class="fas fa-comments"></i>
                             <span> Messagerie</span>
                             <span class="nav-badge">5</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" class="nav-link-custom" data-section="visio">
+                            <i class="fas fa-video"></i>
+                            <span> Visioconférences</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -160,8 +181,13 @@
             </div>
         </main>
     </div>
+ <!-- Bouton menu toggle pour mobile -->
+    <button class="menu-toggle" id="menuToggle" aria-label="Menu">
+        <i class="fas fa-bars"></i>
+    </button>
 
     <script src="/static/js/EspaceClient.js"></script>
     <script src="/static/js/parametres.js"></script> 
 </body>
 </html>
+

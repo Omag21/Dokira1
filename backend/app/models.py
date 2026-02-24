@@ -59,6 +59,11 @@ class StatutRendezVous(str, enum.Enum):
     ANNULE = "Annulé"
     TERMINE = "Terminé"
 
+class StatutInscription(str, enum.Enum):
+    EN_ATTENTE = "EN_ATTENTE"
+    APPROUVEE = "APPROUVEE"
+    REJETEE = "REJETEE"
+
 class Patient(Base):
     __tablename__ = "patients"
     
@@ -198,6 +203,24 @@ class RendezVous(Base):
         }
         return types_affichage.get(self.type_consultation.value if self.type_consultation else "Cabinet", "Cabinet")
 
+
+class Consultation(Base):
+    __tablename__ = "consultations"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    medecin_id = Column(Integer, ForeignKey("medecins.id"), nullable=False, index=True)
+    medecin_nom = Column(String(150), nullable=False)
+
+    visiteur_nom = Column(String(100), nullable=False)
+    visiteur_prenom = Column(String(100), nullable=False)
+    visiteur_email = Column(String(255), nullable=False, index=True)
+    visiteur_telephone = Column(String(20), nullable=False)
+
+    motif_consultation = Column(Text, nullable=False)
+    date_heure = Column(DateTime, nullable=False, index=True)
+    statut = Column(String(50), nullable=False, default="Demandee")
+    date_creation = Column(DateTime, default=datetime.utcnow, nullable=False)
+
 class Document(Base):
     __tablename__ = "documents"
     
@@ -256,6 +279,9 @@ class Medecin(Base):
     biographie = Column(Text, nullable=True)
 
     est_actif = Column(Boolean, default=True)
+    statut_inscription = Column(String(20), default=StatutInscription.EN_ATTENTE.value, nullable=False)
+    motif_refus_inscription = Column(Text, nullable=True)
+    date_decision_inscription = Column(DateTime, nullable=True)
     date_creation = Column(DateTime, default=datetime.utcnow)
     derniere_connexion = Column(DateTime, nullable=True)
 
@@ -330,6 +356,113 @@ class Message(Base):
     
     patient = relationship("Patient", backref="messages")
     medecin = relationship("Medecin", back_populates="messages")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  # ============= ENUMS ADDITIONNELS =============
+
+
+# ============= MESSAGERIE ADMIN =============
+
+class MessageAdminMedecin(Base):
+    """Messages entre admin et médecins"""
+    __tablename__ = "messages_admin_medecin"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    admin_id = Column(Integer, ForeignKey("admins.id"), nullable=False, index=True)
+    medecin_id = Column(Integer, ForeignKey("medecins.id"), nullable=False, index=True)
+    
+    sujet = Column(String(255), nullable=False, default="Message de l'administrateur")
+    contenu = Column(Text, nullable=False)
+    de_admin = Column(Boolean, default=True)  # True = envoyé par admin, False = par médecin
+    
+    statut = Column(Enum(StatutMessage, name="statutmessage_admin_medecin", 
+                         values_callable=lambda enum_cls: [e.value for e in enum_cls]), 
+                    default=StatutMessage.ENVOYE)
+    
+    date_envoi = Column(DateTime, default=datetime.utcnow)
+    date_lu = Column(DateTime, nullable=True)
+    
+    # Relations
+    admin = relationship("Admin", backref="messages_avec_medecins")
+    medecin = relationship("Medecin", backref="messages_avec_admin")
+    
+    def __repr__(self):
+        return f"<MessageAdminMedecin(id={self.id}, admin={self.admin_id}, medecin={self.medecin_id})>"
+
+
+class MessageAdminPatient(Base):
+    """Messages entre admin et patients"""
+    __tablename__ = "messages_admin_patient"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    admin_id = Column(Integer, ForeignKey("admins.id"), nullable=False, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    
+    sujet = Column(String(255), nullable=False, default="Message de l'administrateur")
+    contenu = Column(Text, nullable=False)
+    de_admin = Column(Boolean, default=True)  # True = envoyé par admin, False = par patient
+    
+    statut = Column(Enum(StatutMessage, name="statutmessage_admin_patient", 
+                         values_callable=lambda enum_cls: [e.value for e in enum_cls]), 
+                    default=StatutMessage.ENVOYE)
+    
+    date_envoi = Column(DateTime, default=datetime.utcnow)
+    date_lu = Column(DateTime, nullable=True)
+    
+    # Relations
+    admin = relationship("Admin", backref="messages_avec_patients")
+    patient = relationship("Patient", backref="messages_avec_admin")
+    
+    def __repr__(self):
+        return f"<MessageAdminPatient(id={self.id}, admin={self.admin_id}, patient={self.patient_id})>"
+
+
+class AnalysePatient(Base):
+    __tablename__ = "analyses_patients"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    medecin_id = Column(Integer, ForeignKey("medecins.id"), nullable=False, index=True)
+    titre = Column(String(255), nullable=False)
+    resultat = Column(Text, nullable=False)
+    notes = Column(Text, nullable=True)
+    document_url = Column(String(500), nullable=True)
+    date_analyse = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    date_creation = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class InjectionPatient(Base):
+    __tablename__ = "injections_patients"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    medecin_id = Column(Integer, ForeignKey("medecins.id"), nullable=False, index=True)
+    nom_injection = Column(String(255), nullable=False)
+    dosage = Column(String(255), nullable=True)
+    frequence = Column(String(255), nullable=True)
+    instructions = Column(Text, nullable=True)
+    date_injection = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    date_creation = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class NotificationBroadcast(Base):
+    __tablename__ = "notifications_broadcast"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    admin_id = Column(Integer, ForeignKey("admins.id"), nullable=False, index=True)
+    cible = Column(String(20), nullable=False, default="all")  # patients|medecins|all
+    titre = Column(String(255), nullable=False)
+    contenu = Column(Text, nullable=False)
+    date_creation = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class NotificationReception(Base):
+    __tablename__ = "notifications_reception"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    notification_id = Column(Integer, ForeignKey("notifications_broadcast.id"), nullable=False, index=True)
+    user_role = Column(String(20), nullable=False, index=True)  # patient|medecin
+    user_id = Column(Integer, nullable=False, index=True)
+    lu = Column(Boolean, default=False, nullable=False, index=True)
+    date_reception = Column(DateTime, default=datetime.utcnow, nullable=False)
+    date_lu = Column(DateTime, nullable=True)
 
 class StatutPhoto(str, enum.Enum):
     """Statut d'une photo"""
@@ -425,6 +558,13 @@ class Admin(Base):
     nom = Column(String(100), nullable=False)
     prenom = Column(String(100), nullable=False)
     telephone = Column(String(20), nullable=True)
+    specialite = Column(String(100), nullable=True)
+    numero_ordre = Column(String(50), nullable=True)
+    adresse = Column(String(255), nullable=True)
+    ville = Column(String(100), nullable=True)
+    code_postal = Column(String(10), nullable=True)
+    langues = Column(String(255), nullable=True)
+    biographie = Column(Text, nullable=True)
     
     # Photo de profil
     photo_profil_url = Column(String(500), nullable=True)
@@ -433,6 +573,10 @@ class Admin(Base):
     # Statut et gestion du compte
     est_actif = Column(Boolean, default=True)
     est_super_admin = Column(Boolean, default=False)  # Super admin peut tout faire
+    statut_inscription = Column(String(20), default=StatutInscription.EN_ATTENTE.value, nullable=False)
+    motif_refus_inscription = Column(Text, nullable=True)
+    date_decision_inscription = Column(DateTime, nullable=True)
+    approuve_par_admin_id = Column(Integer, ForeignKey("admins.id"), nullable=True)
     
     # Dates
     date_creation = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -552,3 +696,26 @@ class Annonce(Base):
         return jours is not None and jours <= 7
 
                                                                                                                                                                   
+
+# ============= MODÈLE PARTENAIRE =============
+
+class Partenaire(Base):
+    """
+    Modèle simplifié pour les partenaires
+    """
+    __tablename__ = "partenaires"
+    
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    nom = Column(String(200), nullable=False, index=True)
+    type_partenaire = Column(String(50), nullable=False)  # pharmacie, laboratoire, clinique, etc.
+    logo_url = Column(String(500), nullable=True)
+    
+    # Métadonnées
+    date_ajout = Column(DateTime, default=datetime.utcnow)
+    admin_id = Column(Integer, ForeignKey("admins.id"), nullable=True)
+    
+    # Relations
+    admin = relationship("Admin", foreign_keys=[admin_id])
+    
+    def __repr__(self):
+        return f"<Partenaire(id={self.id}, nom={self.nom}, type={self.type_partenaire})>"

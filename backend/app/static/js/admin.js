@@ -1,133 +1,186 @@
-// ============================================
-// DONNÉES SIMULÉES (À remplacer par API)
-// ============================================
+let inscriptionsEnAttente = [];
+let inscriptionSelectionnee = null;
+let tousLesMedecins = [];
+let adminCurrentLang = localStorage.getItem('app_lang') || 'fr';
 
-let currentAdmin = {
-    id: 1,
-    nom: 'Dr. Ahmed Benali',
-    email: 'admin@plateforme.com',
-    telephone: '+212 6 12 34 56 78',
-    photo: null
-};
-
-let medecinsEnAttente = [
-    {
-        id: 101,
-        nom: 'Dr. Fatima El Alaoui',
-        email: 'fatima@doctor.com',
-        specialite: 'Cardiologie',
-        telephone: '+212 6 11 22 33 44',
-        prix: 150,
-        bio: 'Cardiologue spécialisée',
-        dateInscription: '2025-01-20',
-        photo: 'https://via.placeholder.com/80'
-    },
-    {
-        id: 102,
-        nom: 'Dr. Hassan Belkaid',
-        email: 'hassan@doctor.com',
-        specialite: 'Pédiatrie',
-        telephone: '+212 6 55 66 77 88',
-        prix: 100,
-        bio: 'Pédiatre expérimenté',
-        dateInscription: '2025-01-19',
-        photo: 'https://via.placeholder.com/80'
+function normalizeStaticUrl(url) {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('/static/')) return url;
+    if (url.startsWith('static/')) return `/${url}`;
+    if (url.startsWith('app/static/')) return `/${url.replace('app/', '')}`;
+    if (url.includes('/app/static/')) {
+        return `/static/${url.split('/app/static/')[1]}`;
     }
-];
-
-let medecinsActifs = [
-    {
-        id: 201,
-        nom: 'Dr. Amina Bennani',
-        email: 'amina@doctor.com',
-        specialite: 'Dermatologie',
-        telephone: '+212 6 99 88 77 66',
-        prix: 120,
-        statut: 'actif',
-        photo: 'https://via.placeholder.com/80'
-    },
-    {
-        id: 202,
-        nom: 'Dr. Mohamed Bachir',
-        email: 'bachir@doctor.com',
-        specialite: 'Neurologie',
-        telephone: '+212 6 44 55 66 77',
-        prix: 180,
-        statut: 'actif',
-        photo: 'https://via.placeholder.com/80'
-    }
-];
-
-let patients = [
-    {
-        id: 301,
-        nom: 'Jean Paul Dupont',
-        email: 'jean@email.com',
-        telephone: '+212 6 11 11 11 11',
-        dateInscription: '2025-01-15',
-        consultations: 5,
-        photo: 'https://via.placeholder.com/80'
-    },
-    {
-        id: 302,
-        nom: 'Marie Moreau',
-        email: 'marie@email.com',
-        telephone: '+212 6 22 22 22 22',
-        dateInscription: '2025-01-10',
-        consultations: 3,
-        photo: 'https://via.placeholder.com/80'
-    }
-];
-
-let annonces = [];
-let administrateurs = [
-    {
-        id: 1,
-        nom: currentAdmin.nom,
-        email: currentAdmin.email,
-        dateNomination: '2024-06-15'
-    }
-];
-
-let consultations = [];
-let medecinSelectionne = null;
-
-// ============================================
-// INITIALISATION
-// ============================================
-
-document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
-});
-
-function initializeApp() {
-    loadAdminProfile();
-    setupNavigation();
-    setupEventListeners();
-    updateDashboard();
-    loadMedecinsPendants();
-    loadMedicinsActifs();
-    loadPatients();
-    loadAdministrateurs();
-    generateDummyConsultations();
+    return url;
 }
 
-// ============================================
-// NAVIGATION
-// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    setupNavigation();
+    setupEventListeners();
+    loadAdminProfile();
+    refreshInscriptionsData();
+    loadTousLesMedecinsParSpecialite();
+    loadMedecinsActifsDuJour();
+    loadPatientsList();
+    loadNominationData();
+    loadRevenueStats();
+    initAnnoncesSection();
+    loadDashboardData();
+    initSearch();
+    initAdminLanguage();
+    initAdminIAChat();
+    initAdminSettings();
+    initAdminBroadcastNotifications();
+    setupAdminNotificationsPanel();
+    loadAdminNotificationSummary();
+    setInterval(loadAdminNotificationSummary, 30000);
+
+     // Initialiser la messagerie quand on clique sur la section
+    const messagerieLink = document.querySelector('[data-section="messagerie"]');
+    if (messagerieLink) {
+        messagerieLink.addEventListener('click', () => {
+            setTimeout(initMessagerie, 100);
+        });
+    }
+
+});
+
+function initAdminLanguage() {
+    const select = document.getElementById('adminLanguageSelect');
+    if (!select) return;
+
+    const dict = {
+        fr: {
+            search: 'Rechercher...',
+            dashboard: 'Tableau de Bord',
+            activeDoctors: 'Médecins Actifs',
+            patients: 'Patients',
+            messages: 'Messagerie',
+            settings: 'Paramètres'
+        },
+        en: {
+            search: 'Search...',
+            dashboard: 'Dashboard',
+            activeDoctors: 'Active Doctors',
+            patients: 'Patients',
+            messages: 'Messaging',
+            settings: 'Settings'
+        },
+        es: {
+            search: 'Buscar...',
+            dashboard: 'Panel',
+            activeDoctors: 'Médicos activos',
+            patients: 'Pacientes',
+            messages: 'Mensajería',
+            settings: 'Configuración'
+        }
+    };
+
+    const apply = (lang) => {
+        const t = dict[lang] || dict.fr;
+        adminCurrentLang = lang;
+        localStorage.setItem('app_lang', lang);
+
+        const search = document.querySelector('.search-bar input');
+        if (search) search.placeholder = t.search;
+
+        const map = {
+            'tableau-bord': t.dashboard,
+            'medecins-actifs': t.activeDoctors,
+            patients: t.patients,
+            messagerie: t.messages,
+            parametres: t.settings
+        };
+        Object.entries(map).forEach(([section, text]) => {
+            const el = document.querySelector(`.nav-link[data-section="${section}"] span`);
+            if (el) el.textContent = text;
+        });
+
+        const activeTitle = document.querySelector('.section.active h2');
+        if (activeTitle) {
+            if (activeTitle.textContent.toLowerCase().includes('param')) {
+                activeTitle.textContent = t.settings;
+            } else if (activeTitle.textContent.toLowerCase().includes('messag')) {
+                activeTitle.textContent = t.messages;
+            }
+        }
+        translateAdminVisibleContent(lang);
+    };
+
+    const saved = localStorage.getItem('app_lang') || 'fr';
+    select.value = saved;
+    apply(saved);
+    select.addEventListener('change', (e) => apply(e.target.value));
+}
+
+function translateAdminVisibleContent(lang) {
+    if (lang === 'fr') return;
+    const content = document.querySelector('.section.active') || document.querySelector('.content-area');
+    if (!content) return;
+
+    const map = {
+        en: [
+            ['Paramètres', 'Settings'],
+            ['Profil Administrateur', 'Administrator Profile'],
+            ['Changer la Photo', 'Change Photo'],
+            ['Nom Complet', 'Full Name'],
+            ['Téléphone', 'Phone'],
+            ['Messagerie', 'Messaging'],
+            ['Assistant IA', 'AI Assistant']
+        ],
+        es: [
+            ['Paramètres', 'Configuracion'],
+            ['Profil Administrateur', 'Perfil Administrador'],
+            ['Changer la Photo', 'Cambiar Foto'],
+            ['Nom Complet', 'Nombre completo'],
+            ['Téléphone', 'Telefono'],
+            ['Messagerie', 'Mensajeria'],
+            ['Assistant IA', 'Asistente IA']
+        ]
+    };
+
+    const pairs = map[lang] || [];
+    pairs.forEach(([from, to]) => {
+        const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) {
+            if ((walker.currentNode.nodeValue || '').includes(from)) {
+                nodes.push(walker.currentNode);
+            }
+        }
+        nodes.forEach(n => n.nodeValue = n.nodeValue.replaceAll(from, to));
+    });
+}
+
+async function apiFetch(url, options = {}) {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Erreur ${response.status}`);
+    }
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+        return response.json();
+    }
+    return null;
+}
 
 function setupNavigation() {
     const navLinks = document.querySelectorAll('.nav-link');
-    
     navLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
+        link.addEventListener('click', e => {
             e.preventDefault();
             const sectionId = link.getAttribute('data-section');
             showSection(sectionId);
-            
-            // Mettre à jour l'active link
+            hideSearchResults();
             navLinks.forEach(l => l.classList.remove('active'));
             link.classList.add('active');
+
+            const sidebar = document.querySelector('.sidebar');
+            if (window.innerWidth <= 1024 && sidebar) {
+                sidebar.classList.remove('open');
+            }
         });
     });
 }
@@ -135,277 +188,426 @@ function setupNavigation() {
 function showSection(sectionId) {
     const sections = document.querySelectorAll('.section');
     sections.forEach(section => section.classList.remove('active'));
-    
-    const targetSection = document.getElementById(sectionId);
-    if (targetSection) {
-        targetSection.classList.add('active');
+    const target = document.getElementById(sectionId);
+    if (target) target.classList.add('active');
+    hideSearchResults();
+
+    const sidebar = document.querySelector('.sidebar');
+    if (window.innerWidth <= 1024 && sidebar) {
+        sidebar.classList.remove('open');
+    }
+
+    if (sectionId === 'tous-medecins') {
+        loadTousLesMedecinsParSpecialite();
+    }
+    if (sectionId === 'medecins-actifs') {
+        loadMedecinsActifsDuJour();
+    }
+    if (sectionId === 'patients') {
+        loadPatientsList();
+    }
+    if (sectionId === 'ajouter-medecin') {
+        loadNominationData();
+    }
+    if (sectionId === 'calendrier') {
+        showCalendar();
+    }
+    if (sectionId === 'partenaires') {
+        loadPartenaires();
+    }
+    if (sectionId === 'messagerie') {
+        setTimeout(initMessagerie, 50);
+    }
+    if (sectionId === 'chat-ia') {
+        setTimeout(initAdminIAChat, 50);
+    }
+    if (sectionId === 'notifications') {
+        setTimeout(loadAdminNotificationHistory, 50);
+    }
+    if (sectionId === 'parametres') {
+        setTimeout(initAdminSettings, 50);
+    }
+    if (adminCurrentLang && adminCurrentLang !== 'fr') {
+        setTimeout(() => translateAdminVisibleContent(adminCurrentLang), 80);
     }
 }
 
-// ============================================
-// TABLEAU DE BORD
-// ============================================
+function setupEventListeners() {
+    const approveBtn = document.getElementById('approveMedecinBtn');
+    const rejectBtn = document.getElementById('rejectMedecinBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const toggleBtn = document.getElementById('toggleSidebar');
 
-function updateDashboard() {
-    document.getElementById('cardActiveMedecins').textContent = medecinsActifs.length;
-    document.getElementById('cardPatients').textContent = patients.length;
-    document.getElementById('cardPending').textContent = medecinsEnAttente.length;
-    document.getElementById('badge-attente').textContent = medecinsEnAttente.length;
-    
-    // Calculer les revenus du mois
-    const monthRevenue = calculateMonthRevenue();
-    document.getElementById('cardRevenue').textContent = monthRevenue.toFixed(2) + '€';
-    
-    // Charger l'activité récente
-    loadRecentActivity();
-    loadPendingList();
-}
-
-function calculateMonthRevenue() {
-    return consultations
-        .filter(c => isCurrentMonth(c.date))
-        .reduce((total, c) => total + (c.montant || 0), 0);
-}
-
-function isCurrentMonth(dateStr) {
-    const date = new Date(dateStr);
-    const now = new Date();
-    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-}
-
-function loadRecentActivity() {
-    const activityList = document.getElementById('activityList');
-    if (consultations.length === 0) {
-        activityList.innerHTML = '<p class="empty-state">Aucune activité pour le moment</p>';
-        return;
+    if (approveBtn) approveBtn.addEventListener('click', approveInscription);
+    if (rejectBtn) rejectBtn.addEventListener('click', rejectInscription);
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            window.location.href = '/admin/deconnexionAdmin';
+        });
     }
-    
-    const recentActivity = consultations.slice(-5).reverse();
-    activityList.innerHTML = recentActivity.map(c => `
-        <div style="padding: 10px; border-bottom: 1px solid #eee;">
-            <p style="margin: 0; font-weight: 600;">${c.medecinNom} - ${c.patientNom}</p>
-            <p style="margin: 5px 0 0 0; font-size: 12px; color: #7f8c8d;">${c.date}</p>
-        </div>
-    `).join('');
-}
-
-function loadPendingList() {
-    const pendingList = document.getElementById('pendingList');
-    if (medecinsEnAttente.length === 0) {
-        pendingList.innerHTML = '<p class="empty-state">Aucune inscription en attente</p>';
-        return;
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            document.querySelector('.sidebar')?.classList.toggle('open');
+        });
     }
-    
-    pendingList.innerHTML = medecinsEnAttente.map(m => `
-        <div style="padding: 10px; border-bottom: 1px solid #eee;">
-            <p style="margin: 0; font-weight: 600;">${m.nom}</p>
-            <p style="margin: 5px 0 0 0; font-size: 12px; color: #7f8c8d;">${m.specialite}</p>
-        </div>
-    `).join('');
-}
 
-// ============================================
-// MÉDECINS EN ATTENTE
-// ============================================
-
-function loadMedecinsPendants() {
-    const tbody = document.getElementById('pendingMedecinTable');
-    
-    if (medecinsEnAttente.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Aucun médecin en attente</td></tr>';
-        return;
+    // AJOUTER CES LIGNES POUR LES STATISTIQUES
+    const refreshBtn = document.querySelector('.btn-primary .fa-sync-alt')?.closest('button');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            refreshStats();
+        });
     }
-    
-    tbody.innerHTML = medecinsEnAttente.map(m => `
-        <tr>
-            <td><img src="${m.photo}" alt="${m.nom}" class="table-photo"></td>
-            <td>${m.nom}</td>
-            <td>${m.email}</td>
-            <td>${m.specialite}</td>
-            <td>${m.telephone}</td>
-            <td>${m.dateInscription}</td>
-            <td>
-                <button class="btn btn-small btn-primary" onclick="viewMedecinDetails(${m.id})">
-                    <i class="fas fa-eye"></i> Voir
-                </button>
-            </td>
-        </tr>
-    `).join('');
-}
 
-function viewMedecinDetails(id) {
-    const medecin = medecinsEnAttente.find(m => m.id === id);
-    if (!medecin) return;
-    
-    medecinSelectionne = medecin;
-    
-    const detailsHtml = `
-        <div class="detail-item">
-            <span class="detail-label">Nom:</span>
-            <span class="detail-value">${medecin.nom}</span>
-        </div>
-        <div class="detail-item">
-            <span class="detail-label">Email:</span>
-            <span class="detail-value">${medecin.email}</span>
-        </div>
-        <div class="detail-item">
-            <span class="detail-label">Téléphone:</span>
-            <span class="detail-value">${medecin.telephone}</span>
-        </div>
-        <div class="detail-item">
-            <span class="detail-label">Spécialité:</span>
-            <span class="detail-value">${medecin.specialite}</span>
-        </div>
-        <div class="detail-item">
-            <span class="detail-label">Prix Consultation:</span>
-            <span class="detail-value">${medecin.prix}€</span>
-        </div>
-        <div class="detail-item">
-            <span class="detail-label">Bio:</span>
-            <span class="detail-value">${medecin.bio}</span>
-        </div>
-        <div class="detail-item">
-            <span class="detail-label">Date Inscription:</span>
-            <span class="detail-value">${medecin.dateInscription}</span>
-        </div>
-    `;
-    
-    document.getElementById('medecinDetails').innerHTML = detailsHtml;
-    document.getElementById('medecinModal').classList.add('show');
-}
+    const periodSelect = document.getElementById('statsPeriod');
+    if (periodSelect) {
+        periodSelect.addEventListener('change', (e) => {
+            const period = e.target.value;
+            loadRevenueStatsWithPeriod(period);
+        });
+    }
 
-function approveMedecin() {
-    if (!medecinSelectionne) return;
-    
-    // Ajouter aux médecins actifs
-    medecinsActifs.push({
-        id: medecinSelectionne.id,
-        nom: medecinSelectionne.nom,
-        email: medecinSelectionne.email,
-        specialite: medecinSelectionne.specialite,
-        telephone: medecinSelectionne.telephone,
-        prix: medecinSelectionne.prix,
-        statut: 'actif',
-        photo: medecinSelectionne.photo
+    const chartPeriodSelect = document.getElementById('chartPeriod');
+    if (chartPeriodSelect) {
+        chartPeriodSelect.addEventListener('change', (e) => {
+            const period = e.target.value;
+            updateChartPeriod(period);
+        });
+    }
+    // FIN DE L'AJOUT
+
+    document.addEventListener('click', e => {
+        if (e.target.classList.contains('close-modal')) {
+            e.target.closest('.modal')?.classList.remove('show');
+        }
     });
-    
-    // Retirer des médecins en attente
-    medecinsEnAttente = medecinsEnAttente.filter(m => m.id !== medecinSelectionne.id);
-    
-    // Rediriger le médecin vers son espace
-    // window.location.href = 'EspaceMedecin.html?medecinId=' + medecinSelectionne.id;
-    
-    alert(`Le médecin ${medecinSelectionne.nom} a été approuvé. Redirection en cours...`);
-    
-    // Fermer modal et actualiser
-    closeModal('medecinModal');
-    loadMedecinsPendants();
-    updateDashboard();
-    loadMedicinsActifs();
-}
 
-function rejectMedecin() {
-    if (!medecinSelectionne) return;
-    
-    if (confirm(`Êtes-vous sûr de vouloir rejeter ${medecinSelectionne.nom} ?`)) {
-        medecinsEnAttente = medecinsEnAttente.filter(m => m.id !== medecinSelectionne.id);
-        closeModal('medecinModal');
-        loadMedecinsPendants();
-        updateDashboard();
+    const filterCategory = document.getElementById('filterCategory');
+    if (filterCategory) {
+        filterCategory.addEventListener('change', () => {
+            renderTousMedecinsBySpecialite(filterCategory.value || '');
+        });
+    }
+
+    const addForm = document.getElementById('addMedecinForm');
+    if (addForm) {
+        addForm.addEventListener('submit', onNommerAdminSubmit);
     }
 }
 
-// ============================================
-// MÉDECINS ACTIFS
-// ============================================
 
-function loadMedicinsActifs() {
-    const tbody = document.getElementById('activeMedecinTable');
-    
-    if (medecinsActifs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Aucun médecin actif</td></tr>';
-        return;
-    }
-    
-    tbody.innerHTML = medecinsActifs.map(m => `
-        <tr>
-            <td><img src="${m.photo}" alt="${m.nom}" class="table-photo"></td>
-            <td>${m.nom}</td>
-            <td>${m.email}</td>
-            <td>${m.specialite}</td>
-            <td>${m.prix}€</td>
-            <td><span style="background-color: #d4edda; color: #155724; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${m.statut}</span></td>
-            <td>
-                <button class="btn btn-small btn-danger" onclick="deleteMedecin(${m.id})">
-                    <i class="fas fa-trash"></i> Supprimer
-                </button>
-            </td>
-        </tr>
-    `).join('');
-    
-    // Populate speciality filter
-    const specialities = [...new Set(medecinsActifs.map(m => m.specialite))];
-    const filterSelect = document.getElementById('filterSpeciality');
-    filterSelect.innerHTML = '<option value="">Toutes les spécialités</option>' + 
-        specialities.map(s => `<option value="${s}">${s}</option>`).join('');
-}
-
-function deleteMedecin(id) {
-    const medecin = medecinsActifs.find(m => m.id === id);
-    if (!medecin) return;
-    
-    if (confirm(`Êtes-vous sûr de vouloir supprimer le Dr. ${medecin.nom} ?`)) {
-        medecinsActifs = medecinsActifs.filter(m => m.id !== id);
-        loadMedicinsActifs();
-        updateDashboard();
+// Fonction pour charger les stats avec une période spécifique
+async function loadRevenueStatsWithPeriod(period) {
+    try {
+        // Afficher un indicateur de chargement
+        showStatsLoading(true);
+        
+        
+        await loadRevenueStats();
+        
+        // Mettre à jour le texte du filtre pour indiquer la période sélectionnée
+        const periodText = {
+            'today': "aujourd'hui",
+            'week': 'cette semaine',
+            'month': 'ce mois',
+            'year': 'cette année'
+        }[period] || '';
+        
+        console.log(`Données actualisées pour ${periodText}`);
+        
+    } catch (error) {
+        console.error('Erreur chargement période:', error);
+    } finally {
+        showStatsLoading(false);
     }
 }
 
-// ============================================
-// TOUS LES MÉDECINS PAR CATÉGORIE
-// ============================================
-
-function loadAllMedecinsByCategory() {
-    const allMedecins = [...medecinsActifs, ...medecinsEnAttente];
-    const categories = [...new Set(allMedecins.map(m => m.specialite))];
+// Fonction pour mettre à jour la période du graphique
+function updateChartPeriod(period) {
+    console.log(`Mise à jour du graphique pour les ${period} derniers jours`);
     
+    loadRevenueStats();
+}
+
+// Fonction pour afficher/masquer un indicateur de chargement
+function showStatsLoading(show) {
+    const statsCards = document.querySelectorAll('.stat-card');
+    if (show) {
+        statsCards.forEach(card => {
+            card.style.opacity = '0.5';
+            card.style.pointerEvents = 'none';
+        });
+    } else {
+        statsCards.forEach(card => {
+            card.style.opacity = '1';
+            card.style.pointerEvents = 'auto';
+        });
+    }
+}
+
+
+function refreshStats() {
+    // Ajoute un effet visuel sur le bouton
+    const refreshBtn = document.querySelector('.btn-primary .fa-sync-alt')?.closest('button');
+    if (refreshBtn) {
+        const icon = refreshBtn.querySelector('i');
+        if (icon) {
+            icon.classList.add('fa-spin');
+        }
+    }
+    
+    // Recharger les stats
+    loadRevenueStats().finally(() => {
+        // Enlever l'animation après 1 seconde
+        setTimeout(() => {
+            const icon = refreshBtn?.querySelector('i');
+            if (icon) {
+                icon.classList.remove('fa-spin');
+            }
+        }, 1000);
+    });
+}
+
+
+async function loadAdminProfile() {
+    try {
+        const profile = await apiFetch('/admin/api/profil');
+        
+        // Si le profil est null ou undefined, utiliser des valeurs par défaut
+        const fullName = profile?.nom_complet || 'Administrateur';
+        const photo = normalizeStaticUrl(profile?.photo_profil_url) || 'https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff&size=40';
+
+        const adminName = document.getElementById('adminName');
+        const adminPhoto = document.getElementById('adminPhoto');
+        const settingsPhoto = document.getElementById('settingsAdminPhoto');
+        const adminFullName = document.getElementById('adminFullName');
+        const adminEmail = document.getElementById('adminEmail');
+        const adminPhone = document.getElementById('adminPhone');
+        const adminSpecialite = document.getElementById('adminSpecialite');
+        const adminNumeroOrdre = document.getElementById('adminNumeroOrdre');
+        const adminLangues = document.getElementById('adminLangues');
+        const adminAdresse = document.getElementById('adminAdresse');
+        const adminVille = document.getElementById('adminVille');
+        const adminCodePostal = document.getElementById('adminCodePostal');
+        const adminBiographie = document.getElementById('adminBiographie');
+
+        if (adminName) adminName.textContent = fullName;
+        if (adminPhoto) adminPhoto.src = photo;
+        if (settingsPhoto) settingsPhoto.src = photo;
+        if (adminFullName) adminFullName.value = profile?.nom_complet || '';
+        if (adminEmail) adminEmail.value = profile?.email || '';
+        if (adminPhone) adminPhone.value = profile?.telephone || '';
+        if (adminSpecialite) adminSpecialite.value = profile?.specialite || '';
+        if (adminNumeroOrdre) adminNumeroOrdre.value = profile?.numero_ordre || '';
+        if (adminLangues) adminLangues.value = profile?.langues || '';
+        if (adminAdresse) adminAdresse.value = profile?.adresse || '';
+        if (adminVille) adminVille.value = profile?.ville || '';
+        if (adminCodePostal) adminCodePostal.value = profile?.code_postal || '';
+        if (adminBiographie) adminBiographie.value = profile?.biographie || '';
+        
+    } catch (error) {
+        console.error('Erreur chargement profil admin:', error);
+       
+    }
+}
+
+function initAdminSettings() {
+    const form = document.getElementById('settingsForm');
+    const photoInput = document.getElementById('photoUpload');
+    if (!form) return;
+
+    if (!form.dataset.boundSettings) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fullName = document.getElementById('adminFullName')?.value?.trim() || '';
+            const email = document.getElementById('adminEmail')?.value?.trim() || '';
+            const phone = document.getElementById('adminPhone')?.value?.trim() || '';
+            const specialite = document.getElementById('adminSpecialite')?.value?.trim() || '';
+            const numeroOrdre = document.getElementById('adminNumeroOrdre')?.value?.trim() || '';
+            const langues = document.getElementById('adminLangues')?.value?.trim() || '';
+            const adresse = document.getElementById('adminAdresse')?.value?.trim() || '';
+            const ville = document.getElementById('adminVille')?.value?.trim() || '';
+            const codePostal = document.getElementById('adminCodePostal')?.value?.trim() || '';
+            const biographie = document.getElementById('adminBiographie')?.value?.trim() || '';
+            if (!fullName || !email) {
+                alert('Veuillez renseigner le nom complet et l\'email.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('nom_complet', fullName);
+            formData.append('email', email);
+            formData.append('telephone', phone);
+            formData.append('specialite', specialite);
+            formData.append('numero_ordre', numeroOrdre);
+            formData.append('langues', langues);
+            formData.append('adresse', adresse);
+            formData.append('ville', ville);
+            formData.append('code_postal', codePostal);
+            formData.append('biographie', biographie);
+            if (photoInput && photoInput.files && photoInput.files[0]) {
+                formData.append('photo', photoInput.files[0]);
+            }
+
+            try {
+                const result = await apiFetch('/admin/api/profil/update', {
+                    method: 'POST',
+                    body: formData
+                });
+                alert(result?.message || 'Profil mis à jour');
+                await loadAdminProfile();
+            } catch (error) {
+                console.error(error);
+                alert('Erreur lors de la mise à jour du profil.');
+            }
+        });
+        form.dataset.boundSettings = '1';
+    }
+
+    if (photoInput && !photoInput.dataset.boundPhotoUpload) {
+        photoInput.addEventListener('change', async () => {
+            const file = photoInput.files?.[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('photo', file);
+            try {
+                const data = await apiFetch('/admin/api/profil/photo', {
+                    method: 'POST',
+                    body: formData
+                });
+                const photoUrl = normalizeStaticUrl(data?.photo_profil_url);
+                const adminPhoto = document.getElementById('adminPhoto');
+                const settingsPhoto = document.getElementById('settingsAdminPhoto');
+                if (adminPhoto && photoUrl) adminPhoto.src = photoUrl;
+                if (settingsPhoto && photoUrl) settingsPhoto.src = photoUrl;
+            } catch (error) {
+                console.error(error);
+                alert('Erreur lors du changement de photo.');
+            }
+        });
+        photoInput.dataset.boundPhotoUpload = '1';
+    }
+}
+
+function initAdminIAChat() {
+    const input = document.getElementById('iaInput');
+    const sendBtn = document.getElementById('sendIaBtn');
+    const chatHistory = document.getElementById('chatHistory');
+    if (!input || !sendBtn || !chatHistory) return;
+    if (sendBtn.dataset.boundIa) return;
+
+    const send = async () => {
+        const text = input.value.trim();
+        if (!text) return;
+        chatHistory.insertAdjacentHTML('beforeend', `
+            <div class="user-message"><div class="user-message-content">${escapeHtml(text)}</div></div>
+        `);
+        input.value = '';
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+
+        try {
+            const fd = new FormData();
+            fd.append('message', text);
+            const data = await apiFetch('/admin/api/ia/chat', { method: 'POST', body: fd });
+            const reply = data?.reply || "Je n'ai pas de réponse pour le moment.";
+            chatHistory.insertAdjacentHTML('beforeend', `
+                <div class="ia-message"><div class="ia-message-content">${escapeHtml(reply)}</div></div>
+            `);
+        } catch (error) {
+            console.error(error);
+            chatHistory.insertAdjacentHTML('beforeend', `
+                <div class="ia-message"><div class="ia-message-content">Erreur de communication avec l'assistant IA.</div></div>
+            `);
+        }
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    };
+
+    sendBtn.addEventListener('click', send);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            send();
+        }
+    });
+    sendBtn.dataset.boundIa = '1';
+}
+
+async function refreshInscriptionsData() {
+    await Promise.all([
+        loadInscriptionsEnAttente(),
+        updateDashboardCounters(),
+        loadPendingWidget()
+    ]);
+}
+
+async function loadTousLesMedecinsParSpecialite() {
+    try {
+        tousLesMedecins = await apiFetch('/admin/api/tous-medecins');
+    } catch (error) {
+        console.error(error);
+        tousLesMedecins = [];
+    }
+    buildCategoryFilter();
+    renderTousMedecinsBySpecialite(document.getElementById('filterCategory')?.value || '');
+}
+
+function buildCategoryFilter() {
+    const filter = document.getElementById('filterCategory');
+    if (!filter) return;
+    const categories = [...new Set(tousLesMedecins.map(m => m.specialite || 'Non définie'))].sort((a, b) => a.localeCompare(b));
+    filter.innerHTML = '<option value="">Toutes les catégories</option>' + categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+}
+
+function renderTousMedecinsBySpecialite(selectedCategory = '') {
     const container = document.getElementById('medecinsByCategory');
-    
-    if (categories.length === 0) {
+    if (!container) return;
+
+    let list = [...tousLesMedecins];
+    if (selectedCategory) {
+        list = list.filter(m => (m.specialite || 'Non définie') === selectedCategory);
+    }
+
+    if (!list.length) {
         container.innerHTML = '<p class="empty-state">Aucun médecin trouvé</p>';
         return;
     }
-    
-    let html = '';
-    categories.forEach(cat => {
-        const medecinsCat = allMedecins.filter(m => m.specialite === cat);
-        html += `
-            <div style="margin-bottom: 30px;">
-                <h3 style="color: #3498db; margin-bottom: 15px;">${cat} (${medecinsCat.length})</h3>
+
+    const byCategory = {};
+    list.forEach(m => {
+        const key = m.specialite || 'Non définie';
+        if (!byCategory[key]) byCategory[key] = [];
+        byCategory[key].push(m);
+    });
+
+    const categories = Object.keys(byCategory).sort((a, b) => a.localeCompare(b));
+    container.innerHTML = categories.map(category => {
+        const medecins = byCategory[category];
+        return `
+            <div style="margin-bottom:24px;">
+                <h3 style="margin-bottom:10px;">${escapeHtml(category)} (${medecins.length})</h3>
                 <div class="table-container">
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Photo</th>
                                 <th>Nom</th>
                                 <th>Email</th>
                                 <th>Téléphone</th>
-                                <th>Prix</th>
                                 <th>Statut</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${medecinsCat.map(m => `
+                            ${medecins.map(m => `
                                 <tr>
-                                    <td><img src="${m.photo}" alt="${m.nom}" class="table-photo"></td>
-                                    <td>${m.nom}</td>
-                                    <td>${m.email}</td>
-                                    <td>${m.telephone}</td>
-                                    <td>${m.prix}€</td>
+                                    <td>${escapeHtml(m.nom_complet || `${m.prenom || ''} ${m.nom || ''}`.trim())}</td>
+                                    <td>${escapeHtml(m.email || '-')}</td>
+                                    <td>${escapeHtml(m.telephone || '-')}</td>
+                                    <td>${escapeHtml(m.statut_inscription || '-')}</td>
                                     <td>
-                                        <span style="background-color: ${medecinsEnAttente.find(x => x.id === m.id) ? '#fff3cd' : '#d4edda'}; color: ${medecinsEnAttente.find(x => x.id === m.id) ? '#856404' : '#155724'}; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
-                                            ${medecinsEnAttente.find(x => x.id === m.id) ? 'En attente' : 'Actif'}
-                                        </span>
+                                        <button class="btn btn-small btn-primary" onclick="viewMedecinProfessionnel(${m.id})">
+                                            <i class="fas fa-eye"></i> Voir
+                                        </button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -414,481 +616,2690 @@ function loadAllMedecinsByCategory() {
                 </div>
             </div>
         `;
-    });
-    
-    container.innerHTML = html;
+    }).join('');
 }
 
-// ============================================
-// PATIENTS
-// ============================================
+window.viewMedecinProfessionnel = async function (medecinId) {
+    try {
+        const profile = await apiFetch(`/admin/api/medecins/${medecinId}/profil-professionnel`);
+        const detailsContainer = document.getElementById('medecinDetails');
+        const modalTitle = document.getElementById('modalTitle');
+        if (modalTitle) modalTitle.textContent = 'Informations professionnelles du médecin';
 
-function loadPatients() {
+        const rows = [
+            ['Nom complet', profile.nom_complet || '-'],
+            ['Spécialité', profile.specialite || '-'],
+            ['Email', profile.email || '-'],
+            ['Téléphone', profile.telephone || '-'],
+            ['Numéro ordre', profile.numero_ordre || '-'],
+            ['Adresse', profile.adresse || '-'],
+            ['Ville', profile.ville || '-'],
+            ['Code postal', profile.code_postal || '-'],
+            ['Langues', profile.langues || '-'],
+            ['Biographie', profile.biographie || '-'],
+            ['Années d\'expérience', profile.annees_experience ?? '-'],
+            ['Prix consultation', profile.prix_consultation ?? '-'],
+            ['Statut', profile.statut_inscription || '-']
+        ];
+
+        if (detailsContainer) {
+            detailsContainer.innerHTML = rows.map(([label, value]) => `
+                <div class="detail-item">
+                    <span class="detail-label">${escapeHtml(label)}:</span>
+                    <span class="detail-value">${escapeHtml(value)}</span>
+                </div>
+            `).join('');
+        }
+
+        toggleApprovalControls(false);
+        document.getElementById('medecinModal')?.classList.add('show');
+    } catch (error) {
+        console.error(error);
+        alert('Impossible de charger le profil professionnel du médecin.');
+    }
+};
+
+async function loadMedecinsActifsDuJour() {
+    const section = document.getElementById('medecins-actifs');
+    if (!section) return;
+    let container = document.getElementById('activeDayCards');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'activeDayCards';
+        container.style.marginTop = '16px';
+        section.appendChild(container);
+    }
+
+    try {
+        const payload = await apiFetch('/admin/api/medecins-actifs-jour');
+        const cards = payload.cards || [];
+        if (!cards.length) {
+            container.innerHTML = '<p class="empty-state">Aucun médecin actif avec consultation/rendez-vous prévu aujourd\'hui.</p>';
+            return;
+        }
+
+        container.innerHTML = cards.map(c => {
+            const medecin = c.medecin || {};
+            const patient = c.patient || {};
+            return `
+                <div class="card" style="margin-bottom:14px;">
+                    <div class="card-content" style="padding:14px;">
+                        <p style="margin:0 0 8px 0;font-weight:700;">${c.event_type === 'consultation' ? 'Consultation' : 'Rendez-vous'} - ${formatDateTime(c.date_heure)}</p>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                            <div style="background:#f8fafc;padding:10px;border-radius:8px;">
+                                <h4 style="margin:0 0 8px 0;">Médecin</h4>
+                                <p style="margin:0;">${escapeHtml(medecin.nom_complet || '-')}</p>
+                                <p style="margin:0;">Spécialité: ${escapeHtml(medecin.specialite || '-')}</p>
+                                <p style="margin:0;">Email: ${escapeHtml(medecin.email || '-')}</p>
+                                <p style="margin:0;">Tél: ${escapeHtml(medecin.telephone || '-')}</p>
+                                <p style="margin:0;">Adresse: ${escapeHtml([medecin.adresse, medecin.ville].filter(Boolean).join(', ') || '-')}</p>
+                            </div>
+                            <div style="background:#f8fafc;padding:10px;border-radius:8px;">
+                                <h4 style="margin:0 0 8px 0;">Patient</h4>
+                                <p style="margin:0;">${escapeHtml(patient.nom_complet || '-')}</p>
+                                <p style="margin:0;">Email: ${escapeHtml(patient.email || '-')}</p>
+                                <p style="margin:0;">Tél: ${escapeHtml(patient.telephone || '-')}</p>
+                                <p style="margin:0;">Adresse: ${escapeHtml([patient.adresse, patient.ville].filter(Boolean).join(', ') || '-')}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error(error);
+        container.innerHTML = '<p class="empty-state">Erreur lors du chargement des médecins actifs du jour.</p>';
+    }
+}
+
+async function loadPatientsList() {
     const tbody = document.getElementById('patientTable');
-    
-    if (patients.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Aucun patient</td></tr>';
-        return;
+    if (!tbody) return;
+    try {
+        const patients = await apiFetch('/admin/api/patients');
+        if (!patients.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Aucun patient</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = patients.map(p => `
+            <tr>
+                <td><img src="${escapeHtml(normalizeStaticUrl(p.photo_profil_url) || 'https://via.placeholder.com/80')}" alt="${escapeHtml(p.nom_complet || '')}" class="table-photo"></td>
+                <td>${escapeHtml(p.nom_complet || '-')}</td>
+                <td>${escapeHtml(p.email || '-')}</td>
+                <td>${escapeHtml(p.telephone || '-')}</td>
+                <td>${escapeHtml(formatDate(p.date_creation))}</td>
+                <td>${escapeHtml(String(p.consultations_count ?? 0))}</td>
+                <td>
+                    <button class="btn btn-small btn-primary" onclick="viewPatientProfil(${p.id})">
+                        <i class="fas fa-eye"></i> Voir
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error(error);
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur de chargement des patients</td></tr>';
     }
-    
-    tbody.innerHTML = patients.map(p => `
-        <tr>
-            <td><img src="${p.photo}" alt="${p.nom}" class="table-photo"></td>
-            <td>${p.nom}</td>
-            <td>${p.email}</td>
-            <td>${p.telephone}</td>
-            <td>${p.dateInscription}</td>
-            <td>${p.consultations}</td>
-            <td>
-                <button class="btn btn-small btn-primary">
-                    <i class="fas fa-eye"></i> Voir
-                </button>
-            </td>
-        </tr>
-    `).join('');
 }
 
-// ============================================
-// AJOUTER MÉDECIN
-// ============================================
+window.viewPatientProfil = async function (patientId) {
+    try {
+        const profile = await apiFetch(`/admin/api/patients/${patientId}/profil`);
+        const detailsContainer = document.getElementById('medecinDetails');
+        const modalTitle = document.getElementById('modalTitle');
+        if (modalTitle) modalTitle.textContent = 'Informations du patient';
 
-function setupAddMedecinForm() {
-    const form = document.getElementById('addMedecinForm');
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(this);
-        const newMedecin = {
-            id: Math.max(...medecinsActifs.map(m => m.id), 0) + 1,
-            nom: formData.get('nom'),
-            email: formData.get('email'),
-            telephone: formData.get('telephone'),
-            specialite: formData.get('specialite'),
-            prix: parseFloat(formData.get('prix')),
-            bio: formData.get('bio'),
-            statut: 'actif',
-            featured: formData.get('featured') === 'on',
-            photo: 'https://via.placeholder.com/80'
-        };
-        
-        medecinsActifs.push(newMedecin);
-        alert(`Le médecin ${newMedecin.nom} a été ajouté avec succès!`);
-        form.reset();
-        loadMedicinsActifs();
-        updateDashboard();
-    });
-}
+        const rows = [
+            ['Nom complet', profile.nom_complet || '-'],
+            ['Email', profile.email || '-'],
+            ['Téléphone', profile.telephone || '-'],
+            ['Téléphone urgence', profile.telephone_urgence || '-'],
+            ['Date de naissance', profile.date_naissance ? formatDate(profile.date_naissance) : '-'],
+            ['Genre', profile.genre || '-'],
+            ['Adresse', [profile.adresse, profile.adresse_ligne2, profile.ville, profile.code_postal, profile.pays].filter(Boolean).join(', ') || '-'],
+            ['NSS', profile.numero_securite_sociale || '-'],
+            ['Groupe sanguin', profile.groupe_sanguin || '-'],
+            ['Allergies', profile.allergies || '-'],
+            ['Antécédents médicaux', profile.antecedents_medicaux || '-'],
+            ['Antécédents familiaux', profile.antecedents_familiaux || '-'],
+            ['Traitements en cours', profile.traitements_en_cours || '-'],
+            ['Mutuelle', [profile.mutuelle_nom, profile.mutuelle_numero].filter(Boolean).join(' - ') || '-'],
+            ['Médecin traitant', [profile.medecin_traitant_nom, profile.medecin_traitant_telephone].filter(Boolean).join(' - ') || '-'],
+            ['Date inscription', formatDate(profile.date_creation)]
+        ];
 
-// ============================================
-// ANNONCES
-// ============================================
+        if (detailsContainer) {
+            detailsContainer.innerHTML = rows.map(([label, value]) => `
+                <div class="detail-item">
+                    <span class="detail-label">${escapeHtml(label)}:</span>
+                    <span class="detail-value">${escapeHtml(value)}</span>
+                </div>
+            `).join('');
+        }
 
-function setupAddAnnonceForm() {
-    const form = document.getElementById('addAnnonceForm');
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(this);
-        const newAnnonce = {
-            id: Math.max(...annonces.map(a => a.id), 0) + 1,
-            titre: formData.get('titre'),
-            contenu: formData.get('contenu'),
-            dateExpiration: formData.get('date_expiration'),
-            dateCreation: new Date().toISOString().split('T')[0]
-        };
-        
-        annonces.push(newAnnonce);
-        alert('Annonce ajoutée avec succès!');
-        form.reset();
-        loadAnnonces();
-    });
-}
-
-function loadAnnonces() {
-    const container = document.getElementById('announcesList');
-    
-    if (annonces.length === 0) {
-        container.innerHTML = '<p class="empty-state">Aucune annonce</p>';
-        return;
+        toggleApprovalControls(false);
+        document.getElementById('medecinModal')?.classList.add('show');
+    } catch (error) {
+        console.error(error);
+        alert('Impossible de charger le profil patient.');
     }
-    
-    container.innerHTML = annonces.map(a => `
-        <div class="announcement-card">
-            <div class="announcement-content">
-                <h4>${a.titre}</h4>
-                <p>${a.contenu}</p>
-                <span class="announcement-date">Créée le: ${a.dateCreation}</span>
+};
+
+async function loadNominationData() {
+    await renderNominationSection();
+}
+
+async function renderNominationSection() {
+    const section = document.getElementById('ajouter-medecin');
+    if (!section) return;
+
+    section.innerHTML = `
+        <h2>Nommer un médecin comme administrateur</h2>
+        <form class="form-container" id="addMedecinForm">
+            <div class="form-group">
+                <label>Sélectionner un médecin</label>
+                <select id="selectMedecinToAdmin" required>
+                    <option value="">Choisir un médecin</option>
+                </select>
             </div>
-            <div class="announcement-actions">
-                <button class="btn btn-small btn-danger" onclick="deleteAnnonce(${a.id})">
-                    <i class="fas fa-trash"></i>
-                </button>
+            <button type="submit" class="btn btn-primary">Nommer Admin</button>
+        </form>
+        <div style="margin-top:24px;">
+            <h3>Administrateurs actuels</h3>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Email</th>
+                            <th>Téléphone</th>
+                        </tr>
+                    </thead>
+                    <tbody id="adminsCurrentTable">
+                        <tr><td colspan="3" class="empty-state">Chargement...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
-    `).join('');
-}
+    `;
 
-function deleteAnnonce(id) {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette annonce ?')) {
-        annonces = annonces.filter(a => a.id !== id);
-        loadAnnonces();
+    const [admins, medecins] = await Promise.all([
+        apiFetch('/admin/api/administrateurs').catch(() => []),
+        apiFetch('/admin/api/tous-medecins').catch(() => [])
+    ]);
+
+    const adminEmails = new Set(admins.map(a => (a.email || '').toLowerCase()));
+    const eligibles = medecins.filter(m => {
+        const isApproved = (m.statut_inscription || '').toUpperCase() === 'APPROUVEE';
+        const isActive = Boolean(m.est_actif);
+        const email = (m.email || '').toLowerCase();
+        return isApproved && isActive && email && !adminEmails.has(email);
+    });
+
+    const select = document.getElementById('selectMedecinToAdmin');
+    if (select) {
+        select.innerHTML = '<option value="">Choisir un médecin</option>' +
+            eligibles.map(m => `<option value="${m.id}">${escapeHtml(m.nom_complet || m.email)}</option>`).join('');
+    }
+
+    const adminsTable = document.getElementById('adminsCurrentTable');
+    if (adminsTable) {
+        adminsTable.innerHTML = admins.length
+            ? admins.map(a => `
+                <tr>
+                    <td>${escapeHtml(a.nom_complet || `${a.prenom || ''} ${a.nom || ''}`.trim())}</td>
+                    <td>${escapeHtml(a.email || '-')}</td>
+                    <td>${escapeHtml(a.telephone || '-')}</td>
+                </tr>
+              `).join('')
+            : '<tr><td colspan="3" class="empty-state">Aucun administrateur</td></tr>';
+    }
+
+    const form = document.getElementById('addMedecinForm');
+    if (form) {
+        form.addEventListener('submit', onNommerAdminSubmit);
     }
 }
 
-// ============================================
-// STATISTIQUES
-// ============================================
+async function onNommerAdminSubmit(e) {
+    e.preventDefault();
+    const select = document.getElementById('selectMedecinToAdmin');
+    if (!select || !select.value) {
+        alert('Veuillez sélectionner un médecin.');
+        return;
+    }
 
-function generateDummyConsultations() {
-    consultations = [
-        { id: 1, medecinNom: 'Dr. Amina Bennani', patientNom: 'Jean Paul Dupont', date: '2025-01-21', montant: 120 },
-        { id: 2, medecinNom: 'Dr. Mohamed Bachir', patientNom: 'Marie Moreau', date: '2025-01-21', montant: 180 },
-        { id: 3, medecinNom: 'Dr. Amina Bennani', patientNom: 'Ahmed Hassan', date: '2025-01-20', montant: 120 },
-        { id: 4, medecinNom: 'Dr. Mohamed Bachir', patientNom: 'Fatima El Alaoui', date: '2025-01-20', montant: 180 },
-        { id: 5, medecinNom: 'Dr. Amina Bennani', patientNom: 'Jean Paul Dupont', date: '2025-01-19', montant: 120 }
-    ];
+    try {
+        const result = await apiFetch(`/admin/api/administrateurs/nommer/${encodeURIComponent(select.value)}`, {
+            method: 'POST'
+        });
+        const info = (result?.message || 'Medecin nomme administrateur.') + '\nLe medecin conserve aussi son acces a l interface medecin.';
+        alert(info);
+        await renderNominationSection();
+    } catch (error) {
+        console.error(error);
+        alert('Erreur lors de la nomination.');
+    }
 }
 
-function loadStatistics() {
-    loadConsultationStats();
+async function loadInscriptionsEnAttente() {
+    try {
+        inscriptionsEnAttente = await apiFetch('/admin/api/inscriptions-en-attente');
+    } catch (error) {
+        console.error(error);
+        inscriptionsEnAttente = [];
+    }
+    renderInscriptionsTable();
+}
+
+function renderInscriptionsTable() {
+    const tbody = document.getElementById('pendingMedecinTable');
+    if (!tbody) return;
+
+    if (!inscriptionsEnAttente.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Aucune inscription en attente</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = inscriptionsEnAttente.map(item => {
+        const photo = normalizeStaticUrl(item.photo_profil_url) || 'https://via.placeholder.com/80';
+        const name = item.nom_complet || `${item.prenom || ''} ${item.nom || ''}`.trim();
+        const typeLabel = item.profil_type === 'admin' ? 'Admin' : 'Médecin';
+        const spec = item.specialite || '-';
+        const phone = item.telephone || '-';
+        const dateInscription = formatDate(item.date_creation);
+        return `
+            <tr>
+                <td><img src="${escapeHtml(photo)}" alt="${escapeHtml(name)}" class="table-photo"></td>
+                <td><span style="font-weight:600;">${escapeHtml(name)}</span><br><small>${typeLabel}</small></td>
+                <td>${escapeHtml(item.email || '-')}</td>
+                <td>${escapeHtml(spec)}</td>
+                <td>${escapeHtml(phone)}</td>
+                <td>${escapeHtml(dateInscription)}</td>
+                <td>
+                    <button class="btn btn-small btn-primary" onclick="viewInscriptionDetails('${item.profil_type}', ${item.id})">
+                        <i class="fas fa-eye"></i> Voir
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function loadPendingWidget() {
+    const pendingList = document.getElementById('pendingList');
+    if (!pendingList) return;
+
+    if (!inscriptionsEnAttente.length) {
+        pendingList.innerHTML = '<p class="empty-state">Aucune inscription en attente</p>';
+        return;
+    }
+
+    pendingList.innerHTML = inscriptionsEnAttente.slice(0, 8).map(item => {
+        const typeLabel = item.profil_type === 'admin' ? 'Admin' : 'Médecin';
+        return `
+            <div style="padding:10px;border-bottom:1px solid #eee;">
+                <p style="margin:0;font-weight:600;">${escapeHtml(item.nom_complet || item.email || '')}</p>
+                <p style="margin:4px 0 0 0;font-size:12px;color:#6b7280;">${typeLabel}</p>
+            </div>
+        `;
+    }).join('');
+}
+
+async function updateDashboardCounters() {
+    try {
+        const stats = await apiFetch('/admin/api/inscriptions/statistiques');
+        const pending = Number(stats.pending_total || 0);
+        const approved = Number(stats.approved_total || 0);
+        const rejected = Number(stats.rejected_total || 0);
+
+        const cardPending = document.getElementById('cardPending');
+        const badgePending = document.getElementById('badge-attente');
+        if (cardPending) cardPending.textContent = String(pending);
+        if (badgePending) badgePending.textContent = String(pending);
+
+        ensureDecisionCards();
+        const cardApproved = document.getElementById('cardApprovedInscriptions');
+        const cardRejected = document.getElementById('cardRejectedInscriptions');
+        if (cardApproved) cardApproved.textContent = String(approved);
+        if (cardRejected) cardRejected.textContent = String(rejected);
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+function ensureDecisionCards() {
+    if (document.getElementById('cardApprovedInscriptions') && document.getElementById('cardRejectedInscriptions')) {
+        return;
+    }
+
+    const cardsContainer = document.querySelector('#tableau-bord .dashboard-cards');
+    if (!cardsContainer) return;
+
+    const approvedCard = document.createElement('div');
+    approvedCard.className = 'card';
+    approvedCard.innerHTML = `
+        <div class="card-icon" style="background:#16a34a;">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="card-content">
+            <h3>Validées</h3>
+            <p class="card-number" id="cardApprovedInscriptions">0</p>
+        </div>
+    `;
+
+    const rejectedCard = document.createElement('div');
+    rejectedCard.className = 'card';
+    rejectedCard.innerHTML = `
+        <div class="card-icon" style="background:#dc2626;">
+            <i class="fas fa-times-circle"></i>
+        </div>
+        <div class="card-content">
+            <h3>Rejetées</h3>
+            <p class="card-number" id="cardRejectedInscriptions">0</p>
+        </div>
+    `;
+
+    cardsContainer.appendChild(approvedCard);
+    cardsContainer.appendChild(rejectedCard);
+}
+
+window.viewInscriptionDetails = function (profilType, id) {
+    const item = inscriptionsEnAttente.find(x => x.profil_type === profilType && Number(x.id) === Number(id));
+    if (!item) return;
+    inscriptionSelectionnee = item;
+
+    const detailsContainer = document.getElementById('medecinDetails');
+    const modalTitle = document.getElementById('modalTitle');
+    if (modalTitle) {
+        modalTitle.textContent = `Détails inscription ${item.profil_type === 'admin' ? 'Administrateur' : 'Médecin'}`;
+    }
+
+    const rows = [
+        ['Type', item.profil_type === 'admin' ? 'Administrateur' : 'Médecin'],
+        ['Nom', item.nom || '-'],
+        ['Prénom', item.prenom || '-'],
+        ['Email', item.email || '-'],
+        ['Téléphone', item.telephone || '-'],
+        ['Spécialité', item.specialite || '-'],
+        ['Numéro ordre', item.numero_ordre || '-'],
+        ['Adresse', item.adresse || '-'],
+        ['Ville', item.ville || '-'],
+        ['Code postal', item.code_postal || '-'],
+        ['Langues', item.langues || '-'],
+        ['Biographie', item.biographie || '-'],
+        ['Date inscription', formatDate(item.date_creation)]
+    ];
+
+    if (detailsContainer) {
+        detailsContainer.innerHTML = rows.map(([label, value]) => `
+            <div class="detail-item">
+                <span class="detail-label">${escapeHtml(label)}:</span>
+                <span class="detail-value">${escapeHtml(value || '-')}</span>
+            </div>
+        `).join('');
+    }
+
+    const rejectInput = document.getElementById('rejectReasonInput');
+    if (rejectInput) rejectInput.value = '';
+    toggleApprovalControls(true);
+    const modal = document.getElementById('medecinModal');
+    modal?.classList.add('show');
+};
+
+async function approveInscription() {
+    if (!inscriptionSelectionnee) return;
+    try {
+        await apiFetch(
+            `/admin/api/inscriptions/${encodeURIComponent(inscriptionSelectionnee.profil_type)}/${inscriptionSelectionnee.id}/approuver`,
+            { method: 'POST' }
+        );
+        closeModal('medecinModal');
+        await refreshInscriptionsData();
+        alert('Inscription approuvée.');
+    } catch (error) {
+        console.error(error);
+        alert('Erreur lors de l’approbation.');
+    }
+}
+
+async function rejectInscription() {
+    if (!inscriptionSelectionnee) return;
+    const rejectInput = document.getElementById('rejectReasonInput');
+    const motif = rejectInput ? rejectInput.value.trim() : '';
+    const formData = new FormData();
+    formData.append('motif_refus', motif);
+
+    try {
+        await apiFetch(
+            `/admin/api/inscriptions/${encodeURIComponent(inscriptionSelectionnee.profil_type)}/${inscriptionSelectionnee.id}/rejeter`,
+            {
+                method: 'POST',
+                body: formData
+            }
+        );
+        closeModal('medecinModal');
+        await refreshInscriptionsData();
+        alert('Inscription rejetée.');
+    } catch (error) {
+        console.error(error);
+        alert('Erreur lors du rejet.');
+    }
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId)?.classList.remove('show');
+}
+
+function toggleApprovalControls(show) {
+    const approveBtn = document.getElementById('approveMedecinBtn');
+    const rejectBtn = document.getElementById('rejectMedecinBtn');
+    const rejectInput = document.getElementById('rejectReasonInput');
+    if (approveBtn) approveBtn.style.display = show ? '' : 'none';
+    if (rejectBtn) rejectBtn.style.display = show ? '' : 'none';
+    if (rejectInput) {
+        const wrap = rejectInput.closest('.form-group');
+        if (wrap) wrap.style.display = show ? '' : 'none';
+    }
+}
+
+function formatDate(value) {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString('fr-FR');
+}
+
+function formatDateTime(value) {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleString('fr-FR');
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+
+// ============= STATISTIQUES AMÉLIORÉES =============
+
+async function loadRevenueStats(period = 'month') {
+    try {
+        // Ajouter le paramètre period à l'URL si votre backend le supporte
+        const url = `/admin/api/statistiques/tableau-bord${period ? `?period=${period}` : ''}`;
+        
+        const [medecins, categories, dashboard] = await Promise.all([
+            apiFetch('/admin/api/statistiques/revenus-medecins'),
+            apiFetch('/admin/api/statistiques/revenus-categories'),
+            apiFetch(url)  // Utiliser l'URL avec période
+        ]);
+
+        updateStatsCards(dashboard);
+        displayRevenueByDoctorsTable(medecins);
+        displayRevenueByCategoryCards(categories);
+        initChart(dashboard);
+    } catch (error) {
+        console.error('Erreur chargement statistiques:', error);
+    }
+}
+
+function updateStatsCards(stats) {
+    // Mettre à jour les cartes principales
+    document.getElementById('totalConsultations').textContent = stats.total_consultations || 0;
+    document.getElementById('totalRevenue').textContent = formatCurrency(stats.total_revenu || 0);
+    document.getElementById('monthRevenue').textContent = formatCurrency(stats.revenu_mois || 0);
+    
+    // Calculer la moyenne par jour
+    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const avgDaily = (stats.revenu_mois || 0) / daysInMonth;
+    document.getElementById('avgDaily').textContent = formatCurrency(avgDaily);
+}
+
+function displayRevenueByDoctorsTable(medecins) {
+    const tbody = document.getElementById('revenueByDoctorsBody');
+    if (!tbody) return;
+
+    if (!medecins || medecins.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Aucune donnée</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = medecins.map(m => {
+        const performance = calculatePerformance(m.total_consultations);
+        const initials = m.nom_complet.split(' ').map(n => n[0]).join('').toUpperCase();
+        
+        return `
+            <tr>
+                <td>
+                    <div class="doctor-info">
+                        <div class="doctor-avatar">${initials}</div>
+                        <strong>${escapeHtml(m.nom_complet)}</strong>
+                    </div>
+                </td>
+                <td><span class="specialty-badge">${escapeHtml(m.specialite)}</span></td>
+                <td><strong>${m.total_consultations}</strong></td>
+                <td><span class="stat-value-small">${formatCurrency(m.revenu_total)}</span></td>
+                <td>
+                    <div class="performance-bar">
+                        <div class="performance-fill" style="width: ${performance}%"></div>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function displayRevenueByCategoryCards(categories) {
+    const container = document.getElementById('revenueByCategoryBody');
+    if (!container) return;
+
+    if (!categories || categories.length === 0) {
+        container.innerHTML = '<p class="empty-state">Aucune donnée</p>';
+        return;
+    }
+
+    const maxRevenue = Math.max(...categories.map(c => c.revenu_total));
+    
+    container.innerHTML = `
+        <div class="category-cards">
+            ${categories.map(c => {
+                const percentage = (c.revenu_total / maxRevenue) * 100;
+                return `
+                    <div class="category-item">
+                        <div class="category-name">
+                            <i class="fas fa-stethoscope"></i>
+                            ${escapeHtml(c.categorie)}
+                        </div>
+                        <div class="category-stats">
+                            <div class="category-stat-row">
+                                <span class="category-stat-label">Médecins</span>
+                                <span class="category-stat-value">${c.medecins_count}</span>
+                            </div>
+                            <div class="category-stat-row">
+                                <span class="category-stat-label">Consultations</span>
+                                <span class="category-stat-value">${c.total_consultations}</span>
+                            </div>
+                            <div class="category-stat-row">
+                                <span class="category-stat-label">Revenu total</span>
+                                <span class="category-stat-value">${formatCurrency(c.revenu_total)}</span>
+                            </div>
+                            <div class="stat-progress">
+                                <div class="stat-progress-bar" style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function initChart(stats) {
+    // Initialiser un graphique simple avec Chart.js si disponible
+    if (typeof Chart !== 'undefined') {
+        const ctx = document.getElementById('consultationsChart')?.getContext('2d');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'],
+                    datasets: [{
+                        label: 'Consultations',
+                        data: [12, 19, 15, stats.total_consultations || 0],
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+    }
+}
+
+function calculatePerformance(consultations) {
+    // Calculer un pourcentage de performance (exemple)
+    const max = 30; // Objectif de consultations
+    return Math.min(100, (consultations / max) * 100);
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: 'XOF',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(amount).replace('XOF', 'FCFA');
+}
+
+function refreshStats() {
     loadRevenueStats();
 }
 
-function loadConsultationStats() {
-    const tbody = document.getElementById('revenueByDoctorTable');
+function exportToExcel(type) {
+    // Fonction pour exporter les données
+    alert(`Export des données ${type} en cours...`);
+}
+
+
+function updateDashboardWithRevenue(stats) {
+    const revenueCard = document.getElementById('totalRevenueCard');
+    const revenueMonthCard = document.getElementById('revenueMonthCard');
+    const consultationsCard = document.getElementById('totalConsultationsCard');
+
+    if (revenueCard) revenueCard.textContent = (stats.total_revenu || 0).toFixed(2) + ' FCFA';
+    if (revenueMonthCard) revenueMonthCard.textContent = (stats.revenu_mois || 0).toFixed(2) + ' FCFA';
+    if (consultationsCard) consultationsCard.textContent = stats.total_consultations || 0;
+
+    ensureRevenueCards(stats);
+}
+
+function ensureRevenueCards(stats) {
+    const cardsContainer = document.querySelector('#tableau-bord .dashboard-cards');
+    if (!cardsContainer || document.getElementById('totalRevenueCard')) return;
+
+    const revenueCard = document.createElement('div');
+    revenueCard.className = 'card';
+    revenueCard.innerHTML = `
+        <div class="card-icon" style="background:#8b5cf6;"><i class="fas fa-coins"></i></div>
+        <div class="card-content"><h3>Revenus Totaux</h3><p class="card-number" id="totalRevenueCard">${(stats.total_revenu || 0).toFixed(2)} FCFA</p></div>
+    `;
+    cardsContainer.appendChild(revenueCard);
+
+    const revenueMonthCard = document.createElement('div');
+    revenueMonthCard.className = 'card';
+    revenueMonthCard.innerHTML = `
+        <div class="card-icon" style="background:#f59e0b;"><i class="fas fa-dollar-sign"></i></div>
+        <div class="card-content"><h3>Revenus Mois</h3><p class="card-number" id="revenueMonthCard">${(stats.revenu_mois || 0).toFixed(2)} FCFA</p></div>
+    `;
+    cardsContainer.appendChild(revenueMonthCard);
+
+    const consultationsCard = document.createElement('div');
+    consultationsCard.className = 'card';
+    consultationsCard.innerHTML = `
+        <div class="card-icon" style="background:#10b981;"><i class="fas fa-stethoscope"></i></div>
+        <div class="card-content"><h3>Consultations</h3><p class="card-number" id="totalConsultationsCard">${stats.total_consultations || 0}</p></div>
+    `;
+    cardsContainer.appendChild(consultationsCard);
+}
+
+
+
+
+// ============= GESTION DES ANNONCES =============
+
+// Initialiser la section annonces
+function initAnnoncesSection() {
+    const form = document.getElementById('addAnnonceForm');
+    if (form) {
+        // Remplacer le comportement par défaut du formulaire
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // EMPÊCHE LA REDIRECTION
+            await addAnnonce(e);
+        });
+    }
     
-    // Grouper les consultations par médecin
-    const byDoctor = {};
-    consultations.forEach(c => {
-        if (!byDoctor[c.medecinNom]) {
-            byDoctor[c.medecinNom] = { count: 0, revenue: 0 };
+    // Charger les annonces quand la section est affichée
+    const annoncesLink = document.querySelector('[data-section="annonces"]');
+    if (annoncesLink) {
+        annoncesLink.addEventListener('click', () => {
+            setTimeout(loadAnnonces, 100);
+        });
+    }
+}
+
+// Charger la liste des annonces
+async function loadAnnonces() {
+    const container = document.getElementById('annoncesList');
+    if (!container) return;
+
+    try {
+        const annonces = await apiFetch('/admin/api/annonces');
+        
+        if (!annonces || annonces.length === 0) {
+            container.innerHTML = '<p class="empty-state text-center p-4">Aucune annonce active</p>';
+            return;
         }
-        byDoctor[c.medecinNom].count++;
-        byDoctor[c.medecinNom].revenue += c.montant;
-    });
-    
-    const rows = Object.entries(byDoctor).map(([nom, data]) => `
-        <tr>
-            <td>${nom}</td>
-            <td>${data.count}</td>
-            <td>${data.revenue.toFixed(2)}€</td>
-        </tr>
-    `).join('');
-    
-    tbody.innerHTML = rows || '<tr><td colspan="3" class="empty-state">Aucune donnée</td></tr>';
+
+        let html = `
+            <table class="table table-striped table-hover align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Image</th>
+                        <th>Titre</th>
+                        <th>Catégorie</th>
+                        <th>Contenu</th>
+                        <th>Date création</th>
+                        <th>Expiration</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        annonces.forEach(annonce => {
+            const annonceImageUrl = normalizeStaticUrl(annonce.image_url);
+            const imageHtml = annonceImageUrl 
+                ? `<img src="${escapeHtml(annonceImageUrl)}" alt="${escapeHtml(annonce.titre)}" style="width:56px; height:56px; object-fit:cover; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.12);">`
+                : '<span class="text-muted">-</span>';
+            
+            const categorieHtml = annonce.categorie 
+                ? `<span class="badge bg-${getCategoryColor(annonce.categorie)}">${escapeHtml(annonce.categorie)}</span>`
+                : '-';
+            
+            const contenuCourt = annonce.contenu.length > 50 
+                ? annonce.contenu.substring(0, 50) + '...' 
+                : annonce.contenu;
+            
+            html += `
+                <tr>
+                    <td>${imageHtml}</td>
+                    <td><strong>${escapeHtml(annonce.titre)}</strong><br><small class="text-muted">${escapeHtml(annonce.description_courte || '')}</small></td>
+                    <td>${categorieHtml}</td>
+                    <td>${escapeHtml(contenuCourt)}</td>
+                    <td>${formatDate(annonce.dateCreation)}</td>
+                    <td>${annonce.date_expiration ? formatDate(annonce.date_expiration) : '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteAnnonce(${annonce.id})">
+                            <i class="fas fa-trash"></i> Supprimer
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                </tbody>
+            </table>
+        `;
+
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Erreur chargement annonces:', error);
+        container.innerHTML = '<p class="empty-state text-danger text-center p-4">Erreur lors du chargement des annonces</p>';
+    }
 }
 
-function loadRevenueStats() {
-    const tbody = document.getElementById('revenueByCategoryTable');
+// Obtenir la couleur de la catégorie pour le badge
+function getCategoryColor(categorie) {
+    const colors = {
+        'promotion': 'success',
+        'info': 'info',
+        'urgence': 'danger',
+        'evenement': 'warning'
+    };
+    return colors[categorie.toLowerCase()] || 'secondary';
+}
+
+// Ajouter une annonce
+async function addAnnonce(event) {
+    event.preventDefault(); 
     
-    // Grouper par catégorie
-    const byCategory = {};
-    medecinsActifs.forEach(m => {
-        if (!byCategory[m.specialite]) {
-            byCategory[m.specialite] = { count: 0, revenue: 0 };
+    const form = document.getElementById('addAnnonceForm');
+    const formData = new FormData(form);
+    
+    // Ajouter les champs optionnels s'ils sont vides
+    if (!formData.get('description_courte')) {
+        formData.delete('description_courte');
+    }
+    if (!formData.get('lien_cible')) {
+        formData.delete('lien_cible');
+    }
+    if (!formData.get('lien_texte')) {
+        formData.delete('lien_texte');
+    }
+    if (!formData.get('date_expiration')) {
+        formData.delete('date_expiration');
+    }
+    
+    try {
+        // Afficher un indicateur de chargement
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Ajout en cours...';
+        submitBtn.disabled = true;
+
+        const response = await fetch('/admin/api/annonces/ajouter', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Erreur lors de l\'ajout');
         }
-        const doctorConsults = consultations.filter(c => c.medecinNom === m.nom);
-        byCategory[m.specialite].count += doctorConsults.length;
-        byCategory[m.specialite].revenue += doctorConsults.reduce((sum, c) => sum + c.montant, 0);
-    });
-    
-    const rows = Object.entries(byCategory).map(([cat, data]) => `
-        <tr>
-            <td>${cat}</td>
-            <td>${data.count}</td>
-            <td>${data.revenue.toFixed(2)}€</td>
-        </tr>
-    `).join('');
-    
-    tbody.innerHTML = rows || '<tr><td colspan="3" class="empty-state">Aucune donnée</td></tr>';
+
+        const result = await response.json();
+        
+        // Réinitialiser le formulaire
+        form.reset();
+        
+        // Recharger la liste
+        await loadAnnonces();
+        
+        // Afficher un message de succès
+        alert('✅ Annonce ajoutée avec succès !');
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur lors de l\'ajout de l\'annonce: ' + error.message);
+    } finally {
+        // Restaurer le bouton
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Ajouter l\'annonce';
+        submitBtn.disabled = false;
+    }
 }
 
-// ============================================
-// PROFIL ADMIN
-// ============================================
-
-function loadAdminProfile() {
-    document.getElementById('adminName').textContent = currentAdmin.nom;
-    document.getElementById('adminPhoto').src = currentAdmin.photo || 'https://via.placeholder.com/40';
-    document.getElementById('settingsAdminPhoto').src = currentAdmin.photo || 'https://via.placeholder.com/150';
+// Supprimer une annonce
+async function deleteAnnonce(annonceId) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette annonce ?')) {
+        return;
+    }
     
-    document.getElementById('adminFullName').value = currentAdmin.nom;
-    document.getElementById('adminEmail').value = currentAdmin.email;
-    document.getElementById('adminPhone').value = currentAdmin.telephone;
+    try {
+        const response = await fetch(`/admin/api/annonces/${annonceId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || 'Erreur lors de la suppression');
+        }
+
+        await loadAnnonces(); // Recharger la liste
+        alert('✅ Annonce supprimée avec succès');
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur lors de la suppression: ' + error.message);
+    }
 }
 
-function setupSettingsForm() {
-    const form = document.getElementById('settingsForm');
-    
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
+
+
+
+// ============= MISE À JOUR DU TABLEAU DE BORD =============
+
+// Fonction pour charger toutes les données du tableau de bord
+async function loadDashboardData() {
+    try {
+        // Charger le nombre de médecins actifs
+        await loadActiveDoctorsCount();
         
-        currentAdmin.nom = document.getElementById('adminFullName').value;
-        currentAdmin.email = document.getElementById('adminEmail').value;
-        currentAdmin.telephone = document.getElementById('adminPhone').value;
+        // Charger le nombre total de patients
+        await loadTotalPatientsCount();
         
-        // Mettre à jour l'administrateur dans la liste
-        const adminIndex = administrateurs.findIndex(a => a.id === 1);
-        if (adminIndex !== -1) {
-            administrateurs[adminIndex].nom = currentAdmin.nom;
-            administrateurs[adminIndex].email = currentAdmin.email;
+        // Charger le nombre d'inscriptions en attente
+        await loadPendingCount();
+        
+        // Charger les revenus du mois
+        await loadMonthlyRevenue();
+        
+        // Charger les activités récentes
+        await loadRecentActivities();
+        
+    } catch (error) {
+        console.error('Erreur chargement tableau de bord:', error);
+    }
+}
+
+// Fonction pour charger le nombre de médecins actifs
+async function loadActiveDoctorsCount() {
+    try {
+        const medecins = await apiFetch('/admin/api/tous-medecins');
+        const activeDoctors = medecins.filter(m => m.est_actif === true).length;
+        
+        // Mettre à jour l'affichage dans la carte
+        const activeDoctorsCard = document.querySelector('.dashboard-cards .card:nth-child(1) .card-number');
+        if (activeDoctorsCard) {
+            activeDoctorsCard.textContent = activeDoctors;
         }
         
-        loadAdminProfile();
-        loadAdministrateurs();
-        alert('Profil mis à jour avec succès!');
-    });
-    
-    // Photo upload
-    document.getElementById('photoUpload').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                currentAdmin.photo = event.target.result;
-                document.getElementById('adminPhoto').src = currentAdmin.photo;
-                document.getElementById('settingsAdminPhoto').src = currentAdmin.photo;
-            };
-            reader.readAsDataURL(file);
+        // Alternative: chercher par le texte "Médecins Actifs"
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            if (card.textContent.includes('Médecins Actifs')) {
+                const numberElement = card.querySelector('.card-number');
+                if (numberElement) numberElement.textContent = activeDoctors;
+            }
+        });
+        
+    } catch (error) {
+        console.error('Erreur chargement médecins actifs:', error);
+    }
+}
+
+// Fonction pour charger le nombre total de patients
+async function loadTotalPatientsCount() {
+    try {
+        const patients = await apiFetch('/admin/api/patients');
+        const totalPatients = patients.length;
+        
+        // Mettre à jour l'affichage dans la carte
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            if (card.textContent.includes('Patients')) {
+                const numberElement = card.querySelector('.card-number');
+                if (numberElement) numberElement.textContent = totalPatients;
+            }
+        });
+        
+    } catch (error) {
+        console.error('Erreur chargement patients:', error);
+    }
+}
+
+
+// Fonction pour charger les revenus du mois
+async function loadMonthlyRevenue() {
+    try {
+        const dashboard = await apiFetch('/admin/api/statistiques/tableau-bord');
+        const monthlyRevenue = dashboard.revenu_mois || 0;
+        
+        // Formater le montant
+        const formattedRevenue = formatCurrency(monthlyRevenue);
+        
+        // Mettre à jour l'affichage dans la carte
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(card => {
+            if (card.textContent.includes('Revenus (Mois)') || card.textContent.includes('Revenus Mois')) {
+                const numberElement = card.querySelector('.card-number');
+                if (numberElement) numberElement.textContent = formattedRevenue;
+            }
+        });
+        
+    } catch (error) {
+        console.error('Erreur chargement revenus du mois:', error);
+    }
+}
+
+// Fonction pour charger les activités récentes de l'admin
+async function loadRecentActivities() {
+    try {
+        // Récupérer les activités depuis différentes sources
+        const activities = [];
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000); // 1 heure
+        
+        // Récupérer les inscriptions approuvées/récentes
+        const inscriptions = await apiFetch('/admin/api/inscriptions/statistiques');
+        
+        // Récupérer les dernières annonces ajoutées
+        const annonces = await apiFetch('/admin/api/annonces');
+        
+        // Construire la liste des activités
+        if (annonces && annonces.length > 0) {
+            const recentAnnonces = annonces.filter(a => {
+                const dateCreation = new Date(a.dateCreation);
+                return dateCreation > oneHourAgo;
+            });
+            
+            recentAnnonces.forEach(annonce => {
+                activities.push({
+                    type: 'annonce',
+                    description: `Nouvelle annonce: "${annonce.titre}"`,
+                    time: new Date(annonce.dateCreation),
+                    icon: 'fa-bullhorn',
+                    color: '#3498db'
+                });
+            });
         }
-    });
+        
+        // Ajouter quelques activités simulées si nécessaire
+        if (activities.length === 0) {
+            activities.push({
+                type: 'info',
+                description: 'Aucune activité récente',
+                time: new Date(),
+                icon: 'fa-info-circle',
+                color: '#95a5a6'
+            });
+        }
+        
+        // Trier par date (plus récent d'abord)
+        activities.sort((a, b) => b.time - a.time);
+        
+        // Afficher les activités
+        displayRecentActivities(activities);
+        
+    } catch (error) {
+        console.error('Erreur chargement activités récentes:', error);
+        
+        // En cas d'erreur, afficher un message
+        const activityContainer = document.querySelector('.dashboard-grid .widget:first-child');
+        if (activityContainer) {
+            activityContainer.innerHTML = `
+                <h3>Activité Récente</h3>
+                <div class="activity-list">
+                    <div class="activity-item">
+                        <i class="fas fa-exclamation-circle" style="color: #e74c3c;"></i>
+                        <div class="activity-content">
+                            <p>Impossible de charger les activités</p>
+                            <small>${formatDateTime(new Date())}</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
 }
 
-// ============================================
-// ADMINISTRATEURS
-// ============================================
-
-function loadAdministrateurs() {
-    const tbody = document.getElementById('adminsTable');
+// Fonction pour afficher les activités récentes
+function displayRecentActivities(activities) {
+    const activityContainer = document.querySelector('.dashboard-grid .widget:first-child');
+    if (!activityContainer) return;
     
-    tbody.innerHTML = administrateurs.map(a => `
-        <tr>
-            <td>${a.nom}</td>
-            <td>${a.email}</td>
-            <td>${a.dateNomination}</td>
-            <td>
-                <button class="btn btn-small btn-danger" onclick="removeAdmin(${a.id})">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </td>
-        </tr>
-    `).join('');
+    const activityHtml = `
+        <h3>Activité Récente</h3>
+        <div class="activity-list">
+            ${activities.map(activity => `
+                <div class="activity-item">
+                    <i class="fas ${activity.icon}" style="color: ${activity.color};"></i>
+                    <div class="activity-content">
+                        <p>${escapeHtml(activity.description)}</p>
+                        <small>${formatTimeAgo(activity.time)}</small>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
     
-    // Populate select avec les médecins actifs non-admin
-    const adminEmails = administrateurs.map(a => a.email);
-    const availableMedecins = medecinsActifs.filter(m => !adminEmails.includes(m.email));
-    
-    const select = document.getElementById('selectMedecinAdmin');
-    select.innerHTML = '<option value="">Choisir un médecin</option>' +
-        availableMedecins.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+    activityContainer.innerHTML = activityHtml;
 }
 
-function setupAppointAdminForm() {
-    const form = document.getElementById('appointAdminForm');
+// Fonction pour formater le temps écoulé
+function formatTimeAgo(date) {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
     
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
+    if (diffMins < 1) return "À l'instant";
+    if (diffMins < 60) return `Il y a ${diffMins} minute${diffMins > 1 ? 's' : ''}`;
+    if (diffHours < 24) return `Il y a ${diffHours} heure${diffHours > 1 ? 's' : ''}`;
+    
+    return formatDate(date);
+}
+
+
+// ============= RECHERCHE GLOBALE =============
+
+let searchTimeout = null;
+let allSearchData = {
+    medecins: [],
+    patients: [],
+    annonces: [],
+    inscriptions: [],
+    sections: []
+};
+
+// Initialiser la recherche
+function initSearch() {
+    const searchInput = document.querySelector('.search-bar input');
+    if (!searchInput) return;
+    
+    // Créer le conteneur de résultats s'il n'existe pas
+    if (!document.getElementById('searchResults')) {
+        const resultsDiv = document.createElement('div');
+        resultsDiv.id = 'searchResults';
+        resultsDiv.className = 'search-results';
+        searchInput.parentElement.appendChild(resultsDiv);
+    }
+    
+    // Ajouter l'écouteur d'événement
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
         
-        const medecinId = parseInt(document.getElementById('selectMedecinAdmin').value);
-        const medecin = medecinsActifs.find(m => m.id === medecinId);
+        // Clear previous timeout
+        if (searchTimeout) clearTimeout(searchTimeout);
         
-        if (!medecin) {
-            alert('Veuillez sélectionner un médecin');
+        if (query.length < 2) {
+            hideSearchResults();
             return;
         }
         
-        const newAdmin = {
-            id: Math.max(...administrateurs.map(a => a.id), 0) + 1,
-            nom: medecin.nom,
-            email: medecin.email,
-            dateNomination: new Date().toISOString().split('T')[0]
-        };
-        
-        administrateurs.push(newAdmin);
-        alert(`${medecin.nom} a été nommé administrateur!`);
-        form.reset();
-        loadAdministrateurs();
+        // Debounce pour éviter trop de requêtes
+        searchTimeout = setTimeout(() => performSearch(query), 300);
+    });
+    
+    // Cacher les résultats quand on clique ailleurs
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-bar')) {
+            hideSearchResults();
+        }
     });
 }
 
-function removeAdmin(id) {
-    if (id === 1) {
-        alert('Vous ne pouvez pas supprimer l\'administrateur principal');
+// Effectuer la recherche
+async function performSearch(query) {
+    try {
+        showSearchLoading();
+        
+        // Charger toutes les données si pas déjà fait
+        await loadSearchData();
+        
+        // Rechercher dans les médecins
+        const medecinResults = allSearchData.medecins.filter(m => 
+            (m.nom_complet && m.nom_complet.toLowerCase().includes(query.toLowerCase())) ||
+            (m.email && m.email.toLowerCase().includes(query.toLowerCase())) ||
+            (m.specialite && m.specialite.toLowerCase().includes(query.toLowerCase()))
+        );
+        
+        // Rechercher dans les patients
+        const patientResults = allSearchData.patients.filter(p => 
+            (p.nom_complet && p.nom_complet.toLowerCase().includes(query.toLowerCase())) ||
+            (p.email && p.email.toLowerCase().includes(query.toLowerCase()))
+        );
+        
+        // Rechercher dans les annonces
+        const annonceResults = allSearchData.annonces.filter(a => 
+            (a.titre && a.titre.toLowerCase().includes(query.toLowerCase())) ||
+            (a.contenu && a.contenu.toLowerCase().includes(query.toLowerCase()))
+        );
+        
+        // Rechercher dans les inscriptions en attente
+        const inscriptionResults = allSearchData.inscriptions.filter(i => 
+            (i.nom_complet && i.nom_complet.toLowerCase().includes(query.toLowerCase())) ||
+            (i.email && i.email.toLowerCase().includes(query.toLowerCase()))
+        );
+        
+        const sectionResults = searchInSections(query);
+
+        displaySearchResults({
+            medecins: medecinResults.slice(0, 5),
+            patients: patientResults.slice(0, 5),
+            annonces: annonceResults.slice(0, 5),
+            inscriptions: inscriptionResults.slice(0, 5),
+            sections: sectionResults.slice(0, 8)
+        }, query);
+        
+    } catch (error) {
+        console.error('Erreur recherche:', error);
+    }
+}
+
+function searchInSections(query) {
+    const q = query.toLowerCase();
+    const out = [];
+    const sections = document.querySelectorAll('.section');
+    sections.forEach(section => {
+        const text = (section.innerText || '').replace(/\s+/g, ' ').trim();
+        if (!text) return;
+        const idx = text.toLowerCase().indexOf(q);
+        if (idx === -1) return;
+        const sectionId = section.id;
+        const title = section.querySelector('h2, h3')?.textContent?.trim() || sectionId || 'Section';
+        const excerpt = text.substring(Math.max(0, idx - 40), Math.min(text.length, idx + q.length + 60));
+        out.push({ section_id: sectionId, title, excerpt });
+    });
+    return out;
+}
+
+// Charger toutes les données pour la recherche
+async function loadSearchData() {
+    try {
+        const [medecins, patients, annonces, inscriptions] = await Promise.all([
+            apiFetch('/admin/api/tous-medecins').catch(() => []),
+            apiFetch('/admin/api/patients').catch(() => []),
+            apiFetch('/admin/api/annonces').catch(() => []),
+            apiFetch('/admin/api/inscriptions-en-attente').catch(() => [])
+        ]);
+        
+        allSearchData = {
+            medecins: medecins || [],
+            patients: patients || [],
+            annonces: annonces || [],
+            inscriptions: inscriptions || []
+        };
+    } catch (error) {
+        console.error('Erreur chargement données recherche:', error);
+    }
+}
+
+// Afficher les résultats de recherche
+function displaySearchResults(results, query) {
+    const resultsDiv = document.getElementById('searchResults');
+    if (!resultsDiv) return;
+    
+    const totalResults = results.medecins.length + results.patients.length +
+                        results.annonces.length + results.inscriptions.length + (results.sections?.length || 0);
+    
+    if (totalResults === 0) {
+        resultsDiv.innerHTML = `
+            <div class="search-result-section">
+                <p class="no-results">Aucun résultat pour "${escapeHtml(query)}"</p>
+            </div>
+        `;
+        resultsDiv.classList.add('show');
         return;
     }
     
-    if (confirm('Êtes-vous sûr de vouloir retirer cet administrateur ?')) {
-        administrateurs = administrateurs.filter(a => a.id !== id);
-        loadAdministrateurs();
+    let html = '';
+    
+    // Résultats médecins
+    if (results.medecins.length > 0) {
+        html += `
+            <div class="search-result-section">
+                <div class="section-title">
+                    <i class="fas fa-user-md"></i> Médecins (${results.medecins.length})
+                </div>
+                ${results.medecins.map(m => `
+                    <div class="search-result-item" onclick="goToMedecin(${m.id})">
+                        <div class="result-icon"><i class="fas fa-user-md"></i></div>
+                        <div class="result-content">
+                            <div class="result-title">${escapeHtml(m.nom_complet || 'Médecin')}</div>
+                            <div class="result-subtitle">${escapeHtml(m.specialite || 'Spécialité non définie')} • ${escapeHtml(m.email || '')}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    // Résultats patients
+    if (results.patients.length > 0) {
+        html += `
+            <div class="search-result-section">
+                <div class="section-title">
+                    <i class="fas fa-user"></i> Patients (${results.patients.length})
+                </div>
+                ${results.patients.map(p => `
+                    <div class="search-result-item" onclick="goToPatient(${p.id})">
+                        <div class="result-icon"><i class="fas fa-user"></i></div>
+                        <div class="result-content">
+                            <div class="result-title">${escapeHtml(p.nom_complet || 'Patient')}</div>
+                            <div class="result-subtitle">${escapeHtml(p.email || '')}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    // Résultats annonces
+    if (results.annonces.length > 0) {
+        html += `
+            <div class="search-result-section">
+                <div class="section-title">
+                    <i class="fas fa-bullhorn"></i> Annonces (${results.annonces.length})
+                </div>
+                ${results.annonces.map(a => `
+                    <div class="search-result-item" onclick="goToAnnonce(${a.id})">
+                        <div class="result-icon"><i class="fas fa-bullhorn"></i></div>
+                        <div class="result-content">
+                            <div class="result-title">${escapeHtml(a.titre)}</div>
+                            <div class="result-subtitle">${escapeHtml(a.contenu.substring(0, 50))}...</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    // Résultats inscriptions
+    if (results.inscriptions.length > 0) {
+        html += `
+            <div class="search-result-section">
+                <div class="section-title">
+                    <i class="fas fa-clock"></i> Inscriptions en attente (${results.inscriptions.length})
+                </div>
+                ${results.inscriptions.map(i => `
+                    <div class="search-result-item" onclick="goToInscription('${i.profil_type}', ${i.id})">
+                        <div class="result-icon"><i class="fas fa-clock"></i></div>
+                        <div class="result-content">
+                            <div class="result-title">${escapeHtml(i.nom_complet || 'Inscription')}</div>
+                            <div class="result-subtitle">${escapeHtml(i.email || '')}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    if (results.sections && results.sections.length > 0) {
+        html += `
+            <div class="search-result-section">
+                <div class="section-title">
+                    <i class="fas fa-compass"></i> Contenu des sections (${results.sections.length})
+                </div>
+                ${results.sections.map(s => `
+                    <div class="search-result-item" onclick="goToSectionById('${escapeHtml(s.section_id)}')">
+                        <div class="result-icon"><i class="fas fa-file-alt"></i></div>
+                        <div class="result-content">
+                            <div class="result-title">${escapeHtml(s.title)}</div>
+                            <div class="result-subtitle">${escapeHtml(s.excerpt)}...</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+    
+    resultsDiv.innerHTML = html;
+    resultsDiv.classList.add('show');
+}
+
+// Afficher le chargement
+function showSearchLoading() {
+    const resultsDiv = document.getElementById('searchResults');
+    if (!resultsDiv) return;
+    
+    resultsDiv.innerHTML = `
+        <div class="search-loading">
+            <i class="fas fa-spinner fa-spin"></i> Recherche en cours...
+        </div>
+    `;
+    resultsDiv.classList.add('show');
+}
+
+// Cacher les résultats
+function hideSearchResults() {
+    const resultsDiv = document.getElementById('searchResults');
+    if (resultsDiv) {
+        resultsDiv.classList.remove('show');
+        resultsDiv.scrollTop = 0;
     }
 }
 
+// Fonctions de navigation
+window.goToMedecin = function(medecinId) {
+    showSection('tous-medecins');
+    setTimeout(() => viewMedecinProfessionnel(medecinId), 300);
+    hideSearchResults();
+};
+
+window.goToPatient = function(patientId) {
+    showSection('patients');
+    setTimeout(() => viewPatientProfil(patientId), 300);
+    hideSearchResults();
+};
+
+window.goToAnnonce = function(annonceId) {
+    showSection('annonces');
+    hideSearchResults();
+};
+
+window.goToInscription = function(profilType, id) {
+    showSection('tableau-bord');
+    setTimeout(() => viewInscriptionDetails(profilType, id), 300);
+    hideSearchResults();
+};
+
+window.goToSectionById = function(sectionId) {
+    if (!sectionId) return;
+    const link = document.querySelector(`.nav-link[data-section="${sectionId}"]`);
+    if (link) {
+        link.click();
+    } else {
+        showSection(sectionId);
+    }
+    hideSearchResults();
+};
+
+
+
 // ============================================
-// MODALS
+// MESSAGERIE ADMIN
 // ============================================
 
-function closeModal(modalId) {
-    document.getElementById(modalId).classList.remove('show');
+let currentChatContact = null;
+let messagesRefreshInterval = null;
+
+function initMessagerie() {
+    const contactsList = document.getElementById('contactsList');
+    const chatMessages = document.getElementById('chatMessages');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendMessageBtn');
+    const chatWith = document.getElementById('chatWith');
+    
+    if (!contactsList || !chatMessages || !messageInput || !sendBtn || !chatWith) return;
+    
+    // Charger les contacts
+    loadContacts();
+    
+    // Envoyer un message
+    if (!sendBtn.dataset.boundSend) {
+        sendBtn.addEventListener('click', () => {
+            sendMessage();
+        });
+        sendBtn.dataset.boundSend = '1';
+    }
+    
+    if (!messageInput.dataset.boundSendKey) {
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        messageInput.dataset.boundSendKey = '1';
+    }
+    
+    // Rafraîchir les messages toutes les 5 secondes
+    if (messagesRefreshInterval) clearInterval(messagesRefreshInterval);
+    messagesRefreshInterval = setInterval(() => {
+        if (currentChatContact) {
+            loadMessages(currentChatContact.type, currentChatContact.id, false);
+        }
+        loadContacts(); // Rafraîchir aussi la liste des contacts
+    }, 5000);
 }
 
-document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('close-modal')) {
-        e.target.closest('.modal').classList.remove('show');
+async function loadContacts() {
+    try {
+        const container = document.getElementById('contactsList');
+        if (!container) return;
+
+        const response = await fetch('/admin/api/contacts');
+        if (!response.ok) throw new Error('Erreur chargement contacts');
+        
+        const contacts = await response.json();
+        displayContacts(contacts);
+        
+        // Mettre à jour le badge de notification
+        updateUnreadBadge(contacts);
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        const container = document.getElementById('contactsList');
+        if (container) {
+            container.innerHTML = `<p class="empty-state error">Erreur de chargement des contacts</p>`;
+        }
+    }
+}
+
+function displayContacts(contacts) {
+    const container = document.getElementById('contactsList');
+    
+    if (!contacts || contacts.length === 0) {
+        container.innerHTML = '<p class="empty-state">Aucun contact disponible</p>';
+        return;
+    }
+    
+    let html = '<div class="contacts-container">';
+    
+    contacts.forEach(contact => {
+        const isActive = currentChatContact && 
+                        currentChatContact.id === contact.id && 
+                        currentChatContact.type === contact.type;
+        
+        const unreadClass = contact.unread_count > 0 ? 'unread' : '';
+        const onlineClass = contact.is_online ? 'online' : '';
+        
+        // Formater la date du dernier message
+        let lastMessageTime = '';
+        if (contact.last_message_time) {
+            const date = new Date(contact.last_message_time);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            
+            if (diffMins < 1) lastMessageTime = "À l'instant";
+            else if (diffMins < 60) lastMessageTime = `Il y a ${diffMins} min`;
+            else if (diffHours < 24) lastMessageTime = `Il y a ${diffHours}h`;
+            else lastMessageTime = date.toLocaleDateString('fr-FR');
+        }
+        
+        // Avatar ou initiales
+        const initials = contact.nom_complet.split(' ').map(n => n[0]).join('').toUpperCase();
+        const avatarUrl = normalizeStaticUrl(contact.photo_profil_url);
+        const avatarHtml = avatarUrl
+            ? `<img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(contact.nom_complet)}">`
+            : `<div class="contact-avatar-initials">${initials}</div>`;
+        
+        html += `
+            <div class="contact-item ${isActive ? 'active' : ''} ${onlineClass}" 
+                 data-contact-type="${contact.type}"
+                 data-contact-id="${contact.id}"
+                 onclick="selectContact('${contact.type}', ${contact.id})">
+                <div class="contact-avatar">
+                    ${avatarHtml}
+                    <span class="contact-status"></span>
+                </div>
+                <div class="contact-info">
+                    <div class="contact-header">
+                        <span class="contact-name">${escapeHtml(contact.nom_complet)}</span>
+                        <span class="contact-time">${lastMessageTime}</span>
+                    </div>
+                    <div class="contact-subinfo">
+                        <span class="contact-role">${escapeHtml(contact.specialite)}</span>
+                        <span class="contact-last-message">${escapeHtml(contact.last_message || '')}</span>
+                    </div>
+                </div>
+                ${contact.unread_count > 0 ? `<span class="contact-badge">${contact.unread_count}</span>` : ''}
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+window.selectContact = async function(type, id, event) {
+    // Si l'événement est passé, éviter la propagation
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
+    currentChatContact = { type, id };
+    await loadMessages(type, id, true);
+    
+    // Mettre à jour l'affichage
+    document.querySelectorAll('.contact-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Trouver et activer l'élément cliqué
+    const clickedItem = document.querySelector(`.contact-item[data-contact-type="${type}"][data-contact-id="${id}"]`);
+    if (clickedItem) {
+        clickedItem.classList.add('active');
+    }
+}
+
+async function loadMessages(type, id, scrollToBottom = true) {
+    try {
+        const response = await fetch(`/admin/api/messages/${type}/${id}`);
+        if (!response.ok) throw new Error('Erreur chargement messages');
+        
+        const data = await response.json();
+        displayMessages(data.messages, data.contact);
+        
+        if (scrollToBottom) {
+            scrollToBottomMessages();
+        }
+        
+        // Mettre à jour le nombre de messages non lus
+        await loadContacts();
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        document.getElementById('chatMessages').innerHTML = `
+            <p class="empty-state error">Erreur de chargement des messages</p>
+        `;
+    }
+}
+
+function displayMessages(messages, contact) {
+    const container = document.getElementById('chatMessages');
+    const chatWith = document.getElementById('chatWith');
+    
+    if (!container || !chatWith) return;
+    
+    // Mettre à jour l'en-tête
+    chatWith.innerHTML = `
+        <span>${escapeHtml(contact.nom_complet)}</span>
+        <small>${escapeHtml(contact.specialite)}</small>
+    `;
+    
+    if (!messages || messages.length === 0) {
+        container.innerHTML = '<p class="empty-state">Aucun message. Commencez la conversation !</p>';
+        return;
+    }
+    
+    let html = '<div class="messages-container">';
+    let currentDate = null;
+    
+    messages.forEach(msg => {
+        const msgDate = new Date(msg.date_envoi);
+        const dateStr = msgDate.toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+        
+        // Ajouter un séparateur de date
+        if (dateStr !== currentDate) {
+            currentDate = dateStr;
+            html += `<div class="message-date-separator">${dateStr}</div>`;
+        }
+        
+        const timeStr = msgDate.toLocaleTimeString('fr-FR', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        const messageClass = msg.expediteur_type === 'admin' ? 'sent' : 'received';
+        const statusIcon = msg.statut === 'LU' 
+            ? '<i class="fas fa-check-double read"></i>' 
+            : '<i class="fas fa-check"></i>';
+        
+        html += `
+            <div class="message-wrapper ${messageClass}">
+                <div class="message-bubble">
+                    <div class="message-content">${escapeHtml(msg.contenu)}</div>
+                    <div class="message-footer">
+                        <span class="message-time">${timeStr}</span>
+                        ${msg.expediteur_type === 'admin' ? `<span class="message-status">${statusIcon}</span>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+async function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
+    
+    if (!message || !currentChatContact) {
+        alert('Veuillez sélectionner un contact et écrire un message');
+        return;
+    }
+    
+    // Désactiver l'input temporairement
+    input.disabled = true;
+    const sendBtn = document.getElementById('sendMessageBtn');
+    sendBtn.disabled = true;
+    
+    // Ajouter le message temporairement
+    addTemporaryMessage(message);
+    input.value = '';
+    
+    try {
+        const formData = new FormData();
+        formData.append('contact_type', currentChatContact.type);
+        formData.append('contact_id', currentChatContact.id);
+        formData.append('contenu', message);
+        
+        const response = await fetch('/admin/api/messages/send', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Erreur envoi');
+        }
+        
+        const result = await response.json();
+        
+        
+        updateLastMessage(result.message);
+        
+        // Recharger les contacts pour mettre à jour le dernier message
+        await loadContacts();
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur lors de l\'envoi du message');
+        
+        // Supprimer le message temporaire en cas d'erreur
+        removeLastTemporaryMessage();
+    } finally {
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
+    }
+}
+
+function addTemporaryMessage(content) {
+    const container = document.getElementById('chatMessages');
+    const messagesContainer = container.querySelector('.messages-container') || container;
+    
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
+    const tempHtml = `
+        <div class="message-wrapper sent temporary">
+            <div class="message-bubble">
+                <div class="message-content">${escapeHtml(content)}</div>
+                <div class="message-footer">
+                    <span class="message-time">${timeStr}</span>
+                    <span class="message-status"><i class="fas fa-spinner fa-spin"></i></span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    messagesContainer.innerHTML += tempHtml;
+    scrollToBottomMessages();
+}
+
+function updateLastMessage(message) {
+    const tempMessage = document.querySelector('.message-wrapper.temporary');
+    if (tempMessage) {
+        const statusSpan = tempMessage.querySelector('.message-status');
+        statusSpan.innerHTML = '<i class="fas fa-check"></i>';
+        tempMessage.classList.remove('temporary');
+    }
+}
+
+function removeLastTemporaryMessage() {
+    const tempMessage = document.querySelector('.message-wrapper.temporary');
+    if (tempMessage) {
+        tempMessage.remove();
+    }
+}
+
+function scrollToBottomMessages() {
+    const container = document.getElementById('chatMessages');
+    setTimeout(() => {
+        container.scrollTop = container.scrollHeight;
+    }, 100);
+}
+
+function updateUnreadBadge(contacts) {
+    const totalUnread = contacts.reduce((sum, contact) => sum + (contact.unread_count || 0), 0);
+    const badge = document.querySelector('.notification-count');
+    
+    if (badge) {
+        badge.textContent = totalUnread;
+        badge.style.display = totalUnread > 0 ? 'flex' : 'none';
+    }
+    loadAdminNotificationSummary();
+}
+
+function initAdminBroadcastNotifications() {
+    const form = document.getElementById('broadcastNotifForm');
+    if (!form || form.dataset.boundBroadcast === '1') return;
+    form.dataset.boundBroadcast = '1';
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        try {
+            const result = await apiFetch('/admin/api/notifications/broadcast', { method: 'POST', body: fd });
+            alert(`Notification envoyée (${result.sent || 0} destinataires).`);
+            form.reset();
+            loadAdminNotificationHistory();
+            loadAdminNotificationSummary();
+        } catch (error) {
+            console.error(error);
+            alert('Erreur lors de l\'envoi de la notification.');
+        }
+    });
+}
+
+async function loadAdminNotificationHistory() {
+    const container = document.getElementById('adminNotificationsHistory');
+    if (!container) return;
+    container.innerHTML = 'Chargement...';
+    try {
+        const rows = await apiFetch('/admin/api/notifications/broadcast');
+        if (!Array.isArray(rows) || !rows.length) {
+            container.innerHTML = '<p class="text-muted">Aucune notification envoyée.</p>';
+            return;
+        }
+        container.innerHTML = rows.map(r => `
+            <div style="padding:10px;border-bottom:1px solid #eef2f7;">
+                <strong>${escapeHtml(r.titre || '')}</strong>
+                <span class="badge bg-secondary" style="margin-left:8px;">${escapeHtml(r.cible || '')}</span>
+                <div style="font-size:12px;color:#64748b;">${r.date_creation ? new Date(r.date_creation).toLocaleString('fr-FR') : ''}</div>
+                <div>${escapeHtml(r.contenu || '')}</div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error(error);
+        container.innerHTML = '<p class="text-danger">Erreur de chargement.</p>';
+    }
+}
+
+function setupAdminNotificationsPanel() {
+    const btn = document.querySelector('.notification-btn');
+    if (!btn || btn.dataset.boundNotifPanel === '1') return;
+    btn.dataset.boundNotifPanel = '1';
+
+    let panel = document.getElementById('adminNotifPanel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'adminNotifPanel';
+        panel.style.cssText = 'position:absolute;top:56px;right:0;width:340px;max-height:360px;overflow:auto;background:#fff;border:1px solid #dbe2ea;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);display:none;z-index:1500;padding:8px;';
+        const top = btn.closest('.top-bar-right');
+        if (top) top.style.position = 'relative';
+        (top || document.body).appendChild(panel);
+    }
+
+    const load = async () => {
+        const rows = await apiFetch('/admin/api/notifications/broadcast').catch(() => []);
+        if (!rows.length) {
+            panel.innerHTML = '<div style="padding:10px;color:#64748b;">Aucune notification.</div>';
+            return;
+        }
+        panel.innerHTML = rows.slice(0, 10).map(r => `
+            <div style="padding:10px;border-bottom:1px solid #eef2f7;">
+                <strong>${escapeHtml(r.titre || '')}</strong>
+                <div style="font-size:12px;color:#64748b;">${r.date_creation ? new Date(r.date_creation).toLocaleString('fr-FR') : ''}</div>
+                <div>${escapeHtml(r.contenu || '')}</div>
+            </div>
+        `).join('');
+    };
+
+    btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const show = panel.style.display === 'none';
+        panel.style.display = show ? 'block' : 'none';
+        if (show) await load();
+    });
+    document.addEventListener('click', (e) => {
+        if (!panel.contains(e.target) && !btn.contains(e.target)) panel.style.display = 'none';
+    });
+}
+
+async function loadAdminNotificationSummary() {
+    try {
+        const summary = await apiFetch('/admin/api/notifications/summary');
+        const count = Number(summary?.total || 0);
+        const badge = document.querySelector('.notification-count');
+        if (badge) {
+            badge.textContent = count;
+            badge.style.display = count > 0 ? 'flex' : 'none';
+        }
+
+        const pendingBadge = document.getElementById('badge-attente');
+        if (pendingBadge && typeof summary?.inscriptions_en_attente !== 'undefined') {
+            pendingBadge.textContent = String(summary.inscriptions_en_attente || 0);
+        }
+    } catch (error) {
+        console.error('Erreur chargement notifications admin:', error);
+    }
+}
+
+// Fonction pour charger le nombre d'inscriptions en attente et mettre à jour le badge
+
+async function loadPendingCount() {
+    try {
+        const response = await fetch('/admin/api/inscriptions/statistiques');
+        if (!response.ok) throw new Error('Erreur chargement');
+        const stats = await response.json();
+        
+        // Mettre à jour le badge
+        const badge = document.getElementById('badge-attente');
+        if (badge) {
+            badge.textContent = stats.pending_total || 0;
+        }
+        
+        // Mettre à jour la carte du tableau de bord
+        const pendingCard = document.getElementById('cardPending');
+        if (pendingCard) {
+            pendingCard.textContent = stats.pending_total || 0;
+        }
+        
+        return stats;
+    } catch (error) {
+        console.error('Erreur chargement inscriptions en attente:', error);
+        return { pending_total: 0 };
+    }
+}
+
+// Nettoyer l'intervalle quand on quitte la page
+window.addEventListener('beforeunload', () => {
+    if (messagesRefreshInterval) {
+        clearInterval(messagesRefreshInterval);
     }
 });
 
+
 // ============================================
-// EVENT LISTENERS
+// CALENDRIER ANNUEL AVEC JOURS FÉRIÉS 
 // ============================================
 
-function setupEventListeners() {
-    // Approbation/Rejet médecin
-    document.getElementById('approveMedecinBtn').addEventListener('click', approveMedecin);
-    document.getElementById('rejectMedecinBtn').addEventListener('click', rejectMedecin);
+let currentYear = new Date().getFullYear();
+let holidaysCache = null;
+
+// Jours fériés fixes en France
+const FIXED_HOLIDAYS = [
+    { day: 1, month: 0, name: "Nouvel An" },                    // 1er janvier
+    { day: 1, month: 4, name: "Fête du Travail" },              // 1er mai
+    { day: 8, month: 4, name: "Victoire 1945" },                // 8 mai
+    { day: 14, month: 6, name: "Fête Nationale" },              // 14 juillet
+    { day: 15, month: 7, name: "Assomption" },                  // 15 août
+    { day: 1, month: 10, name: "Toussaint" },                   // 1er novembre
+    { day: 11, month: 10, name: "Armistice 1918" },             // 11 novembre
+    { day: 25, month: 11, name: "Noël" },                       // 25 décembre
+];
+
+// Fonction principale pour afficher le calendrier
+function showCalendar(year = null) {
+    if (year) currentYear = year;
     
-    // Formulaires
-    setupAddMedecinForm();
-    setupAddAnnonceForm();
-    setupSettingsForm();
-    setupAppointAdminForm();
+    const mainContent = document.querySelector('.content-area');
+    if (!mainContent) return;
     
-    // Filtres
-    document.getElementById('filterSpeciality').addEventListener('change', function(e) {
-        const tbody = document.getElementById('activeMedecinTable');
-        const rows = tbody.querySelectorAll('tr');
+    // Vérifier si la section calendrier existe, sinon la créer
+    let calendarSection = document.getElementById('calendrier');
+    if (!calendarSection) {
+        calendarSection = document.createElement('div');
+        calendarSection.id = 'calendrier';
+        calendarSection.className = 'section';
+        mainContent.appendChild(calendarSection);
+    }
+    
+    // Afficher la section
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    calendarSection.classList.add('active');
+    
+    // Construire le HTML du calendrier 
+    calendarSection.innerHTML = `
+        <div class="calendar-container" style="padding: 20px;">
+            <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; flex-wrap: wrap; gap: 15px;">
+                <h2><i class="fas fa-calendar-alt"></i> Calendrier Annuel</h2>
+                <div class="calendar-controls" style="display: flex; align-items: center; gap: 10px;">
+                    <button class="btn btn-icon" onclick="changeYear(-1)" title="Année précédente" style="padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span class="current-year" style="font-size: 24px; font-weight: 600; color: #1e293b; min-width: 100px; text-align: center;">${currentYear}</span>
+                    <button class="btn btn-icon" onclick="changeYear(1)" title="Année suivante" style="padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button class="btn btn-primary" onclick="showCalendar()" style="padding: 8px 16px; background: #0D8ABC; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                        <i class="fas fa-sync-alt"></i> Aujourd'hui
+                    </button>
+                </div>
+            </div>
+            
+            <div class="calendar-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                <div class="stat-card small" style="padding: 15px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 15px;">
+                    <div class="stat-icon" style="width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white;">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label" style="color: #6b7280; font-size: 14px;">Jours fériés</span>
+                        <span class="stat-value" id="holidaysCount" style="font-size: 24px; font-weight: 700; color: #1e293b; display: block;">0</span>
+                    </div>
+                </div>
+                <div class="stat-card small" style="padding: 15px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 15px;">
+                    <div class="stat-icon" style="width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); display: flex; align-items: center; justify-content: center; color: white;">
+                        <i class="fas fa-sun"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label" style="color: #6b7280; font-size: 14px;">Week-ends</span>
+                        <span class="stat-value" id="weekendsCount" style="font-size: 24px; font-weight: 700; color: #1e293b; display: block;">0</span>
+                    </div>
+                </div>
+                <div class="stat-card small" style="padding: 15px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 15px;">
+                    <div class="stat-icon" style="width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); display: flex; align-items: center; justify-content: center; color: white;">
+                        <i class="fas fa-briefcase"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label" style="color: #6b7280; font-size: 14px;">Jours ouvrés</span>
+                        <span class="stat-value" id="workdaysCount" style="font-size: 24px; font-weight: 700; color: #1e293b; display: block;">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="calendar-filters" style="display: flex; gap: 10px; margin-bottom: 30px; flex-wrap: wrap;">
+                <button class="filter-btn active" onclick="filterCalendar('all')" style="padding: 8px 16px; border: 1px solid #e2e8f0; background: white; border-radius: 8px; cursor: pointer; font-size: 14px; background: #0D8ABC; color: white; border-color: #0D8ABC;">Tous</button>
+                <button class="filter-btn" onclick="filterCalendar('holidays')" style="padding: 8px 16px; border: 1px solid #e2e8f0; background: white; border-radius: 8px; cursor: pointer; font-size: 14px;">Jours fériés</button>
+                <button class="filter-btn" onclick="filterCalendar('weekends')" style="padding: 8px 16px; border: 1px solid #e2e8f0; background: white; border-radius: 8px; cursor: pointer; font-size: 14px;">Week-ends</button>
+                <button class="filter-btn" onclick="filterCalendar('workdays')" style="padding: 8px 16px; border: 1px solid #e2e8f0; background: white; border-radius: 8px; cursor: pointer; font-size: 14px;">Jours ouvrés</button>
+            </div>
+            
+            <div class="calendar-grid" id="calendarGrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; margin-bottom: 30px;">
+                ${generateCalendarHTML(currentYear)}
+            </div>
+            
+            <div class="calendar-legend" style="display: flex; gap: 20px; justify-content: center; margin: 30px 0; flex-wrap: wrap; padding: 15px; background: white; border-radius: 8px;">
+                <div class="legend-item" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                    <span class="legend-color" style="width: 20px; height: 20px; border-radius: 4px; background: #fee2e2;"></span>
+                    <span>Jour férié</span>
+                </div>
+                <div class="legend-item" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                    <span class="legend-color" style="width: 20px; height: 20px; border-radius: 4px; background: #fff3cd;"></span>
+                    <span>Week-end</span>
+                </div>
+                <div class="legend-item" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                    <span class="legend-color" style="width: 20px; height: 20px; border-radius: 4px; background: #f8fafc;"></span>
+                    <span>Jour ouvré</span>
+                </div>
+                <div class="legend-item" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                    <span class="legend-color" style="width: 20px; height: 20px; border-radius: 4px; background: #dbeafe; border: 2px solid #0D8ABC;"></span>
+                    <span>Aujourd'hui</span>
+                </div>
+            </div>
+            
+            <div class="holidays-list" id="holidaysList" style="background: white; border-radius: 12px; padding: 20px; margin-top: 30px;">
+                <h3 style="margin: 0 0 20px 0; color: #0D8ABC;"><i class="fas fa-star"></i> Jours fériés ${currentYear}</h3>
+                <div class="holidays-grid" id="holidaysGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;"></div>
+            </div>
+        </div>
+    `;
+    
+    // Charger les jours fériés et mettre à jour les statistiques
+    loadHolidays(currentYear).then(() => {
+        // Attendre que le DOM soit complètement mis à jour
+        setTimeout(() => {
+            markHolidaysOnCalendar(currentYear, holidaysCache);
+            updateCalendarStats(currentYear);
+            displayHolidaysList(currentYear);
+        }, 100);
+    });
+}
+
+// Générer le HTML du calendrier
+function generateCalendarHTML(year) {
+    const months = [
+        'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+    ];
+    
+    const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    
+    let html = '';
+    
+    for (let month = 0; month < 12; month++) {
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startOffset = (firstDay.getDay() + 6) % 7; // Lundi = 0
+        const daysInMonth = lastDay.getDate();
         
-        rows.forEach(row => {
-            if (!e.target.value) {
-                row.style.display = '';
-            } else {
-                const specialite = row.cells[3].textContent;
-                row.style.display = specialite === e.target.value ? '' : 'none';
-            }
+        html += `
+            <div class="calendar-month" style="background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                <h3 class="month-title" style="margin: 0 0 15px 0; color: #0D8ABC; font-size: 18px; text-align: center;">${months[month]}</h3>
+                <div class="month-grid" style="display: flex; flex-direction: column;">
+                    <div class="weekdays" style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 8px;">
+                        ${weekDays.map(day => `<div class="weekday" style="padding: 5px;">${day}</div>`).join('')}
+                    </div>
+                    <div class="days-grid" id="month-${year}-${month}" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;">
+        `;
+        
+        // Cellules vides avant le premier jour
+        for (let i = 0; i < startOffset; i++) {
+            html += `<div class="day-cell empty" style="aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 4px; border-radius: 6px; background: transparent; cursor: default; position: relative; min-height: 45px;"></div>`;
+        }
+        
+        // Jours du mois
+        for (let day = 1; day <= daysInMonth; day++) {
+            const date = new Date(year, month, day);
+            const dayOfWeek = date.getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            const isToday = isSameDay(date, new Date());
+            
+            html += `
+                <div class="day-cell ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}" 
+                     data-date="${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}"
+                     data-month="${month}"
+                     data-day="${day}"
+                     style="aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 4px; border-radius: 6px; background: ${isWeekend ? '#fff3cd' : '#f8fafc'}; cursor: default; position: relative; min-height: 45px; ${isToday ? 'background: #dbeafe; border: 2px solid #0D8ABC;' : ''}">
+                    <span class="day-number" style="font-weight: 600; font-size: 14px; color: #1e293b;">${day}</span>
+                    <div class="day-events" id="events-${year}-${month}-${day}" style="position: absolute; top: 2px; right: 2px;"></div>
+                </div>
+            `;
+        }
+        
+        html += `
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    return html;
+}
+
+// Charger les jours fériés
+async function loadHolidays(year) {
+    try {
+        const response = await fetch(`/admin/api/public/holidays?year=${year}`);
+        if (response.ok) {
+            const data = await response.json();
+            holidaysCache = data;
+            return;
+        }
+    } catch (error) {
+        console.log('API jours fériés non disponible, utilisation des données locales');
+    }
+    
+    // Fallback: générer les jours fériés localement
+    holidaysCache = generateLocalHolidays(year);
+}
+
+// Générer les jours fériés localement
+function generateLocalHolidays(year) {
+    const holidays = [];
+    
+    // Ajouter les jours fériés fixes
+    FIXED_HOLIDAYS.forEach(holiday => {
+        holidays.push({
+            date: new Date(year, holiday.month, holiday.day),
+            name: holiday.name,
+            type: 'fixed'
         });
     });
     
-    document.getElementById('filterCategory').addEventListener('change', function(e) {
-        loadAllMedecinsByCategory();
-    });
+    // Calculer Pâques
+    const easter = calculateEaster(year);
+    if (easter) {
+        const easterMonday = new Date(easter);
+        easterMonday.setDate(easterMonday.getDate() + 1);
+        holidays.push({ date: easterMonday, name: "Lundi de Pâques", type: 'movable' });
+        
+        const ascension = new Date(easter);
+        ascension.setDate(ascension.getDate() + 39);
+        holidays.push({ date: ascension, name: "Ascension", type: 'movable' });
+        
+        const pentecost = new Date(easter);
+        pentecost.setDate(pentecost.getDate() + 50);
+        holidays.push({ date: pentecost, name: "Pentecôte", type: 'movable' });
+    }
     
-    // Recherche
-    document.getElementById('searchInput').addEventListener('input', function(e) {
-        console.log('Recherche:', e.target.value);
-        // Implémenter la recherche globale
-    });
+    return holidays;
+}
+
+// Calculer la date de Pâques
+function calculateEaster(year) {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
     
-    // Déconnexion
-    document.getElementById('logoutBtn').addEventListener('click', function() {
-        if (confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
-            alert('Déconnexion...');
-            // window.location.href = 'login.html';
-        }
-    });
+    return new Date(year, month - 1, day);
+}
+
+// Marquer les jours fériés sur le calendrier
+function markHolidaysOnCalendar(year, holidays) {
+    if (!holidays || holidays.length === 0) return;
     
-    // Messagerie
-    setupMessaging();
-    
-    // Chat IA
-    setupChatIA();
-    
-    // Toggle sidebar mobile
-    document.getElementById('toggleSidebar').addEventListener('click', function() {
-        document.querySelector('.sidebar').classList.toggle('open');
+    holidays.forEach(holiday => {
+        const date = holiday.date;
+        if (date.getFullYear() !== year) return;
+        
+        const month = date.getMonth();
+        const day = date.getDate();
+        
+        setTimeout(() => {
+            const dayCell = document.querySelector(`.day-cell[data-month="${month}"][data-day="${day}"]`);
+            if (dayCell) {
+                dayCell.classList.add('holiday');
+                dayCell.style.background = '#fee2e2';
+                
+                const eventsDiv = document.getElementById(`events-${year}-${month}-${day}`);
+                if (eventsDiv) {
+                    eventsDiv.innerHTML = `
+                        <div class="holiday-badge" title="${holiday.name}" style="width: 16px; height: 16px; border-radius: 50%; background: #ef4444; color: white; display: flex; align-items: center; justify-content: center; font-size: 10px;">
+                            <i class="fas fa-star"></i>
+                        </div>
+                    `;
+                }
+            }
+        }, 50);
     });
 }
 
-// ============================================
-// MESSAGERIE
-// ============================================
-
-function setupMessaging() {
-    const contactsList = document.getElementById('contactsList');
-    const contacts = [
-        { id: 1, nom: 'Dr. Amina Bennani', lastMessage: 'Bonjour...' },
-        { id: 2, nom: 'Dr. Mohamed Bachir', lastMessage: 'À bientôt' }
-    ];
+// Mettre à jour les statistiques du calendrier
+function updateCalendarStats(year) {
+    const holidays = holidaysCache || [];
+    const holidaysInYear = holidays.filter(h => h.date.getFullYear() === year).length;
     
-    if (contacts.length === 0) {
-        contactsList.innerHTML = '<p class="empty-state">Aucun message</p>';
+    let weekendsCount = 0;
+    let workdaysCount = 0;
+    
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31);
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const dayOfWeek = d.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        
+        if (isWeekend) {
+            weekendsCount++;
+        } else {
+            workdaysCount++;
+        }
+    }
+    
+    // Soustraire les jours fériés qui tombent en semaine
+    holidays.forEach(holiday => {
+        if (holiday.date.getFullYear() !== year) return;
+        const dayOfWeek = holiday.date.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            workdaysCount--;
+        }
+    });
+    
+    const holidaysElement = document.getElementById('holidaysCount');
+    const weekendsElement = document.getElementById('weekendsCount');
+    const workdaysElement = document.getElementById('workdaysCount');
+    
+    if (holidaysElement) holidaysElement.textContent = holidaysInYear;
+    if (weekendsElement) weekendsElement.textContent = weekendsCount;
+    if (workdaysElement) workdaysElement.textContent = workdaysCount;
+}
+
+// Afficher la liste des jours fériés
+function displayHolidaysList(year) {
+    const holidays = holidaysCache?.filter(h => h.date.getFullYear() === year) || [];
+    holidays.sort((a, b) => a.date - b.date);
+    
+    const grid = document.getElementById('holidaysGrid');
+    if (!grid) return;
+    
+    if (holidays.length === 0) {
+        grid.innerHTML = '<p class="empty-state" style="color: #6b7280; text-align: center;">Aucun jour férié trouvé</p>';
         return;
     }
     
-    contactsList.innerHTML = contacts.map(c => `
-        <div class="contact-item" onclick="selectContact(${c.id}, '${c.nom}')">
-            <div style="font-weight: 600;">${c.nom}</div>
-            <div style="font-size: 12px; color: #7f8c8d;">${c.lastMessage}</div>
-        </div>
-    `).join('');
-}
-
-function selectContact(id, nom) {
-    document.getElementById('chatWith').textContent = nom;
-    const messages = document.getElementById('chatMessages');
-    
-    // Charger les messages (simulé)
-    messages.innerHTML = `
-        <div class="message received">
-            <div class="message-content">Bonjour Admin</div>
-        </div>
-        <div class="message sent">
-            <div class="message-content">Bonjour, comment allez-vous?</div>
-        </div>
-    `;
-}
-
-document.getElementById('sendMessageBtn')?.addEventListener('click', function() {
-    const input = document.getElementById('messageInput');
-    if (input.value.trim()) {
-        const messages = document.getElementById('chatMessages');
-        messages.innerHTML += `
-            <div class="message sent">
-                <div class="message-content">${input.value}</div>
+    let html = '';
+    holidays.forEach(holiday => {
+        const date = holiday.date;
+        const dayOfWeek = date.toLocaleDateString('fr-FR', { weekday: 'long' });
+        const formattedDate = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+        
+        html += `
+            <div class="holiday-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444;">
+                <div class="holiday-date" style="display: flex; flex-direction: column;">
+                    <span class="holiday-day" style="font-size: 12px; color: #6b7280; text-transform: capitalize;">${dayOfWeek}</span>
+                    <span class="holiday-full-date" style="font-weight: 600; color: #1e293b;">${formattedDate}</span>
+                </div>
+                <div class="holiday-name" style="font-weight: 500; color: #0D8ABC;">${escapeHtml(holiday.name)}</div>
+                <div class="holiday-type">
+                    <span class="badge ${holiday.type === 'fixed' ? 'badge-primary' : 'badge-info'}" style="padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: ${holiday.type === 'fixed' ? '#0D8ABC' : '#6b7280'}; color: white;">
+                        ${holiday.type === 'fixed' ? 'Fixe' : 'Variable'}
+                    </span>
+                </div>
             </div>
         `;
-        input.value = '';
-        messages.scrollTop = messages.scrollHeight;
-    }
-});
-
-// ============================================
-// CHAT IA
-// ============================================
-
-function setupChatIA() {
-    const sendBtn = document.getElementById('sendIaBtn');
+    });
     
-    sendBtn?.addEventListener('click', sendIAMessage);
+    grid.innerHTML = html;
+}
+
+// Filtrer le calendrier
+function filterCalendar(filter) {
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.background = 'white';
+        btn.style.color = '#1e293b';
+        btn.style.borderColor = '#e2e8f0';
+    });
+    event.target.classList.add('active');
+    event.target.style.background = '#0D8ABC';
+    event.target.style.color = 'white';
+    event.target.style.borderColor = '#0D8ABC';
     
-    document.getElementById('iaInput')?.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            sendIAMessage();
+    const dayCells = document.querySelectorAll('.day-cell:not(.empty)');
+    
+    dayCells.forEach(cell => {
+        const isHoliday = cell.classList.contains('holiday');
+        const isWeekend = cell.classList.contains('weekend');
+        
+        switch(filter) {
+            case 'all':
+                cell.style.display = '';
+                break;
+            case 'holidays':
+                cell.style.display = isHoliday ? '' : 'none';
+                break;
+            case 'weekends':
+                cell.style.display = isWeekend ? '' : 'none';
+                break;
+            case 'workdays':
+                cell.style.display = !isWeekend && !isHoliday ? '' : 'none';
+                break;
         }
     });
 }
 
-function sendIAMessage() {
-    const input = document.getElementById('iaInput');
-    const history = document.getElementById('chatHistory');
+// Changer l'année
+function changeYear(delta) {
+    currentYear += delta;
+    showCalendar(currentYear);
+}
+
+// Vérifier si deux dates sont le même jour
+function isSameDay(date1, date2) {
+    return date1.getFullYear() === date2.getFullYear() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getDate() === date2.getDate();
+}
+
+
+// ============================================
+// GESTION DES PARTENAIRES
+// ============================================
+
+let partenairesList = [];
+
+// Initialiser la section partenaires
+function initPartenaires() {
+    const partenairesLink = document.querySelector('[data-section="partenaires"]');
+    if (partenairesLink) {
+        partenairesLink.addEventListener('click', loadPartenaires);
+    }
+}
+
+// Charger la liste des partenaires
+async function loadPartenaires() {
+    console.log("📋 Chargement des partenaires...");
     
-    if (!input.value.trim()) return;
+    // Attendre que le DOM soit complètement chargé
+    await new Promise(resolve => {
+        if (document.readyState === 'complete') {
+            resolve();
+        } else {
+            window.addEventListener('load', resolve, { once: true });
+        }
+    });
     
-    // Ajouter le message utilisateur
-    history.innerHTML += `
-        <div class="user-message">
-            <div class="user-message-content">${input.value}</div>
+    // 1. Récupérer le conteneur principal
+    const mainContent = document.getElementById('mainContent');
+    console.log("mainContent trouvé:", mainContent);
+    
+    if (!mainContent) {
+        console.error("❌ mainContent non trouvé - recherche d'alternative...");
+        
+        // Chercher d'autres conteneurs possibles
+        const alternative = document.querySelector('.content-area') || 
+                           document.querySelector('main') ||
+                           document.querySelector('.main-content');
+        
+        if (alternative) {
+            console.log("✅ Conteneur alternatif trouvé:", alternative);
+            // Utiliser le conteneur alternatif
+            loadPartenairesInContainer(alternative);
+            return;
+        }
+        
+        console.error("❌ Aucun conteneur trouvé");
+        return;
+    }
+    
+    loadPartenairesInContainer(mainContent);
+}
+
+function loadPartenairesInContainer(container) {
+    // 2. Créer ou obtenir la section partenaires
+    let partenairesSection = document.getElementById('partenaires');
+    if (!partenairesSection) {
+        partenairesSection = document.createElement('div');
+        partenairesSection.id = 'partenaires';
+        partenairesSection.className = 'section';
+        container.appendChild(partenairesSection);
+    }
+    
+    // 3. Activer la section
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    partenairesSection.classList.add('active');
+    
+    // 4. Afficher le chargement
+    partenairesSection.innerHTML = `
+        <div class="section-header">
+            <h2><i class="fas fa-handshake"></i> Partenaires</h2>
+            <button class="btn btn-primary" onclick="showAddPartenaireForm()">
+                <i class="fas fa-plus"></i> Ajouter un partenaire
+            </button>
+        </div>
+        <div class="text-center p-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Chargement...</span>
+            </div>
+            <p class="mt-2">Chargement des partenaires...</p>
         </div>
     `;
     
-    // Simuler une réponse IA
-    setTimeout(() => {
-        history.innerHTML += `
-            <div class="ia-message">
-                <div class="ia-message-content">Je suis un assistant IA. Je peux vous aider avec les statistiques, les médecins, et la gestion de la plateforme.</div>
+    // 5. Charger les données
+    fetchPartenaires(partenairesSection);
+}
+
+async function fetchPartenaires(partenairesSection) {
+    try {
+        const response = await fetch('/admin/api/partenaires');
+        if (!response.ok) throw new Error('Erreur chargement');
+        
+        const partenaires = await response.json();
+        partenairesList = partenaires;
+        displayPartenaires(partenaires);
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        partenairesSection.innerHTML = `
+            <div class="section-header">
+                <h2><i class="fas fa-handshake"></i> Partenaires</h2>
+                <button class="btn btn-primary" onclick="loadPartenaires()">
+                    <i class="fas fa-sync-alt"></i> Réessayer
+                </button>
+            </div>
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle"></i>
+                Erreur lors du chargement des partenaires
             </div>
         `;
-        history.scrollTop = history.scrollHeight;
-    }, 500);
+    }
+}
+
+// Afficher la liste des partenaires
+function displayPartenaires(partenaires) {
+    const partenairesSection = document.getElementById('partenaires');
+    if (!partenairesSection) return;
     
-    input.value = '';
-    history.scrollTop = history.scrollHeight;
+    let html = `
+        <div class="section-header">
+            <h2><i class="fas fa-handshake"></i> Partenaires (${partenaires.length})</h2>
+            <button class="btn btn-primary" onclick="showAddPartenaireForm()">
+                <i class="fas fa-plus"></i> Ajouter un partenaire
+            </button>
+        </div>
+    `;
+    
+    if (partenaires.length === 0) {
+        html += `
+            <div class="empty-state">
+                <i class="fas fa-handshake" style="font-size: 64px; color: #ccc;"></i>
+                <h3>Aucun partenaire</h3>
+                <p>Commencez par ajouter votre premier partenaire</p>
+                <button class="btn btn-primary" onclick="showAddPartenaireForm()">
+                    <i class="fas fa-plus"></i> Ajouter un partenaire
+                </button>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Logo</th>
+                            <th>Nom</th>
+                            <th>Type</th>
+                            <th>Ajouté le</th>
+                            <th>Ajouté par</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        partenaires.forEach(p => {
+           html += `
+        <tr>
+            <td>
+                <img src="${p.logo_url ? p.logo_url.replace('app/', '/') : 'https://via.placeholder.com/50x50?text=Logo'}" 
+                    alt="${escapeHtml(p.nom)}"
+                    style="width: 50px; height: 50px; object-fit: contain; border-radius: 8px;">
+            </td>
+            <td><strong>${escapeHtml(p.nom)}</strong></td>
+            <td><span class="badge bg-info">${escapeHtml(p.type)}</span></td>
+            <td>${p.date_ajout}</td>
+            <td>${escapeHtml(p.admin)}</td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn-action edit" onclick="editPartenaire(${p.id})" title="Modifier">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-action delete" onclick="deletePartenaire(${p.id})" title="Supprimer">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+       `;
+        });
+        
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    
+    partenairesSection.innerHTML = html;
+}
+
+// Afficher le formulaire d'ajout
+function showAddPartenaireForm() {
+    showPartenaireForm();
+}
+
+// Afficher le formulaire de modification
+function editPartenaire(id) {
+    const partenaire = partenairesList.find(p => p.id === id);
+    if (partenaire) {
+        showPartenaireForm(partenaire);
+    }
+}
+
+// Formulaire partenaire (ajout/modification)
+function showPartenaireForm(partenaire = null) {
+    const partenairesSection = document.getElementById('partenaires');
+    if (!partenairesSection) return;
+    
+    const isEdit = partenaire !== null;
+    const title = isEdit ? 'Modifier le partenaire' : 'Ajouter un partenaire';
+    
+    partenairesSection.innerHTML = `
+        <div class="section-header">
+            <h2><i class="fas fa-handshake"></i> ${title}</h2>
+            <button class="btn btn-secondary" onclick="loadPartenaires()">
+                <i class="fas fa-arrow-left"></i> Retour
+            </button>
+        </div>
+        
+        <div class="card">
+            <div class="card-body">
+                <form id="partenaireForm" enctype="multipart/form-data">
+                    <input type="hidden" id="partenaireId" value="${isEdit ? partenaire.id : ''}">
+                    
+                    <div class="form-group mb-3">
+                        <label for="nom" class="form-label">Nom du partenaire *</label>
+                        <input type="text" class="form-control" id="nom" name="nom" 
+                               value="${isEdit ? escapeHtml(partenaire.nom) : ''}" required>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="type_partenaire" class="form-label">Type de partenaire *</label>
+                        <select class="form-control" id="type_partenaire" name="type_partenaire" required>
+                            <option value="">Sélectionner un type</option>
+                            <option value="Pharmacie">Pharmacie</option>
+                            <option value="Laboratoire">Laboratoire</option>
+                            <option value="Clinique">Clinique</option>
+                            <option value="Mutuelle">Mutuelle</option>
+                            <option value="Cabinet">Cabinet médical</option>
+                            <option value="Autre">Autre</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="logo" class="form-label">Logo du partenaire</label>
+                        <input type="file" class="form-control" id="logo" name="logo" accept="image/*">
+                        <small class="text-muted">Formats acceptés: JPG, PNG, GIF</small>
+                        
+                        ${isEdit && partenaire.logo_url ? `
+                            <div class="mt-2">
+                                <img src="${partenaire.logo_url}" alt="Logo actuel" style="max-height: 100px;">
+                                <p class="text-muted small">Logo actuel</p>
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> ${isEdit ? 'Modifier' : 'Ajouter'}
+                    </button>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Gérer la soumission du formulaire
+    document.getElementById('partenaireForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const id = document.getElementById('partenaireId').value;
+        
+        try {
+            let url = '/admin/api/partenaires/ajouter';
+            let method = 'POST';
+            
+            if (id) {
+                url = `/admin/api/partenaires/${id}`;
+                method = 'PUT';
+            }
+            
+            const response = await fetch(url, {
+                method: method,
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Erreur lors de l\'enregistrement');
+            }
+            
+            const result = await response.json();
+            alert(result.message || 'Opération réussie !');
+            loadPartenaires(); // Recharger la liste
+            
+        } catch (error) {
+            console.error('Erreur:', error);
+            alert('Erreur: ' + error.message);
+        }
+    });
+}
+
+
+// Supprimer un partenaire
+async function deletePartenaire(id) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce partenaire ?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/api/partenaires/${id}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Erreur lors de la suppression');
+        }
+        
+        const result = await response.json();
+        alert(result.message || 'Partenaire supprimé !');
+        loadPartenaires(); // Recharger la liste
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        alert('Erreur: ' + error.message);
+    }
 }

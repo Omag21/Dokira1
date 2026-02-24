@@ -1,7 +1,7 @@
-
+﻿
 # views.py
 from fastapi import APIRouter, Request, Depends, HTTPException, status, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy import func, desc
@@ -10,22 +10,30 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from pathlib import Path
 from fastapi import UploadFile, File
-from app.models import Message, Medecin, Admin, Photo, RendezVous, Document, Ordonnance, DossierMedical, Specialite, StatutMessage, StatutRendezVous, TypeConsultation
+from app.models import Message, Medecin, Admin, MessageAdminPatient, Partenaire, Photo, RendezVous, Document, Ordonnance, DossierMedical, Specialite, StatutMessage, StatutRendezVous, TypeConsultation, Consultation, AnalysePatient, InjectionPatient, NotificationReception, NotificationBroadcast
 import secrets
 from fastapi import Body
 import os
+import smtplib
+from email.message import EmailMessage
 from dotenv import load_dotenv
+import json
+from urllib import request as urllib_request
+from urllib import error as urllib_error
+from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 #from fastapi import APIRouter, Request
 
 # Imports locaux
-from app.database import get_db
+from app.database import get_db, Base, engine
 from app.models import Patient
-
-# Charger les variables d'environnement
-load_dotenv()
 
 # Configuration
 BASE_DIR = Path(__file__).resolve().parent
+# Charger les variables d'environnement (backend/.env)
+load_dotenv(dotenv_path=BASE_DIR.parent / ".env")
+
 SECRET_KEY = os.environ["SECRET_KEY"]
 ALGORITHM = os.environ["JWT_ALGO"]
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"])
@@ -44,11 +52,11 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
-    Vérifie si le mot de passe en clair correspond au hash
+    VÃ©rifie si le mot de passe en clair correspond au hash
     
     Args:
         plain_password: Le mot de passe en clair
-        hashed_password: Le mot de passe hashé dans la base de données
+        hashed_password: Le mot de passe hashÃ© dans la base de donnÃ©es
     
     Returns:
         bool: True si le mot de passe correspond, False sinon
@@ -56,7 +64,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
         return pwd_context.verify(plain_password, hashed_password)
     except Exception as e:
-        print(f"Erreur lors de la vérification du mot de passe: {e}")
+        print(f"Erreur lors de la vÃ©rification du mot de passe: {e}")
         return False
 
 
@@ -68,21 +76,21 @@ def get_password_hash(password: str) -> str:
         password: Le mot de passe en clair
     
     Returns:
-        str: Le mot de passe hashé
+        str: Le mot de passe hashÃ©
     """
     return pwd_context.hash(password)
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
     """
-    Crée un token JWT pour l'authentification
+    CrÃ©e un token JWT pour l'authentification
     
     Args:
-        data: Les données à encoder dans le token
-        expires_delta: Durée de validité du token
+        data: Les donnÃ©es Ã  encoder dans le token
+        expires_delta: DurÃ©e de validitÃ© du token
     
     Returns:
-        str: Le token JWT encodé
+        str: Le token JWT encodÃ©
     """
     to_encode = data.copy()
     
@@ -102,48 +110,48 @@ def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
 
 def get_user_by_email(db: Session, email: str) -> Patient:
     """
-    Récupère un patient par son email dans la base de données
+    RÃ©cupÃ¨re un patient par son email dans la base de donnÃ©es
     
     Args:
-        db: Session de base de données
+        db: Session de base de donnÃ©es
         email: Email du patient
     
     Returns:
-        Patient: L'objet Patient si trouvé, None sinon
+        Patient: L'objet Patient si trouvÃ©, None sinon
     """
     try:
         return db.query(Patient).filter(Patient.email == email.lower().strip()).first()
     except Exception as e:
-        print(f"Erreur lors de la récupération du patient: {e}")
+        print(f"Erreur lors de la rÃ©cupÃ©ration du patient: {e}")
         return None
 
 
 def authenticate_user(db: Session, email: str, password: str) -> Patient:
     """
-    Authentifie un utilisateur en vérifiant son email et mot de passe
+    Authentifie un utilisateur en vÃ©rifiant son email et mot de passe
     
     Args:
-        db: Session de base de données
+        db: Session de base de donnÃ©es
         email: Email du patient
         password: Mot de passe en clair
     
     Returns:
-        Patient: L'objet Patient si authentification réussie, None sinon
+        Patient: L'objet Patient si authentification rÃ©ussie, None sinon
     """
-    # Récupérer le patient par email
+    # RÃ©cupÃ©rer le patient par email
     patient = get_user_by_email(db, email)
     
-    # Vérifier si le patient existe
+    # VÃ©rifier si le patient existe
     if not patient:
-        print(f"Patient non trouvé avec l'email: {email}")
+        print(f"Patient non trouvÃ© avec l'email: {email}")
         return None
     
-    # Vérifier le mot de passe
+    # VÃ©rifier le mot de passe
     if not verify_password(password, patient.mot_de_passe_hash):
         print(f"Mot de passe incorrect pour l'email: {email}")
         return None
     
-    # Vérifier si le compte est actif
+    # VÃ©rifier si le compte est actif
     if not patient.est_actif:
         print(f"Compte inactif pour l'email: {email}")
         return None
@@ -153,14 +161,14 @@ def authenticate_user(db: Session, email: str, password: str) -> Patient:
 
 def get_current_user_from_cookie(request: Request, db: Session) -> Patient:
     """
-    Récupère l'utilisateur actuel depuis le cookie JWT
+    RÃ©cupÃ¨re l'utilisateur actuel depuis le cookie JWT
     
     Args:
-        request: Requête FastAPI
-        db: Session de base de données
+        request: RequÃªte FastAPI
+        db: Session de base de donnÃ©es
     
     Returns:
-        Patient: L'objet Patient si authentifié, None sinon
+        Patient: L'objet Patient si authentifiÃ©, None sinon
     """
     token = request.cookies.get("access_token")
     
@@ -168,18 +176,18 @@ def get_current_user_from_cookie(request: Request, db: Session) -> Patient:
         return None
     
     try:
-        # Retirer le préfixe "Bearer " si présent
+        # Retirer le prÃ©fixe "Bearer " si prÃ©sent
         if token.startswith("Bearer "):
             token = token[7:]
         
-        # Décoder le token JWT
+        # DÃ©coder le token JWT
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
         
         if email is None:
             return None
         
-        # Récupérer le patient depuis la base de données
+        # RÃ©cupÃ©rer le patient depuis la base de donnÃ©es
         patient = get_user_by_email(db, email)
         return patient
         
@@ -187,7 +195,7 @@ def get_current_user_from_cookie(request: Request, db: Session) -> Patient:
         print(f"Erreur JWT: {e}")
         return None
     except Exception as e:
-        print(f"Erreur lors de la récupération de l'utilisateur: {e}")
+        print(f"Erreur lors de la rÃ©cupÃ©ration de l'utilisateur: {e}")
         return None
 
 
@@ -205,13 +213,209 @@ def main(request: Request):
     return templates.TemplateResponse("main.html", {"request": request})
 
 
+def send_consultation_summary_email(recipient_email: str, payload: dict):
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    smtp_from = os.getenv("SMTP_FROM") or smtp_user
+
+    if not all([smtp_host, smtp_user, smtp_password, smtp_from]):
+        raise RuntimeError("Configuration SMTP manquante (SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM)")
+
+    msg = EmailMessage()
+    msg["Subject"] = "RÃ©capitulatif de votre demande de rendez-vous - Dokira"
+    msg["From"] = smtp_from
+    msg["To"] = recipient_email
+    msg.set_content(
+        f"""Bonjour {payload['visiteur_prenom']} {payload['visiteur_nom']},
+
+Votre demande de rendez-vous a bien Ã©tÃ© enregistrÃ©e.
+
+MÃ©decin: {payload['medecin_nom']}
+SpÃ©cialitÃ©: {payload['specialite']}
+Date et heure souhaitÃ©es: {payload['date_heure']}
+Motif: {payload['motif_consultation']}
+TÃ©lÃ©phone: {payload['visiteur_telephone']}
+Email: {payload['visiteur_email']}
+
+Merci d'avoir utilisÃ© Dokira.
+"""
+    )
+
+    with smtplib.SMTP(smtp_host, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(smtp_user, smtp_password)
+        smtp.send_message(msg)
+
+
+def send_rdv_update_email(
+    recipient_email: str,
+    recipient_name: str,
+    actor_label: str,
+    medecin_name: str,
+    old_dt: datetime,
+    new_dt: datetime,
+    motif: str = ""
+):
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    smtp_from = os.getenv("SMTP_FROM") or smtp_user
+
+    if not all([smtp_host, smtp_user, smtp_password, smtp_from]):
+        return
+
+    msg = EmailMessage()
+    msg["Subject"] = "Dokira - Modification de rendez-vous"
+    msg["From"] = smtp_from
+    msg["To"] = recipient_email
+    msg.set_content(
+        f"""Bonjour {recipient_name},
+
+Le rendez-vous avec {medecin_name} a été modifié par {actor_label}.
+
+Ancienne date: {old_dt.strftime('%d/%m/%Y %H:%M')}
+Nouvelle date: {new_dt.strftime('%d/%m/%Y %H:%M')}
+Motif: {motif or 'Non précisé'}
+
+Merci,
+Dokira
+"""
+    )
+
+    with smtplib.SMTP(smtp_host, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(smtp_user, smtp_password)
+        smtp.send_message(msg)
+
+
+def normalize_rdv_status_value(raw_status) -> str:
+    status = str(raw_status or "").strip()
+    lowered = status.lower()
+
+    if "annul" in lowered:
+        return "Annulé"
+    if "confirm" in lowered:
+        return "Confirmé"
+    if "termin" in lowered or "trait" in lowered:
+        return "Terminé"
+    return "Planifié"
+
+
+def compute_effective_rdv_status(rdv: RendezVous, now: datetime | None = None) -> str:
+    current = now or datetime.utcnow()
+    normalized = normalize_rdv_status_value(rdv.statut)
+
+    if normalized == "Annulé":
+        return normalized
+    if rdv.date_heure and rdv.date_heure < current:
+        return "Terminé"
+    return normalized
+
+
+@router.get("/api/public/specialistes")
+async def get_public_specialistes(db: Session = Depends(get_db)):
+    medecins = db.query(Medecin).filter(Medecin.est_actif == True).order_by(Medecin.id.desc()).all()
+    result = []
+    for m in medecins:
+        adresse = ", ".join([p for p in [m.adresse, m.ville, m.code_postal] if p])
+        result.append({
+            "id": m.id,
+            "nom": m.nom,
+            "prenom": m.prenom,
+            "specialite": m.specialite.value if m.specialite else "Non spÃ©cifiÃ©",
+            "annees_experience": m.annees_experience or 0,
+            "adresse_cabinet": adresse or "Adresse non renseignÃ©e",
+            "telephone": m.telephone or "TÃ©lÃ©phone non renseignÃ©",
+            "prix_consultation": m.prix_consultation if m.prix_consultation is not None else 0,
+            "photo": m.photo_profil_url
+        })
+    return result
+
+
+@router.post("/api/public/consultations")
+async def create_public_consultation(
+    data: dict = Body(...),
+    db: Session = Depends(get_db)
+):
+    required_fields = [
+        "medecin_id", "visiteur_nom", "visiteur_prenom", "motif_consultation",
+        "date_heure", "visiteur_email", "visiteur_telephone"
+    ]
+    missing = [f for f in required_fields if not data.get(f)]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Champs manquants: {', '.join(missing)}")
+
+    medecin = db.query(Medecin).filter(
+        Medecin.id == int(data["medecin_id"]),
+        Medecin.est_actif == True
+    ).first()
+    if not medecin:
+        raise HTTPException(status_code=404, detail="MÃ©decin introuvable")
+
+    try:
+        date_heure = datetime.fromisoformat(str(data["date_heure"]).replace("Z", ""))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Format date_heure invalide")
+
+    Base.metadata.create_all(bind=engine, tables=[Consultation.__table__])
+
+    consultation = Consultation(
+        medecin_id=medecin.id,
+        medecin_nom=f"Dr. {medecin.prenom} {medecin.nom}",
+        visiteur_nom=str(data["visiteur_nom"]).strip(),
+        visiteur_prenom=str(data["visiteur_prenom"]).strip(),
+        visiteur_email=str(data["visiteur_email"]).strip().lower(),
+        visiteur_telephone=str(data["visiteur_telephone"]).strip(),
+        motif_consultation=str(data["motif_consultation"]).strip(),
+        date_heure=date_heure,
+        statut="Demandee"
+    )
+
+    try:
+        db.add(consultation)
+        db.commit()
+        db.refresh(consultation)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erreur enregistrement consultation: {str(e)}")
+
+    try:
+        send_consultation_summary_email(
+            consultation.visiteur_email,
+            {
+                "visiteur_nom": consultation.visiteur_nom,
+                "visiteur_prenom": consultation.visiteur_prenom,
+                "medecin_nom": consultation.medecin_nom,
+                "specialite": medecin.specialite.value if medecin.specialite else "Non spÃ©cifiÃ©",
+                "date_heure": consultation.date_heure.strftime("%d/%m/%Y %H:%M"),
+                "motif_consultation": consultation.motif_consultation,
+                "visiteur_telephone": consultation.visiteur_telephone,
+                "visiteur_email": consultation.visiteur_email
+            }
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Consultation enregistrÃ©e mais email non envoyÃ©: {str(e)}"
+        )
+
+    return {
+        "success": True,
+        "consultation_id": consultation.id,
+        "message": "Demande de rendez-vous enregistrÃ©e et email envoyÃ©"
+    }
+
+
 @router.get("/connexion", response_class=HTMLResponse)
 def page_connexion(request: Request, db: Session = Depends(get_db)):
     """
     Page de connexion
-    Si l'utilisateur est déjà connecté, redirige vers l'espace patient
+    Si l'utilisateur est dÃ©jÃ  connectÃ©, redirige vers l'espace patient
     """
-    # Vérifier si l'utilisateur est déjà connecté
+    # VÃ©rifier si l'utilisateur est dÃ©jÃ  connectÃ©
     current_user = get_current_user_from_cookie(request, db)
     
     if current_user:
@@ -230,24 +434,24 @@ def page_inscription(request: Request):
 def espace_patient(request: Request, db: Session = Depends(get_db)):
     """
     Espace patient - Interface principale du patient
-    Nécessite une authentification
+    NÃ©cessite une authentification
     """
-    # Récupérer l'utilisateur actuel depuis le cookie
+    # RÃ©cupÃ©rer l'utilisateur actuel depuis le cookie
     current_user = get_current_user_from_cookie(request, db)
     
-    # Si pas authentifié, rediriger vers la page de connexion
+    # Si pas authentifiÃ©, rediriger vers la page de connexion
     if not current_user:
         return RedirectResponse(url="/connexion?redirect=espace-patient", status_code=303)
     
-    # Mettre à jour la dernière connexion
+    # Mettre Ã  jour la derniÃ¨re connexion
     try:
         current_user.derniere_connexion = datetime.utcnow()
         db.commit()
     except Exception as e:
-        print(f"Erreur lors de la mise à jour de la dernière connexion: {e}")
+        print(f"Erreur lors de la mise Ã  jour de la derniÃ¨re connexion: {e}")
         db.rollback()
     
-    # Afficher l'interface patient avec les données du patient
+    # Afficher l'interface patient avec les donnÃ©es du patient
     return templates.TemplateResponse(
         "EspaceClient.html", 
         {
@@ -270,7 +474,7 @@ async def login(
 ):
     """
     Traite la soumission du formulaire de connexion
-    Vérifie les credentials et crée une session
+    VÃ©rifie les credentials et crÃ©e une session
     """
     
     # Nettoyer l'email (enlever espaces, mettre en minuscule)
@@ -279,7 +483,7 @@ async def login(
     # Authentifier le patient
     patient = authenticate_user(db, email, password)
     
-    # Si l'authentification échoue
+    # Si l'authentification Ã©choue
     if not patient:
         return templates.TemplateResponse(
             "connexion.html",
@@ -291,19 +495,19 @@ async def login(
             status_code=401
         )
     
-    # Vérifier si le compte est actif
+    # VÃ©rifier si le compte est actif
     if not patient.est_actif:
         return templates.TemplateResponse(
             "connexion.html",
             {
                 "request": request,
-                "error": "Votre compte a été désactivé. Veuillez contacter le support.",
+                "error": "Votre compte a Ã©tÃ© dÃ©sactivÃ©. Veuillez contacter le support.",
                 "email": email
             },
             status_code=403
         )
     
-    # Créer le token d'accès JWT
+    # CrÃ©er le token d'accÃ¨s JWT
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={
@@ -315,23 +519,23 @@ async def login(
         expires_delta=access_token_expires
     )
     
-    # Mettre à jour la dernière connexion
+    # Mettre Ã  jour la derniÃ¨re connexion
     try:
         patient.derniere_connexion = datetime.utcnow()
         db.commit()
     except Exception as e:
-        print(f"Erreur lors de la mise à jour de la dernière connexion: {e}")
+        print(f"Erreur lors de la mise Ã  jour de la derniÃ¨re connexion: {e}")
         db.rollback()
     
-    # Créer la réponse de redirection vers l'espace patient
+    # CrÃ©er la rÃ©ponse de redirection vers l'espace patient
     response = RedirectResponse(url="/espace-patient", status_code=303)
     
-    # Définir le cookie sécurisé avec le token JWT
+    # DÃ©finir le cookie sÃ©curisÃ© avec le token JWT
     response.set_cookie(
         key="access_token",
         value=f"Bearer {access_token}",
-        httponly=True,  # Empêche l'accès JavaScript (sécurité XSS)
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Durée en secondes
+        httponly=True,  # EmpÃªche l'accÃ¨s JavaScript (sÃ©curitÃ© XSS)
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # DurÃ©e en secondes
         expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         samesite="lax",  # Protection CSRF
         secure=False  # Mettre True en production avec HTTPS
@@ -358,7 +562,7 @@ async def register(
 ):
     """
     Traite la soumission du formulaire d'inscription
-    Crée un nouveau compte patient
+    CrÃ©e un nouveau compte patient
     """
     
     # Nettoyer l'email
@@ -384,7 +588,7 @@ async def register(
             "inscription.html",
             {
                 "request": request,
-                "error": "Le mot de passe doit contenir au moins 8 caractères",
+                "error": "Le mot de passe doit contenir au moins 8 caractÃ¨res",
                 "email": email,
                 "nom": nom,
                 "prenom": prenom
@@ -392,25 +596,25 @@ async def register(
             status_code=400
         )
     
-    # Vérifier si l'email existe déjà
+    # VÃ©rifier si l'email existe dÃ©jÃ 
     existing_patient = get_user_by_email(db, email)
     if existing_patient:
         return templates.TemplateResponse(
             "inscription.html",
             {
                 "request": request,
-                "error": "Un compte existe déjà avec cet email",
+                "error": "Un compte existe dÃ©jÃ  avec cet email",
                 "email": email
             },
             status_code=400
         )
     
-    # Créer le nouveau patient
+    # CrÃ©er le nouveau patient
     try:
         # Convertir la date de naissance (format YYYY-MM-DD)
         date_naissance_obj = datetime.strptime(date_naissance, "%Y-%m-%d").date()
         
-        # Créer l'objet Patient
+        # CrÃ©er l'objet Patient
         nouveau_patient = Patient(
             email=email,
             mot_de_passe_hash=get_password_hash(password),
@@ -427,14 +631,14 @@ async def register(
             date_creation=datetime.utcnow()
         )
         
-        # Ajouter à la base de données
+        # Ajouter Ã  la base de donnÃ©es
         db.add(nouveau_patient)
         db.commit()
         db.refresh(nouveau_patient)
         
-        print(f"✅ Nouveau patient créé: {nouveau_patient.email} (ID: {nouveau_patient.id})")
+        print(f"âœ… Nouveau patient crÃ©Ã©: {nouveau_patient.email} (ID: {nouveau_patient.id})")
         
-        # Créer un token et connecter automatiquement l'utilisateur
+        # CrÃ©er un token et connecter automatiquement l'utilisateur
         access_token = create_access_token(
             data={
                 "sub": nouveau_patient.email,
@@ -474,12 +678,12 @@ async def register(
     except Exception as e:
         # Autres erreurs
         db.rollback()
-        print(f"❌ Erreur lors de la création du compte: {e}")
+        print(f"âŒ Erreur lors de la crÃ©ation du compte: {e}")
         return templates.TemplateResponse(
             "inscription.html",
             {
                 "request": request,
-                "error": f"Erreur lors de la création du compte. Veuillez réessayer.",
+                "error": f"Erreur lors de la crÃ©ation du compte. Veuillez rÃ©essayer.",
                 "email": email,
                 "nom": nom,
                 "prenom": prenom
@@ -492,7 +696,7 @@ async def register(
 @router.get("/api/deconnexion")
 async def deconnexion():
     """
-    Déconnexion de l'utilisateur
+    DÃ©connexion de l'utilisateur
     Supprime le cookie d'authentification et redirige vers la page de connexion
     """
     response = RedirectResponse(url="/connexion", status_code=303)
@@ -500,24 +704,24 @@ async def deconnexion():
     return response
 
 
-# ============= ROUTES API - DONNÉES DYNAMIQUES =============
+# ============= ROUTES API - DONNÃ‰ES DYNAMIQUES =============
 
 @router.get("/api/dashboard/stats")
 async def get_dashboard_stats(request: Request, db: Session = Depends(get_db)):
-    """API pour récupérer les statistiques du dashboard"""
+    """API pour rÃ©cupÃ©rer les statistiques du dashboard"""
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     try:
-        # ✅ Requête CORRIGÉE - Utiliser query() correctement
+        # âœ… RequÃªte CORRIGÃ‰E - Utiliser query() correctement
         rendez_vous_count = db.query(RendezVous).filter(
             RendezVous.patient_id == current_user.id,
-            RendezVous.statut.in_(["Planifié", "Confirmé"]),
+            RendezVous.statut.in_(["PlanifiÃ©", "ConfirmÃ©"]),
             RendezVous.date_heure > datetime.utcnow()
         ).count()
         
@@ -545,7 +749,7 @@ async def get_dashboard_stats(request: Request, db: Session = Depends(get_db)):
                     "icon": "fa-calendar-check",
                     "color": "blue",
                     "value": str(rendez_vous_count),
-                    "label": "RDV à venir",
+                    "label": "RDV Ã  venir",
                     "change": { "type": "positive", "text": f"+{rendez_vous_count} ce mois" }
                 },
                 {
@@ -553,7 +757,7 @@ async def get_dashboard_stats(request: Request, db: Session = Depends(get_db)):
                     "color": "green",
                     "value": str(documents_count),
                     "label": "Documents",
-                    "change": { "type": "positive", "text": f"+{documents_count} récents" }
+                    "change": { "type": "positive", "text": f"+{documents_count} rÃ©cents" }
                 },
                 {
                     "icon": "fa-comments",
@@ -566,62 +770,83 @@ async def get_dashboard_stats(request: Request, db: Session = Depends(get_db)):
                     "icon": "fa-heartbeat",
                     "color": "red",
                     "value": "98%",
-                    "label": "Suivi santé",
+                    "label": "Suivi santÃ©",
                     "change": { "type": "positive", "text": "Excellent" }
                 }
             ]
         }
         
     except Exception as e:
-        print(f"❌ Erreur dans get_dashboard_stats: {e}")
+        print(f"âŒ Erreur dans get_dashboard_stats: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur serveur: {str(e)}"
         )
         
-        
 # ============= PATIENT - RENDEZ-VOUS =============
+
+
 @router.get("/api/rendez-vous")
 async def get_patient_rendez_vous(request: Request, db: Session = Depends(get_db)):
-    """API pour récupérer les rendez-vous du patient"""
+    """
+    API pour rÃ©cupÃ©rer les rendez-vous du patient
+    Inclut les informations du mÃ©decin associÃ©
+    """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     try:
-        rendez_vous = db.query(RendezVous).filter(
+        # âœ… CORRECTION: Joindre les tables RendezVous et Medecin
+        # Utiliser outerjoin pour supporter les cas oÃ¹ medecin_id serait NULL
+        rendez_vous = db.query(RendezVous, Medecin).outerjoin(
+            Medecin, RendezVous.medecin_id == Medecin.id
+        ).filter(
             RendezVous.patient_id == current_user.id
         ).order_by(RendezVous.date_heure.desc()).all()
         
         result = []
-        for rv in rendez_vous:
+        now = datetime.utcnow()
+
+        for rv, medecin in rendez_vous:
+            # âœ… GÃ©rer le type_consultation comme string (pas comme enum)
+            type_consultation_value = rv.type_consultation if rv.type_consultation else "Cabinet"
+            effective_status = compute_effective_rdv_status(rv, now=now)
+            
+            # âœ… Construire le nom du mÃ©decin de maniÃ¨re sÃ©curisÃ©e
+            medecin_nom = f"Dr. {medecin.prenom} {medecin.nom}" if medecin else "MÃ©decin"
+            medecin_specialite = medecin.specialite.value if medecin and medecin.specialite else "Non spÃ©cifiÃ©"
+            medecin_id = medecin.id if medecin else rv.medecin_id
+            
             result.append({
                 "id": rv.id,
-                "medecin_id": rv.medecin_id,
-                "date_heure": rv.date_heure.isoformat(),
-                "motif": rv.motif,
-                "statut": rv.statut.value,
-                "type_consultation": rv.type_consultation.value if rv.type_consultation else "Cabinet",
-                "lieu": rv.lieu,
+                "medecin_id": medecin_id,
+                "medecin_nom": medecin_nom,
+                "medecin_specialite": medecin_specialite,
+                "date_heure": rv.date_heure.isoformat() if rv.date_heure else None,
+                "motif": rv.motif or "",
+                "statut": effective_status,
+                "type_consultation": type_consultation_value,
+                "lieu": rv.lieu or "",
                 "date_creation": rv.date_creation.isoformat() if rv.date_creation else None
             })
-        
+
+        print(f"âœ… {len(result)} rendez-vous rÃ©cupÃ©rÃ©s pour le patient {current_user.id}")
         return result
         
     except Exception as e:
-        print(f"❌ Erreur: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-
-# ============= PATIENT - CRÉER UN NOUVEAU RENDEZ-VOUS =============
-
+        print(f"âŒ Erreur rendez-vous: {e}")
+        import traceback
+        traceback.print_exc()
+        # Retourner une liste vide en cas d'erreur au lieu de lever une exception
+        return []  
+    
+        
+# ============= PATIENT - CRÃ‰ER UN NOUVEAU RENDEZ-VOUS =============
 @router.post("/api/rendez-vous/creer")
 async def creer_rendez_vous(
     request: Request,
@@ -632,40 +857,33 @@ async def creer_rendez_vous(
     lieu: str = Body(None),  
     db: Session = Depends(get_db)
 ):
-    """Crée un nouveau rendez-vous"""
+    """CrÃ©e un nouveau rendez-vous"""
     current_user = get_current_user_from_cookie(request, db)
     if not current_user:
-        raise HTTPException(status_code=401, detail="Non authentifié")
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
 
     try:
-        # ✅ VÉRIFICATION 1: Vérifier que le médecin existe (UNE SEULE FOIS)
+        # VÃ©rifier que le mÃ©decin existe
         medecin = db.query(Medecin).filter(Medecin.id == medecin_id).first()
         if not medecin:
-            raise HTTPException(status_code=404, detail="Médecin non trouvé")
+            raise HTTPException(status_code=404, detail="MÃ©decin non trouvÃ©")
 
-        # ✅ VÉRIFICATION 2: Vérifier que le médecin a une spécialité
-        if not medecin.specialite:
-            raise HTTPException(
-                status_code=400,
-                detail="Le médecin sélectionné n'a pas de spécialité définie. Veuillez contacter le support."
-            )
-
-        # ✅ VÉRIFICATION 3: Vérifier type de consultation
-        types_valides = [t.value for t in TypeConsultation]
+        # VÃ©rifier type de consultation
+        types_valides = ["Cabinet", "VidÃ©o", "Domicile"]
         if type_consultation not in types_valides:
             raise HTTPException(
                 status_code=400,
-                detail=f"Type de consultation invalide. Acceptés: {types_valides}"
+                detail=f"Type de consultation invalide. AcceptÃ©s: {types_valides}"
             )
 
-        # ✅ VÉRIFICATION 4: Lieu obligatoire pour Domicile
+        # Lieu obligatoire pour Domicile
         if type_consultation == "Domicile" and not lieu:
             raise HTTPException(
                 status_code=400,
-                detail="Le lieu est obligatoire pour une consultation à domicile"
+                detail="Le lieu est obligatoire pour une consultation Ã  domicile"
             )
 
-        # ✅ VÉRIFICATION 5: Parser date avec sécurité
+        # Parser date
         try:
             date_heure_obj = datetime.fromisoformat(date_heure.replace("Z", ""))
         except ValueError:
@@ -674,18 +892,18 @@ async def creer_rendez_vous(
                 detail="Format de date invalide. Utilisez: 2026-01-25T14:30"
             )
 
-       
-        specialite_final = medecin.specialite.value
+        # SpÃ©cialitÃ© du mÃ©decin
+        specialite_final = medecin.specialite.value if medecin.specialite else "GÃ©nÃ©raliste"
 
-        # ✅ Création du rendez-vous avec tous les paramètres validés
+        # âœ… CrÃ©ation du rendez-vous - SANS CONVERSION EN ENUM
         nouveau_rdv = RendezVous(
             patient_id=current_user.id,
             medecin_id=medecin_id,
             date_heure=date_heure_obj,
             motif=motif,
-            type_consultation=TypeConsultation(type_consultation),
+            type_consultation=type_consultation,  # â† Directement la string
             lieu=lieu if lieu else None,
-            statut=StatutRendezVous.PLANIFIE,
+            statut="PlanifiÃ©",
             specialite=specialite_final
         )
 
@@ -695,7 +913,7 @@ async def creer_rendez_vous(
 
         return {
             "success": True,
-            "message": "Rendez-vous créé avec succès",
+            "message": "Rendez-vous crÃ©Ã© avec succÃ¨s",
             "rendez_vous": {
                 "id": nouveau_rdv.id,
                 "date_heure": nouveau_rdv.date_heure.isoformat(),
@@ -709,12 +927,16 @@ async def creer_rendez_vous(
     except Exception as e:
         db.rollback()
         import traceback
-        print("❌ Erreur création RDV:", e)
+        print("âŒ Erreur crÃ©ation RDV:", e)
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail=f"Erreur interne serveur: {str(e)}"
         )
+        
+        
+        
+
 # ================== MODIFIER RENDEZ-VOUS ==================
 @router.put("/api/rendez-vous/{rdv_id}")
 async def modifier_rendez_vous(
@@ -730,7 +952,7 @@ async def modifier_rendez_vous(
     """Modifie un rendez-vous existant"""
     current_user = get_current_user_from_cookie(request, db)
     if not current_user:
-        raise HTTPException(status_code=401, detail="Non authentifié")
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
 
     try:
         rdv = db.query(RendezVous).filter(
@@ -739,7 +961,9 @@ async def modifier_rendez_vous(
         ).first()
 
         if not rdv:
-            raise HTTPException(status_code=404, detail="Rendez-vous non trouvé")
+            raise HTTPException(status_code=404, detail="Rendez-vous non trouvÃ©")
+
+        old_dt = rdv.date_heure
 
         # Modifier date
         if date_heure:
@@ -761,9 +985,9 @@ async def modifier_rendez_vous(
             if type_consultation not in types_valides:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Type invalide. Acceptés: {types_valides}"
+                    detail=f"Type invalide. AcceptÃ©s: {types_valides}"
                 )
-            rdv.type_consultation = TypeConsultation(type_consultation)
+            rdv.type_consultation = type_consultation
 
         # Modifier lieu
         if lieu is not None:
@@ -775,22 +999,76 @@ async def modifier_rendez_vous(
             if statut not in statuts_valides:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Statut invalide. Acceptés: {statuts_valides}"
+                    detail=f"Statut invalide. AcceptÃ©s: {statuts_valides}"
                 )
-            rdv.statut = StatutRendezVous(statut)
+            rdv.statut = statut
+
+        rdv.statut = compute_effective_rdv_status(rdv)
 
         db.commit()
         db.refresh(rdv)
 
+        patient_name = current_user.nom_complet if hasattr(current_user, "nom_complet") else f"{current_user.prenom} {current_user.nom}".strip()
+        medecin = db.query(Medecin).filter(Medecin.id == rdv.medecin_id).first()
+        medecin_name = f"Dr. {medecin.prenom} {medecin.nom}" if medecin else "votre médecin"
+
+        notif_to_medecin = Message(
+            medecin_id=rdv.medecin_id,
+            patient_id=rdv.patient_id,
+            sujet="Modification de rendez-vous",
+            contenu=f"Le patient {patient_name} a modifié le rendez-vous #{rdv.id} (nouvelle date: {rdv.date_heure.strftime('%d/%m/%Y %H:%M')}).",
+            de_medecin=False,
+            statut=StatutMessage.ENVOYE
+        )
+        notif_to_patient = Message(
+            medecin_id=rdv.medecin_id,
+            patient_id=rdv.patient_id,
+            sujet="Rendez-vous modifié",
+            contenu=f"Votre rendez-vous #{rdv.id} a bien été mis à jour pour le {rdv.date_heure.strftime('%d/%m/%Y %H:%M')}.",
+            de_medecin=True,
+            statut=StatutMessage.ENVOYE
+        )
+        db.add(notif_to_medecin)
+        db.add(notif_to_patient)
+        db.commit()
+
+        if medecin and medecin.email:
+            try:
+                send_rdv_update_email(
+                    recipient_email=medecin.email,
+                    recipient_name=f"Dr. {medecin.prenom} {medecin.nom}",
+                    actor_label=patient_name,
+                    medecin_name=medecin_name,
+                    old_dt=old_dt or rdv.date_heure,
+                    new_dt=rdv.date_heure,
+                    motif=motif or rdv.motif or ""
+                )
+            except Exception as mail_error:
+                print(f"Erreur email notification médecin: {mail_error}")
+
+        if current_user.email:
+            try:
+                send_rdv_update_email(
+                    recipient_email=current_user.email,
+                    recipient_name=patient_name,
+                    actor_label=patient_name,
+                    medecin_name=medecin_name,
+                    old_dt=old_dt or rdv.date_heure,
+                    new_dt=rdv.date_heure,
+                    motif=motif or rdv.motif or ""
+                )
+            except Exception as mail_error:
+                print(f"Erreur email notification patient: {mail_error}")
+
         return {
             "success": True,
-            "message": "Rendez-vous modifié avec succès",
+            "message": "Rendez-vous modifiÃ© avec succÃ¨s",
             "rendez_vous": {
                 "id": rdv.id,
                 "date_heure": rdv.date_heure.isoformat(),
-                "type_consultation": rdv.type_consultation.value,
+                "type_consultation": rdv.type_consultation,
                 "lieu": rdv.lieu,
-                "statut": rdv.statut.value
+                "statut": rdv.statut
             }
         }
 
@@ -799,13 +1077,18 @@ async def modifier_rendez_vous(
     except Exception as e:
         db.rollback()
         import traceback
-        print("❌ Erreur modification RDV:", e)
+        print("âŒ Erreur modification RDV:", e)
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail=f"Erreur interne serveur: {str(e)}"
         )
 
+
+
+
+ 
+        
 # ============= PATIENT - SUPPRIMER UN RENDEZ-VOUS =============
 @router.delete("/api/rendez-vous/{rdv_id}")
 async def supprimer_rendez_vous(
@@ -819,7 +1102,7 @@ async def supprimer_rendez_vous(
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     try:
@@ -831,7 +1114,7 @@ async def supprimer_rendez_vous(
         if not rdv:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Rendez-vous non trouvé"
+                detail="Rendez-vous non trouvÃ©"
             )
         
         db.delete(rdv)
@@ -839,14 +1122,14 @@ async def supprimer_rendez_vous(
         
         return {
             "success": True,
-            "message": "Rendez-vous supprimé avec succès"
+            "message": "Rendez-vous supprimÃ© avec succÃ¨s"
         }
         
     except HTTPException as e:
         raise e
     except Exception as e:
         db.rollback()
-        print(f"❌ Erreur suppression RDV: {e}")
+        print(f"âŒ Erreur suppression RDV: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
@@ -857,15 +1140,15 @@ async def supprimer_rendez_vous(
 @router.get("/api/patient/info")
 async def get_patient_info(request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer les informations du patient connecté
-    Retourne un JSON avec les données du patient
+    API pour rÃ©cupÃ©rer les informations du patient connectÃ©
+    Retourne un JSON avec les donnÃ©es du patient
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     return {
@@ -882,18 +1165,18 @@ async def get_patient_info(request: Request, db: Session = Depends(get_db)):
         "derniere_connexion": current_user.derniere_connexion.isoformat() if current_user.derniere_connexion else None
     }
 
-# ============= PATIENT - INFORMATIONS COMPLÈTES =============
+# ============= PATIENT - INFORMATIONS COMPLÃˆTES =============
 @router.get("/api/patient/full-info")
 async def get_patient_full_info(request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer toutes les informations du patient
+    API pour rÃ©cupÃ©rer toutes les informations du patient
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     return {
@@ -914,7 +1197,7 @@ async def get_patient_full_info(request: Request, db: Session = Depends(get_db))
         "traitements_en_cours": current_user.traitements_en_cours
     }
 
-# ============= PATIENT - METTRE À JOUR INFORMATIONS =============
+# ============= PATIENT - METTRE Ã€ JOUR INFORMATIONS =============
 @router.post("/api/patient/update")
 async def update_patient_info(
     request: Request,
@@ -922,18 +1205,18 @@ async def update_patient_info(
     db: Session = Depends(get_db)
 ):
     """
-    API pour mettre à jour les informations du patient
+    API pour mettre Ã  jour les informations du patient
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     try:
-        # Mettre à jour les champs de base
+        # Mettre Ã  jour les champs de base
         if "nom" in patient_data and patient_data["nom"]:
             current_user.nom = patient_data["nom"].strip().capitalize()
         if "prenom" in patient_data and patient_data["prenom"]:
@@ -951,7 +1234,7 @@ async def update_patient_info(
         if "code_postal" in patient_data:
             current_user.code_postal = patient_data["code_postal"].strip()
         
-        # Mettre à jour les informations médicales
+        # Mettre Ã  jour les informations mÃ©dicales
         if "groupe_sanguin" in patient_data:
             current_user.groupe_sanguin = patient_data["groupe_sanguin"]
         if "allergies" in patient_data:
@@ -961,18 +1244,18 @@ async def update_patient_info(
         if "traitements_en_cours" in patient_data:
             current_user.traitements_en_cours = patient_data["traitements_en_cours"].strip()
         
-        # Mettre à jour le mot de passe si fourni
+        # Mettre Ã  jour le mot de passe si fourni
         if "mot_de_passe" in patient_data and patient_data["mot_de_passe"]:
             current_user.mot_de_passe_hash = get_password_hash(patient_data["mot_de_passe"])
         
-        # Date de mise à jour
+        # Date de mise Ã  jour
         current_user.date_modification = datetime.utcnow()
         
         db.commit()
         
         return {
             "success": True,
-            "message": "Informations mises à jour avec succès"
+            "message": "Informations mises Ã  jour avec succÃ¨s"
         }
         
     except ValueError as e:
@@ -983,10 +1266,10 @@ async def update_patient_info(
         )
     except Exception as e:
         db.rollback()
-        print(f"Erreur mise à jour patient: {str(e)}")
+        print(f"Erreur mise Ã  jour patient: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erreur lors de la mise à jour: {str(e)}"
+            detail=f"Erreur lors de la mise Ã  jour: {str(e)}"
         )
 
 # ============= MESSAGERIE =============
@@ -994,14 +1277,14 @@ async def update_patient_info(
 @router.get("/api/messagerie/stats")
 async def get_messagerie_stats(request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer les statistiques de la messagerie
+    API pour rÃ©cupÃ©rer les statistiques de la messagerie
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     # Messages non lus
@@ -1031,17 +1314,17 @@ async def get_messagerie_stats(request: Request, db: Session = Depends(get_db)):
 @router.get("/api/messagerie/conversations")    
 async def get_conversations_list(request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer la liste des conversations
+    API pour rÃ©cupÃ©rer la liste des conversations
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
-    # Sous-requête pour le dernier message de chaque médecin
+    # Sous-requÃªte pour le dernier message de chaque mÃ©decin
     subquery = db.query(
         Message.medecin_id,
         func.max(Message.date_envoi).label('max_date')
@@ -1051,12 +1334,13 @@ async def get_conversations_list(request: Request, db: Session = Depends(get_db)
         Message.medecin_id
     ).subquery()
     
-    # Requête principale
+    # RequÃªte principale
     conversations = db.query(
         Medecin.id,
         Medecin.nom,
         Medecin.prenom,
         Medecin.photo_profil_url,
+        Medecin.derniere_connexion,
         Medecin.specialite,
         Message.contenu.label('last_message'),
         Message.date_envoi.label('last_message_time'),
@@ -1073,7 +1357,7 @@ async def get_conversations_list(request: Request, db: Session = Depends(get_db)
     ).filter(
         Message.patient_id == current_user.id
     ).group_by(
-        Medecin.id, Medecin.nom, Medecin.prenom, Medecin.photo_profil_url, 
+        Medecin.id, Medecin.nom, Medecin.prenom, Medecin.photo_profil_url, Medecin.derniere_connexion,
         Medecin.specialite, Message.contenu, Message.date_envoi
     ).order_by(
         Message.date_envoi.desc()
@@ -1085,10 +1369,14 @@ async def get_conversations_list(request: Request, db: Session = Depends(get_db)
             "medecin_id": conv.id,
             "medecin_name": f"Dr. {conv.prenom} {conv.nom}",
             "medecin_photo": conv.photo_profil_url,
-            "specialite": conv.specialite.value if conv.specialite else "Non spécifié",
+            "specialite": conv.specialite.value if conv.specialite else "Non spÃ©cifiÃ©",
             "last_message": (conv.last_message[:50] + "...") if conv.last_message and len(conv.last_message) > 50 else conv.last_message,
-            "last_message_time": conv.last_message_time.strftime("%d/%m/%Y %H:%M") if conv.last_message_time else "",
-            "unread": conv.unread_count or 0
+            "last_message_time": conv.last_message_time.isoformat() if conv.last_message_time else "",
+            "unread": conv.unread_count or 0,
+            "is_online": bool(
+                conv.derniere_connexion and
+                conv.derniere_connexion >= (datetime.utcnow() - timedelta(minutes=2))
+            )
         })
     
     return result
@@ -1097,16 +1385,16 @@ async def get_conversations_list(request: Request, db: Session = Depends(get_db)
 @router.get("/api/messagerie/conversation/{medecin_id}")
 async def get_conversation_messages(medecin_id: int, request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer les messages d'une conversation et les infos du médecin
+    API pour rÃ©cupÃ©rer les messages d'une conversation et les infos du mÃ©decin
     """
     current_user = get_current_user_from_cookie(request, db)
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
 
-    # Récupérer les messages
+    # RÃ©cupÃ©rer les messages
     messages = db.query(
         Message.id,
         Message.contenu,
@@ -1134,12 +1422,12 @@ async def get_conversation_messages(medecin_id: int, request: Request, db: Sessi
         result.append({
             "id": msg.id,
             "contenu": msg.contenu,
-            "date_envoi": msg.date_envoi.strftime("%d/%m/%Y %H:%M"),
+            "date_envoi": msg.date_envoi.isoformat() if msg.date_envoi else None,
             "expediteur_type": "medecin" if msg.de_medecin else "patient",
             "statut": msg.statut
         })
 
-    # Infos du médecin
+    # Infos du mÃ©decin
     medecin = db.query(Medecin).filter(Medecin.id == medecin_id).first()
     medecin_data = None
     if medecin:
@@ -1147,14 +1435,49 @@ async def get_conversation_messages(medecin_id: int, request: Request, db: Sessi
             "id": medecin.id,
             "nom": medecin.nom,
             "prenom": medecin.prenom,
-            "specialite": medecin.specialite.value if medecin.specialite else "Non spécifié",
+            "specialite": medecin.specialite.value if medecin.specialite else "Non spÃ©cifiÃ©",
             "photo": medecin.photo_profil_url,
-            "is_online": getattr(medecin, "is_online", False)
+            "is_online": bool(
+                medecin.derniere_connexion and
+                medecin.derniere_connexion >= (datetime.utcnow() - timedelta(minutes=2))
+            ),
+            "email": medecin.email,
+            "telephone": medecin.telephone
         }
 
     return {
         "messages": result,
         "medecin": medecin_data
+    }
+
+@router.get("/api/messagerie/medecin-presence/{medecin_id}")
+async def get_medecin_presence(medecin_id: int, request: Request, db: Session = Depends(get_db)):
+    """
+    API lÃ©gere pour rÃ©cupÃ©rer l'etat en ligne/hors ligne d'un mÃ©decin.
+    """
+    current_user = get_current_user_from_cookie(request, db)
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Non authentifiÃ©"
+        )
+
+    medecin = db.query(Medecin).filter(Medecin.id == medecin_id).first()
+    if not medecin:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="MÃ©decin non trouvÃ©"
+        )
+
+    is_online = bool(
+        medecin.derniere_connexion and
+        medecin.derniere_connexion >= (datetime.utcnow() - timedelta(minutes=2))
+    )
+
+    return {
+        "medecin_id": medecin.id,
+        "is_online": is_online,
+        "derniere_connexion": medecin.derniere_connexion.isoformat() if medecin.derniere_connexion else None
     }
 
 # ============= PATIENT - ENVOYER UN MESSAGE =============
@@ -1173,7 +1496,7 @@ async def send_message_api(
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     medecin_id = message_data.get("medecin_id")
@@ -1182,18 +1505,18 @@ async def send_message_api(
     if not medecin_id or not contenu:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Données manquantes"
+            detail="DonnÃ©es manquantes"
         )
     
-    # Vérifier que le médecin existe
+    # VÃ©rifier que le mÃ©decin existe
     medecin = db.query(Medecin).filter(Medecin.id == medecin_id).first()
     if not medecin:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Médecin non trouvé"
+            detail="MÃ©decin non trouvÃ©"
         )
     
-    # Créer le message
+    # CrÃ©er le message
     message = Message(
         patient_id=current_user.id,
         medecin_id=medecin_id,
@@ -1221,19 +1544,19 @@ async def send_message_api(
             detail=f"Erreur lors de l'envoi du message: {str(e)}"
         )
 
-# ============= MÉDECINS =============
+# ============= MÃ‰DECINS =============
 
 @router.get("/api/medecins")
 async def get_all_medecins(request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer la liste de tous les médecins
+    API pour rÃ©cupÃ©rer la liste de tous les mÃ©decins
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     medecins = db.query(Medecin).filter(Medecin.est_actif == True).all()
@@ -1244,7 +1567,7 @@ async def get_all_medecins(request: Request, db: Session = Depends(get_db)):
             "id": medecin.id,
             "nom": medecin.nom,
             "prenom": medecin.prenom,
-            "specialite": medecin.specialite.value if medecin.specialite else "Non spécifié",
+            "specialite": medecin.specialite.value if medecin.specialite else "Non spÃ©cifiÃ©",
             "annees_experience": medecin.annees_experience,
             "email": medecin.email,
             "prix_consultation": medecin.prix_consultation,
@@ -1255,18 +1578,18 @@ async def get_all_medecins(request: Request, db: Session = Depends(get_db)):
     
     return result
 
-# ============= DÉTAIL MÉDECIN =============
+# ============= DÃ‰TAIL MÃ‰DECIN =============
 @router.get("/api/medecins/{medecin_id}")
 async def get_medecin_detail(medecin_id: int, request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer les détails d'un médecin
+    API pour rÃ©cupÃ©rer les dÃ©tails d'un mÃ©decin
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     medecin = db.query(Medecin).filter(
@@ -1277,14 +1600,14 @@ async def get_medecin_detail(medecin_id: int, request: Request, db: Session = De
     if not medecin:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Médecin non trouvé"
+            detail="MÃ©decin non trouvÃ©"
         )
     
     return {
         "id": medecin.id,
         "nom": medecin.nom,
         "prenom": medecin.prenom,
-        "specialite": medecin.specialite.value if medecin.specialite else "Non spécifié",
+        "specialite": medecin.specialite.value if medecin.specialite else "Non spÃ©cifiÃ©",
         "annees_experience": medecin.annees_experience,
         "email": medecin.email,
         "prix_consultation": medecin.prix_consultation,
@@ -1302,14 +1625,14 @@ async def get_medecin_detail(medecin_id: int, request: Request, db: Session = De
 @router.get("/api/documents")
 async def get_patient_documents(request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer les documents du patient
+    API pour rÃ©cupÃ©rer les documents du patient
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     documents = db.query(Document).filter(
@@ -1347,13 +1670,13 @@ async def upload_document_api(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    """API pour téléverser un document - Version CORRIGÉE avec chemin absolu"""
+    """API pour tÃ©lÃ©verser un document - Version CORRIGÃ‰E avec chemin absolu"""
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     try:
@@ -1361,11 +1684,11 @@ async def upload_document_api(
         BASE_DIR = Path(__file__).resolve().parent  
         UPLOAD_BASE_DIR = BASE_DIR  / "static" / "uploads"
         
-        # Répertoire spécifique aux documents
+        # RÃ©pertoire spÃ©cifique aux documents
         documents_dir = UPLOAD_BASE_DIR / "documents"
         documents_dir.mkdir(parents=True, exist_ok=True)
         
-        # Générer un nom de fichier unique
+        # GÃ©nÃ©rer un nom de fichier unique
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_filename = file.filename.replace(" ", "_").replace("/", "_")
         filename = f"doc_{current_user.id}_{timestamp}_{safe_filename}"
@@ -1379,7 +1702,7 @@ async def upload_document_api(
         
         fichier_url = f"/static/uploads/documents/{filename}"
         
-        # Créer l'entrée document
+        # CrÃ©er l'entrÃ©e document
         document = Document(
             patient_id=current_user.id,
             titre=titre,
@@ -1408,7 +1731,7 @@ async def upload_document_api(
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erreur lors du téléversement: {str(e)}"
+            detail=f"Erreur lors du tÃ©lÃ©versement: {str(e)}"
         )
 
 # ============= SUPPRIMER DOCUMENT =============
@@ -1424,11 +1747,11 @@ async def delete_document_api(
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     try:
-        # Récupérer le document
+        # RÃ©cupÃ©rer le document
         document = db.query(Document).filter(
             Document.id == document_id,
             Document.patient_id == current_user.id
@@ -1437,7 +1760,7 @@ async def delete_document_api(
         if not document:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Document non trouvé"
+                detail="Document non trouvÃ©"
             )
         
         
@@ -1451,47 +1774,47 @@ async def delete_document_api(
             #file_path = UPLOAD_BASE_DIR / "documents" / filename
             file_path = uploads_dir / filename
             
-            # Vérifier et supprimer le fichier physique
+            # VÃ©rifier et supprimer le fichier physique
             if file_path.exists():
                 try:
                     file_path.unlink()
-                    print(f"✅ Fichier supprimé: {file_path}")
+                    print(f"âœ… Fichier supprimÃ©: {file_path}")
                 except Exception as e:
-                    print(f"⚠️ Impossible de supprimer le fichier physique: {e}")
+                    print(f"âš ï¸ Impossible de supprimer le fichier physique: {e}")
         
-        # Supprimer l'entrée de la base de données
+        # Supprimer l'entrÃ©e de la base de donnÃ©es
         db.delete(document)
         db.commit()
         
         return {
             "success": True,
-            "message": "Document supprimé avec succès"
+            "message": "Document supprimÃ© avec succÃ¨s"
         }
         
     except HTTPException as e:
         raise e
     except Exception as e:
         db.rollback()
-        print(f"❌ Erreur suppression document: {e}")
+        print(f"âŒ Erreur suppression document: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur lors de la suppression: {str(e)}"
         )
         
- #============ VUE DÉTAILLÉE D'UN DOCUMENT ============= 
+ #============ VUE DÃ‰TAILLÃ‰E D'UN DOCUMENT ============= 
 @router.get("/api/documents/{document_id}/view")
 async def view_document_api(
     document_id: int,
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """API pour récupérer les infos d'un document spécifique"""
+    """API pour rÃ©cupÃ©rer les infos d'un document spÃ©cifique"""
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     document = db.query(Document).filter(
@@ -1502,10 +1825,10 @@ async def view_document_api(
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Document non trouvé"
+            detail="Document non trouvÃ©"
         )
     
-    # Construire l'URL complète
+    # Construire l'URL complÃ¨te
     base_url = str(request.base_url).rstrip('/')
     fichier_url = f"{base_url}{document.fichier_url}"
     
@@ -1525,14 +1848,14 @@ async def view_document_api(
 @router.get("/api/ordonnances")
 async def get_patient_ordonnances(request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer les ordonnances du patient
+    API pour rÃ©cupÃ©rer les ordonnances du patient
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     ordonnances = db.query(Ordonnance).filter(
@@ -1545,22 +1868,53 @@ async def get_patient_ordonnances(request: Request, db: Session = Depends(get_db
             "id": ord.id,
             "medecin_nom": ord.medecin_nom,
             "date_emission": ord.date_emission.isoformat() if ord.date_emission else None,
-            "medicaments": ord.medicaments,
-            "posologie": ord.posologie,
-            "duree_traitement": ord.duree_traitement,
-            "statut": ord.statut,
+            "medicaments": ord.medicaments or "",
+            "posologie": ord.posologie or "",
+            "duree_traitement": ord.duree_traitement or "",
+            "statut": ord.statut or "Active",
             "date_expiration": ord.date_expiration.isoformat() if ord.date_expiration else None,
-            "fichier_url": ord.fichier_url
+            "fichier_url": ord.fichier_url,
+            "pdf_disponible": bool(ord.fichier_url)
         })
     
     return result
+
+
+@router.get("/api/ordonnances/telecharger/{ordonnance_id}")
+async def telecharger_ordonnance_patient(
+    ordonnance_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """TÃ©lÃ©charge le PDF d'une ordonnance pour le patient connectÃ©."""
+    current_user = get_current_user_from_cookie(request, db)
+
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
+
+    ordonnance = db.query(Ordonnance).filter(
+        Ordonnance.id == ordonnance_id,
+        Ordonnance.patient_id == current_user.id
+    ).first()
+
+    if not ordonnance:
+        raise HTTPException(status_code=404, detail="Ordonnance non trouvÃ©e")
+
+    if not ordonnance.fichier_url:
+        raise HTTPException(status_code=404, detail="PDF non disponible")
+
+    filepath = ordonnance.fichier_url.replace("/static/", "static/")
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Fichier introuvable")
+
+    return FileResponse(filepath, filename=f"ordonnance_{ordonnance_id}.pdf")
 
 # ============= NOTIFICATIONS =============
 
 @router.get("/api/notifications")
 async def get_notifications_count(request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer le nombre de notifications (messages non lus)
+    API pour rÃ©cupÃ©rer le nombre de notifications (messages non lus)
     """
     current_user = get_current_user_from_cookie(request, db)
     
@@ -1576,31 +1930,270 @@ async def get_notifications_count(request: Request, db: Session = Depends(get_db
     return {"unread_messages": unread_count}
 
 
+@router.get("/api/notifications/summary")
+async def get_patient_notifications_summary(request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user_from_cookie(request, db)
+    if not current_user:
+        return {
+            "total": 0,
+            "unread_messages": 0,
+            "documents_recents": 0,
+            "rdv_a_venir": 0
+        }
+
+    now = datetime.utcnow()
+    recent_threshold = now - timedelta(days=7)
+
+    unread_messages = db.query(Message).filter(
+        Message.patient_id == current_user.id,
+        Message.statut == StatutMessage.ENVOYE,
+        Message.de_medecin == True
+    ).count()
+
+    documents_recents = db.query(Document).filter(
+        Document.patient_id == current_user.id,
+        Document.date_upload >= recent_threshold
+    ).count()
+
+    rdv_a_venir = db.query(RendezVous).filter(
+        RendezVous.patient_id == current_user.id,
+        RendezVous.date_heure >= now
+    ).count()
+
+    notifications_systeme = db.query(NotificationReception).filter(
+        NotificationReception.user_role == "patient",
+        NotificationReception.user_id == current_user.id,
+        NotificationReception.lu == False
+    ).count()
+
+    total = unread_messages + documents_recents + rdv_a_venir + notifications_systeme
+    return {
+        "total": total,
+        "unread_messages": unread_messages,
+        "documents_recents": documents_recents,
+        "rdv_a_venir": rdv_a_venir,
+        "notifications_systeme": notifications_systeme
+    }
 
 
-# Route optimisée pour le dashboard
+@router.get("/api/notifications/list")
+async def get_patient_notifications_list(request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user_from_cookie(request, db)
+    if not current_user:
+        return []
+
+    rows = db.query(NotificationReception, NotificationBroadcast).join(
+        NotificationBroadcast, NotificationBroadcast.id == NotificationReception.notification_id
+    ).filter(
+        NotificationReception.user_role == "patient",
+        NotificationReception.user_id == current_user.id
+    ).order_by(NotificationReception.date_reception.desc()).limit(30).all()
+
+    return [
+        {
+            "id": nr.id,
+            "titre": nb.titre,
+            "contenu": nb.contenu,
+            "lu": nr.lu,
+            "date": nr.date_reception.isoformat() if nr.date_reception else None
+        }
+        for nr, nb in rows
+    ]
+
+
+@router.put("/api/notifications/{notification_reception_id}/read")
+async def mark_patient_notification_read(
+    notification_reception_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    current_user = get_current_user_from_cookie(request, db)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+
+    notif = db.query(NotificationReception).filter(
+        NotificationReception.id == notification_reception_id,
+        NotificationReception.user_role == "patient",
+        NotificationReception.user_id == current_user.id
+    ).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification introuvable")
+
+    notif.lu = True
+    notif.date_lu = datetime.utcnow()
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/api/patient/analyses")
+async def get_patient_analyses(request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user_from_cookie(request, db)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+
+    rows = db.query(AnalysePatient, Medecin).join(
+        Medecin, Medecin.id == AnalysePatient.medecin_id
+    ).filter(
+        AnalysePatient.patient_id == current_user.id
+    ).order_by(AnalysePatient.date_analyse.desc()).all()
+
+    return [
+        {
+            "id": a.id,
+            "titre": a.titre,
+            "resultat": a.resultat,
+            "notes": a.notes,
+            "document_url": a.document_url,
+            "date_analyse": a.date_analyse.isoformat() if a.date_analyse else None,
+            "medecin_nom": f"Dr. {m.prenom} {m.nom}"
+        }
+        for a, m in rows
+    ]
+
+
+@router.get("/api/patient/injections")
+async def get_patient_injections(request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user_from_cookie(request, db)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+
+    rows = db.query(InjectionPatient, Medecin).join(
+        Medecin, Medecin.id == InjectionPatient.medecin_id
+    ).filter(
+        InjectionPatient.patient_id == current_user.id
+    ).order_by(InjectionPatient.date_injection.desc()).all()
+
+    return [
+        {
+            "id": inj.id,
+            "nom_injection": inj.nom_injection,
+            "dosage": inj.dosage,
+            "frequence": inj.frequence,
+            "instructions": inj.instructions,
+            "date_injection": inj.date_injection.isoformat() if inj.date_injection else None,
+            "medecin_nom": f"Dr. {m.prenom} {m.nom}"
+        }
+        for inj, m in rows
+    ]
+
+
+@router.get("/api/patient/analyses/{analyse_id}/pdf")
+async def download_patient_analyse_pdf(
+    analyse_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    current_user = get_current_user_from_cookie(request, db)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+
+    analyse = db.query(AnalysePatient).filter(
+        AnalysePatient.id == analyse_id,
+        AnalysePatient.patient_id == current_user.id
+    ).first()
+    if not analyse:
+        raise HTTPException(status_code=404, detail="Analyse introuvable")
+
+    medecin = db.query(Medecin).filter(Medecin.id == analyse.medecin_id).first()
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    y = 800
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawString(50, y, "Dokira - Resultat d'analyse")
+    y -= 30
+    pdf.setFont("Helvetica", 11)
+    pdf.drawString(50, y, f"Patient: {current_user.nom_complet}")
+    y -= 18
+    pdf.drawString(50, y, f"Medecin: {'Dr. ' + medecin.prenom + ' ' + medecin.nom if medecin else '-'}")
+    y -= 18
+    pdf.drawString(50, y, f"Titre: {analyse.titre}")
+    y -= 18
+    pdf.drawString(50, y, f"Date: {analyse.date_analyse.strftime('%d/%m/%Y %H:%M') if analyse.date_analyse else '-'}")
+    y -= 24
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(50, y, "Resultat:")
+    y -= 18
+    pdf.setFont("Helvetica", 10)
+    for line in (analyse.resultat or "").splitlines() or ["-"]:
+        pdf.drawString(50, y, line[:110])
+        y -= 14
+        if y < 80:
+            pdf.showPage()
+            y = 800
+    if analyse.notes:
+        y -= 10
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(50, y, "Notes:")
+        y -= 18
+        pdf.setFont("Helvetica", 10)
+        for line in analyse.notes.splitlines():
+            pdf.drawString(50, y, line[:110])
+            y -= 14
+            if y < 80:
+                pdf.showPage()
+                y = 800
+
+    pdf.save()
+    buffer.seek(0)
+    return Response(
+        content=buffer.read(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=analyse_{analyse_id}.pdf"}
+    )
+
+
+@router.get("/api/help/patient.pdf")
+async def patient_help_pdf():
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    y = 800
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawString(50, y, "Guide Patient Dokira")
+    y -= 24
+    pdf.setFont("Helvetica", 11)
+    lines = [
+        "- Dashboard: vue generale de vos activites",
+        "- Profil: consulter et modifier vos informations",
+        "- Dossier Medical: informations medicales personnelles",
+        "- Rendez-vous: creer, modifier, annuler",
+        "- Messagerie: echanger avec medecin/admin (bug technique pour admin)",
+        "- Analyses & Resultats: consulter resultats et telecharger PDF",
+        "- Injections: consulter prescriptions d'injections",
+        "- Documents/Ordonnances: consulter et telecharger",
+    ]
+    for line in lines:
+        pdf.drawString(50, y, line)
+        y -= 16
+    pdf.save()
+    buffer.seek(0)
+    return Response(content=buffer.read(), media_type="application/pdf", headers={"Content-Disposition": "inline; filename=guide_patient_dokira.pdf"})
+
+
+
+
+# Route optimisÃ©e pour le dashboard
 @router.get("/api/dashboard/optimized")
 async def get_optimized_dashboard(request: Request, db: Session = Depends(get_db)):
     """
-    API optimisée pour le dashboard - Toutes les données en un seul appel
+    API optimisÃ©e pour le dashboard - Toutes les donnÃ©es en un seul appel
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Non authentifié"
+            detail="Non authentifiÃ©"
         )
     
     try:
-        # Utiliser des requêtes parallèles avec asyncio
+        # Utiliser des requÃªtes parallÃ¨les avec asyncio
         import asyncio
         
-        # Toutes les requêtes en parallèle
+        # Toutes les requÃªtes en parallÃ¨le
         rendez_vous_count = db.query(RendezVous).filter(
             RendezVous.patient_id == current_user.id,
             RendezVous.date_heure > datetime.utcnow(),
-            RendezVous.statut.in_(["Planifié", "Confirmé"])
+            RendezVous.statut.in_(["PlanifiÃ©", "ConfirmÃ©"])
         ).count()
         
         documents_count = db.query(Document).filter(
@@ -1618,7 +2211,7 @@ async def get_optimized_dashboard(request: Request, db: Session = Depends(get_db
             Message.patient_id == current_user.id
         ).count()
         
-        # Récupérer quelques médecins pour affichage rapide
+        # RÃ©cupÃ©rer quelques mÃ©decins pour affichage rapide
         recent_medecins = db.query(Medecin).filter(
             Medecin.est_actif == True
         ).limit(3).all()
@@ -1629,7 +2222,7 @@ async def get_optimized_dashboard(request: Request, db: Session = Depends(get_db
                 "id": medecin.id,
                 "nom": medecin.nom,
                 "prenom": medecin.prenom,
-                "specialite": medecin.specialite.value if medecin.specialite else "Non spécifié",
+                "specialite": medecin.specialite.value if medecin.specialite else "Non spÃ©cifiÃ©",
                 "photo": medecin.photo_profil_url
             })
         
@@ -1649,48 +2242,48 @@ async def get_optimized_dashboard(request: Request, db: Session = Depends(get_db
                 {
                     "icon": "fa-calendar-plus",
                     "title": "Prendre RDV",
-                    "description": "Réserver une consultation",
+                    "description": "RÃ©server une consultation",
                     "link": "/rendez-vous"
                 },
                 {
                     "icon": "fa-file-upload",
-                    "title": "Téléverser",
+                    "title": "TÃ©lÃ©verser",
                     "description": "Ajouter un document",
                     "link": "/documents"
                 },
                 {
                     "icon": "fa-comments",
                     "title": "Messagerie",
-                    "description": "Contacter un médecin",
+                    "description": "Contacter un mÃ©decin",
                     "link": "/messagerie"
                 }
             ]
         }
         
     except Exception as e:
-        print(f"❌ Erreur dashboard optimisé: {e}")
+        print(f"âŒ Erreur dashboard optimisÃ©: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur serveur: {str(e)}"
         )
 
-# Route de débogage pour les messages
+# Route de dÃ©bogage pour les messages
 @router.get("/api/debug/messages")
 async def debug_messages(request: Request, db: Session = Depends(get_db)):
     """
-    Route de débogage pour vérifier les messages
+    Route de dÃ©bogage pour vÃ©rifier les messages
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
-        return {"error": "Non authentifié"}
+        return {"error": "Non authentifiÃ©"}
     
-    # Vérifier la structure de la table Message
+    # VÃ©rifier la structure de la table Message
     try:
         # Tester un insert
         test_message = Message(
             patient_id=current_user.id,
-            medecin_id=1,  # ID du premier médecin
+            medecin_id=1,  # ID du premier mÃ©decin
             sujet="Test",
             contenu="Message de test",
             de_medecin=False,
@@ -1719,18 +2312,18 @@ async def debug_messages(request: Request, db: Session = Depends(get_db)):
             "message_structure": str(Message.__table__.columns.keys())
         }
 
-# Route pour vérifier un médecin spécifique
+# Route pour vÃ©rifier un mÃ©decin spÃ©cifique
 @router.get("/api/debug/medecin/{medecin_id}")
 async def debug_medecin(medecin_id: int, db: Session = Depends(get_db)):
     """
-    Vérifier qu'un médecin existe
+    VÃ©rifier qu'un mÃ©decin existe
     """
     medecin = db.query(Medecin).filter(Medecin.id == medecin_id).first()
     
     if not medecin:
         return {
             "exists": False,
-            "message": f"Médecin avec ID {medecin_id} non trouvé"
+            "message": f"MÃ©decin avec ID {medecin_id} non trouvÃ©"
         }
     
     return {
@@ -1744,7 +2337,7 @@ async def debug_medecin(medecin_id: int, db: Session = Depends(get_db)):
         }
     }
 
-# Route simplifiée pour envoyer un message (debug)
+# Route simplifiÃ©e pour envoyer un message (debug)
 @router.post("/api/simple-message")
 async def send_simple_message(
     request: Request,
@@ -1753,20 +2346,20 @@ async def send_simple_message(
     db: Session = Depends(get_db)
 ):
     """
-    Version simplifiée pour déboguer l'envoi de message
+    Version simplifiÃ©e pour dÃ©boguer l'envoi de message
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
-        raise HTTPException(status_code=401, detail="Non authentifié")
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
     
-    # Vérifier le médecin
+    # VÃ©rifier le mÃ©decin
     medecin = db.query(Medecin).filter(Medecin.id == medecin_id).first()
     if not medecin:
-        raise HTTPException(status_code=404, detail="Médecin non trouvé")
+        raise HTTPException(status_code=404, detail="MÃ©decin non trouvÃ©")
     
     try:
-        # Créer le message avec des valeurs simples
+        # CrÃ©er le message avec des valeurs simples
         new_message = Message(
             patient_id=current_user.id,
             medecin_id=medecin_id,
@@ -1782,7 +2375,7 @@ async def send_simple_message(
         
         return {
             "success": True,
-            "message": "Message envoyé avec succès",
+            "message": "Message envoyÃ© avec succÃ¨s",
             "message_id": new_message.id
         }
         
@@ -1790,7 +2383,7 @@ async def send_simple_message(
         db.rollback()
         import traceback
         traceback_str = traceback.format_exc()
-        print(f"❌ Erreur détaillée: {traceback_str}")
+        print(f"âŒ Erreur dÃ©taillÃ©e: {traceback_str}")
         
         raise HTTPException(
             status_code=500,
@@ -1803,7 +2396,7 @@ async def send_simple_message(
 @router.get("/api/check-auth")
 async def check_auth(request: Request, db: Session = Depends(get_db)):
     """
-    Vérifie si l'utilisateur est authentifié
+    VÃ©rifie si l'utilisateur est authentifiÃ©
     Utile pour les appels AJAX
     """
     current_user = get_current_user_from_cookie(request, db)
@@ -1822,8 +2415,8 @@ async def check_auth(request: Request, db: Session = Depends(get_db)):
 @router.get("/test-db")
 async def test_database(db: Session = Depends(get_db)):
     """
-    Route de test pour vérifier la connexion à la base de données
-    Affiche le nombre de patients enregistrés
+    Route de test pour vÃ©rifier la connexion Ã  la base de donnÃ©es
+    Affiche le nombre de patients enregistrÃ©s
     """
     try:
         patients_count = db.query(Patient).count()
@@ -1841,14 +2434,14 @@ async def test_database(db: Session = Depends(get_db)):
         
         return {
             "status": "success",
-            "message": "✅ Connexion à la base de données réussie",
+            "message": "âœ… Connexion Ã  la base de donnÃ©es rÃ©ussie",
             "nombre_patients": patients_count,
             "patients_exemples": patients_list
         }
     except Exception as e:
         return {
             "status": "error",
-            "message": f"❌ Erreur de connexion: {str(e)}"
+            "message": f"âŒ Erreur de connexion: {str(e)}"
         }
         
         
@@ -1860,16 +2453,16 @@ async def upload_photo(
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    """Upload photo de profil - Version CORRIGÉE"""
+    """Upload photo de profil - Version CORRIGÃ‰E"""
     current_user = get_current_user_from_cookie(request, db)
     if not current_user:
-        raise HTTPException(status_code=401, detail="Non authentifié")
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
 
-    # Créer le répertoire avec le chemin correct
+    # CrÃ©er le rÃ©pertoire avec le chemin correct
     uploads_dir = Path(__file__).resolve().parent / "static" / "uploads" / "patients"
     uploads_dir.mkdir(parents=True, exist_ok=True)
 
-    # Générer un nom de fichier unique avec timestamp
+    # GÃ©nÃ©rer un nom de fichier unique avec timestamp
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
     file_extension = Path(file.filename).suffix.lower()
     filename = f"patient_{current_user.id}_{timestamp}{file_extension}"
@@ -1884,7 +2477,7 @@ async def upload_photo(
         # Construire l'URL avec cache busting
         photo_url = f"/static/uploads/patients/{filename}"
         
-        # Mettre à jour la base de données
+        # Mettre Ã  jour la base de donnÃ©es
         current_user.photo_profil_url = photo_url
         db.commit()
         db.refresh(current_user)
@@ -1892,7 +2485,7 @@ async def upload_photo(
         return {
             "success": True,
             "photo_url": photo_url,
-            "message": "Photo mise à jour avec succès"
+            "message": "Photo mise Ã  jour avec succÃ¨s"
         }
 
     except Exception as e:
@@ -1903,7 +2496,7 @@ async def upload_photo(
             detail=f"Erreur lors de l'upload: {str(e)}"
         )
 
-#Route pour envoyer un message au médecin (version formulaire)
+#Route pour envoyer un message au mÃ©decin (version formulaire)
 @router.post("/api/messages/send")
 async def send_message_form(
     request: Request,
@@ -1913,11 +2506,11 @@ async def send_message_form(
 ):
     current_user = get_current_user_from_cookie(request, db)
     if not current_user:
-        raise HTTPException(status_code=401, detail="Non authentifié")
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
 
     medecin = db.query(Medecin).filter(Medecin.id == medecin_id).first()
     if not medecin:
-        raise HTTPException(status_code=404, detail="Médecin introuvable")
+        raise HTTPException(status_code=404, detail="MÃ©decin introuvable")
 
     message = Message(
     patient_id=current_user.id,
@@ -1935,7 +2528,308 @@ async def send_message_form(
 
     return {"status": "ok"}
 
-#Route pour compléter le profil patient
+
+# ============= MESSAGERIE PATIENT AVEC ADMIN =============
+
+@router.get("/api/messagerie/conversations")
+async def get_conversations_list(request: Request, db: Session = Depends(get_db)):
+    """
+    API pour rÃ©cupÃ©rer la liste des conversations (mÃ©decins + admin)
+    """
+    current_user = get_current_user_from_cookie(request, db)
+    
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Non authentifiÃ©"
+        )
+    
+    try:
+        # 1. Conversations avec les mÃ©decins (code existant)
+        subquery = db.query(
+            Message.medecin_id,
+            func.max(Message.date_envoi).label('max_date')
+        ).filter(
+            Message.patient_id == current_user.id
+        ).group_by(
+            Message.medecin_id
+        ).subquery()
+        
+        conversations_medecins = db.query(
+            Medecin.id,
+            Medecin.nom,
+            Medecin.prenom,
+            Medecin.photo_profil_url,
+            Medecin.derniere_connexion,
+            Medecin.specialite,
+            Message.contenu.label('last_message'),
+            Message.date_envoi.label('last_message_time'),
+            func.count(Message.id).filter(
+                Message.statut == StatutMessage.ENVOYE,
+                Message.de_medecin == True
+            ).label('unread_count')
+        ).join(
+            subquery,
+            (Medecin.id == subquery.c.medecin_id)
+        ).join(
+            Message,
+            (Message.medecin_id == Medecin.id) & (Message.date_envoi == subquery.c.max_date)
+        ).filter(
+            Message.patient_id == current_user.id
+        ).group_by(
+            Medecin.id, Medecin.nom, Medecin.prenom, Medecin.photo_profil_url, 
+            Medecin.derniere_connexion, Medecin.specialite, Message.contenu, Message.date_envoi
+        ).all()
+        
+        result = []
+        
+        # Ajouter les conversations avec mÃ©decins
+        for conv in conversations_medecins:
+            result.append({
+                "contact_id": conv.id,
+                "contact_type": "medecin",
+                "nom_complet": f"Dr. {conv.prenom} {conv.nom}",
+                "photo_profil_url": conv.photo_profil_url,
+                "specialite": conv.specialite.value if conv.specialite else "MÃ©decin",
+                "last_message": (conv.last_message[:50] + "...") if conv.last_message and len(conv.last_message) > 50 else conv.last_message,
+                "last_message_time": conv.last_message_time.isoformat() if conv.last_message_time else None,
+                "unread_count": conv.unread_count or 0,
+                "is_online": bool(
+                    conv.derniere_connexion and
+                    conv.derniere_connexion >= (datetime.utcnow() - timedelta(minutes=2))
+                )
+            })
+        
+        # 2. Conversation avec l'admin
+        admin_messages = db.query(MessageAdminPatient).filter(
+            MessageAdminPatient.patient_id == current_user.id
+        ).order_by(MessageAdminPatient.date_envoi.desc()).first()
+        
+        admin_unread = db.query(MessageAdminPatient).filter(
+            MessageAdminPatient.patient_id == current_user.id,
+            MessageAdminPatient.de_admin == True,
+            MessageAdminPatient.statut == StatutMessage.ENVOYE
+        ).count()
+        
+        if admin_messages or admin_unread > 0:
+            # RÃ©cupÃ©rer les infos de l'admin (premier admin par dÃ©faut)
+            admin = db.query(Admin).filter(Admin.est_actif == True).first()
+            
+            result.append({
+                "contact_id": 0,  # ID spÃ©cial pour l'admin
+                "contact_type": "admin",
+                "nom_complet": "Administrateur",
+                "photo_profil_url": admin.photo_profil_url if admin else None,
+                "specialite": "Support",
+                "last_message": admin_messages.contenu[:50] + "..." if admin_messages and len(admin_messages.contenu) > 50 else (admin_messages.contenu if admin_messages else ""),
+                "last_message_time": admin_messages.date_envoi.isoformat() if admin_messages else None,
+                "unread_count": admin_unread,
+                "is_online": True
+            })
+        
+        # Trier par date du dernier message
+        result.sort(key=lambda x: x["last_message_time"] or "", reverse=True)
+        
+        return result
+        
+    except Exception as e:
+        print(f"âŒ Erreur conversations: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+@router.get("/api/messagerie/conversation/{contact_type}/{contact_id}")
+async def get_conversation_messages_patient(
+    contact_type: str,
+    contact_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    API pour rÃ©cupÃ©rer les messages d'une conversation (mÃ©decin ou admin)
+    """
+    current_user = get_current_user_from_cookie(request, db)
+    
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Non authentifiÃ©"
+        )
+    
+    try:
+        contact_type = contact_type.lower()
+        messages = []
+        contact_info = None
+        
+        # Cas 1: Conversation avec un mÃ©decin
+        if contact_type == "medecin":
+            # VÃ©rifier que le mÃ©decin existe
+            medecin = db.query(Medecin).filter(Medecin.id == contact_id).first()
+            if not medecin:
+                raise HTTPException(status_code=404, detail="MÃ©decin non trouvÃ©")
+            
+            contact_info = {
+                "id": medecin.id,
+                "type": "medecin",
+                "nom_complet": f"Dr. {medecin.prenom} {medecin.nom}",
+                "specialite": medecin.specialite.value if medecin.specialite else "MÃ©decin",
+                "photo_profil_url": medecin.photo_profil_url,
+                "email": medecin.email,
+                "telephone": medecin.telephone
+            }
+            
+            # RÃ©cupÃ©rer les messages
+            msg_list = db.query(Message).filter(
+                Message.patient_id == current_user.id,
+                Message.medecin_id == contact_id
+            ).order_by(Message.date_envoi.asc()).all()
+            
+            # Marquer comme lus
+            db.query(Message).filter(
+                Message.patient_id == current_user.id,
+                Message.medecin_id == contact_id,
+                Message.de_medecin == True,
+                Message.statut == StatutMessage.ENVOYE
+            ).update({"statut": StatutMessage.LU})
+            db.commit()
+            
+            # Formater les messages
+            for msg in msg_list:
+                messages.append({
+                    "id": msg.id,
+                    "contenu": msg.contenu,
+                    "date_envoi": msg.date_envoi.isoformat(),
+                    "expediteur_type": "medecin" if msg.de_medecin else "patient",
+                    "expediteur_nom": f"Dr. {medecin.prenom} {medecin.nom}" if msg.de_medecin else current_user.nom_complet,
+                    "statut": msg.statut.value if hasattr(msg.statut, 'value') else str(msg.statut)
+                })
+        
+        # Cas 2: Conversation avec l'admin
+        elif contact_type == "admin":
+            contact_info = {
+                "id": 0,
+                "type": "admin",
+                "nom_complet": "Administrateur",
+                "specialite": "Support",
+                "photo_profil_url": None,
+                "email": None,
+                "telephone": None
+            }
+            
+            # RÃ©cupÃ©rer les messages avec l'admin
+            msg_list = db.query(MessageAdminPatient).filter(
+                MessageAdminPatient.patient_id == current_user.id
+            ).order_by(MessageAdminPatient.date_envoi.asc()).all()
+            
+            # Marquer comme lus
+            db.query(MessageAdminPatient).filter(
+                MessageAdminPatient.patient_id == current_user.id,
+                MessageAdminPatient.de_admin == True,
+                MessageAdminPatient.statut == StatutMessage.ENVOYE
+            ).update({"statut": StatutMessage.LU, "date_lu": datetime.utcnow()})
+            db.commit()
+            
+            # Formater les messages
+            for msg in msg_list:
+                messages.append({
+                    "id": msg.id,
+                    "contenu": msg.contenu,
+                    "date_envoi": msg.date_envoi.isoformat(),
+                    "expediteur_type": "admin" if msg.de_admin else "patient",
+                    "expediteur_nom": "Administrateur" if msg.de_admin else current_user.nom_complet,
+                    "statut": msg.statut.value if hasattr(msg.statut, 'value') else str(msg.statut)
+                })
+        
+        else:
+            raise HTTPException(status_code=400, detail="Type de contact invalide")
+        
+        return {
+            "contact": contact_info,
+            "messages": messages
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"âŒ Erreur rÃ©cupÃ©ration messages: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la rÃ©cupÃ©ration des messages: {str(e)}")
+
+
+@router.post("/api/messagerie/send-to-admin")
+async def send_message_to_admin(
+    request: Request,
+    contenu: str = Body(..., embed=True),
+    sujet: str = Body("Signalement bug technique", embed=True),
+    db: Session = Depends(get_db)
+):
+    """
+    API pour envoyer un message Ã  l'administrateur
+    """
+    current_user = get_current_user_from_cookie(request, db)
+    
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Non authentifiÃ©"
+        )
+    
+    if not contenu or not contenu.strip():
+        raise HTTPException(status_code=400, detail="Le message ne peut pas Ãªtre vide")
+
+    allowed_keywords = ["bug", "erreur", "technique", "application", "probleme", "problÃ¨me", "crash"]
+    msg_check = f"{sujet} {contenu}".lower()
+    if not any(k in msg_check for k in allowed_keywords):
+        raise HTTPException(
+            status_code=400,
+            detail="Seuls les signalements de bug technique sont autorisÃ©s vers l'admin."
+        )
+    
+    try:
+        # Trouver un admin (prendre le premier admin actif)
+        admin = db.query(Admin).filter(Admin.est_actif == True).first()
+        if not admin:
+            raise HTTPException(status_code=404, detail="Aucun administrateur trouvÃ©")
+        
+        # CrÃ©er le message
+        nouveau_message = MessageAdminPatient(
+            admin_id=admin.id,
+            patient_id=current_user.id,
+            sujet=(sujet or "Signalement bug technique").strip()[:255],
+            contenu=contenu.strip(),
+            de_admin=False,  # False = envoyÃ© par patient
+            statut=StatutMessage.ENVOYE,
+            date_envoi=datetime.utcnow()
+        )
+        
+        db.add(nouveau_message)
+        db.commit()
+        db.refresh(nouveau_message)
+        
+        return {
+            "success": True,
+            "message": {
+                "id": nouveau_message.id,
+                "contenu": nouveau_message.contenu,
+                "date_envoi": nouveau_message.date_envoi.isoformat(),
+                "expediteur_type": "patient",
+                "expediteur_nom": current_user.nom_complet,
+                "statut": nouveau_message.statut.value if hasattr(nouveau_message.statut, 'value') else str(nouveau_message.statut)
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"âŒ Erreur envoi message Ã  l'admin: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erreur lors de l'envoi du message: {str(e)}")
+    
+    
+
+#Route pour complÃ©ter le profil patient
 @router.post("/api/patient/completer-profil")
 async def completer_profil(
     request: Request,
@@ -1947,7 +2841,7 @@ async def completer_profil(
 ):
     current_user = get_current_user_from_cookie(request, db)
     if not current_user:
-        raise HTTPException(status_code=401, detail="Non authentifié")
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
 
     if telephone: current_user.telephone = telephone
     if adresse: current_user.adresse = adresse
@@ -1961,10 +2855,14 @@ async def completer_profil(
 #Routes pour le chat IA
 @router.get("/api/chat-ia")
 async def get_chat_ia(request: Request, db: Session = Depends(get_db)):
-    current_user = get_current_user_from_cookie(request, db)
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Non authentifié")
-    return {"status": "ok"}
+    patient = get_current_user_from_cookie(request, db)
+    medecin = None
+    if not patient:
+        medecin = get_current_medecin_from_cookie_light(request, db)
+    return {
+        "status": "ok",
+        "role": "patient" if patient else ("medecin" if medecin else "public")
+    }
 
 
 @router.post("/api/chat-ia/message")
@@ -1973,57 +2871,285 @@ async def send_chat_message(
     message_data: dict = Body(...),
     db: Session = Depends(get_db)
 ):
-    current_user = get_current_user_from_cookie(request, db)
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Non authentifié")
-    
     user_message = message_data.get("message", "").strip()
     if not user_message:
         raise HTTPException(status_code=400, detail="Message vide")
-    
+
     try:
-        context = {
-            "patient_age": current_user.age,
-            "patient_genre": current_user.genre.value if current_user.genre else "Non spécifié",
-            "allergies": current_user.allergies or "Aucune connue",
-            "traitements": current_user.traitements_en_cours or "Aucun"
-        }
-        
-        ia_response = get_ia_response(user_message, context)
-        
+        identity = get_chat_identity_context(request, db)
+        history = message_data.get("history", [])
+        ia_result = get_ia_response(user_message, identity, history)
+
         return {
             "success": True,
             "user_message": user_message,
-            "ia_response": ia_response,
+            "ia_response": ia_result["text"],
+            "ai_source": ia_result["source"],
+            "ai_error": ia_result.get("error"),
+            "role": identity["role"],
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 
 
-def get_ia_response(message: str, context: dict) -> str:
-    """Génère une réponse du chat IA"""
-    responses = {
-        "symptôme": "Consultez un médecin. En attendant, hydratez-vous et reposez-vous.",
-        "médicament": "Consultez votre médecin ou pharmacien pour des conseils adaptés.",
-        "allergie": f"Vos allergies: {context.get('allergies')}. Évitez ces allergènes.",
-        "traitement": f"Continuez: {context.get('traitements')}",
-        "conseil": "Alimentation équilibrée, exercice, sommeil suffisant.",
-        "default": "Assistant IA pour infos générales. Consultez un professionnel pour diagnostics."
+def get_current_medecin_from_cookie_light(request: Request, db: Session):
+    token = request.cookies.get("medecin_access_token")
+    if not token:
+        return None
+    try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        if not email:
+            return None
+        medecin = db.query(Medecin).filter(Medecin.email == email).first()
+        if not medecin or not medecin.est_actif:
+            return None
+        return medecin
+    except Exception:
+        return None
+
+
+def get_chat_identity_context(request: Request, db: Session) -> dict:
+    patient = get_current_user_from_cookie(request, db)
+    if patient:
+        return {
+            "role": "patient",
+            "context": {
+                "age": patient.age,
+                "genre": patient.genre.value if patient.genre else "Non spécifié",
+                "allergies": patient.allergies or "Aucune connue",
+                "traitements": patient.traitements_en_cours or "Aucun"
+            }
+        }
+
+    medecin = get_current_medecin_from_cookie_light(request, db)
+    if medecin:
+        return {
+            "role": "medecin",
+            "context": {
+                "nom": f"Dr. {medecin.prenom or ''} {medecin.nom or ''}".strip(),
+                "specialite": medecin.specialite.value if medecin.specialite else "Médecine générale",
+                "annees_experience": medecin.annees_experience or 0
+            }
+        }
+
+    return {"role": "public", "context": {}}
+
+
+def build_chat_system_prompt(identity: dict) -> str:
+    role = identity.get("role", "public")
+    context = identity.get("context", {})
+
+    base_rules = (
+        "Tu es l'assistant IA de Dokira. "
+        "Réponds en français, de façon claire, concise et utile. "
+        "Tu donnes des informations générales, jamais un diagnostic définitif. "
+        "En cas de signes graves (douleur thoracique, détresse respiratoire, saignement important, perte de connaissance), "
+        "demande de contacter immédiatement les urgences locales."
+    )
+
+    if role == "patient":
+        return (
+            f"{base_rules}\n"
+            f"Contexte patient: âge={context.get('age', 'N/A')}, genre={context.get('genre', 'N/A')}, "
+            f"allergies={context.get('allergies', 'N/A')}, traitements={context.get('traitements', 'N/A')}."
+        )
+
+    if role == "medecin":
+        return (
+            f"{base_rules}\n"
+            "L'utilisateur est un médecin. Donne des réponses orientées pratique clinique, communication patient et organisation."
+            f" Contexte médecin: {context.get('nom', 'Médecin')}, spécialité={context.get('specialite', 'N/A')}, "
+            f"expérience={context.get('annees_experience', 0)} ans."
+        )
+
+    return (
+        f"{base_rules}\n"
+        "Utilisateur non authentifié. Reste général et propose la connexion Dokira pour des réponses personnalisées."
+    )
+
+
+def _openai_post(url: str, payload: dict, api_key: str) -> dict:
+    req = urllib_request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        },
+        method="POST"
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib_error.HTTPError as err:
+        raw = ""
+        try:
+            raw = err.read().decode("utf-8", errors="ignore")
+        except Exception:
+            raw = ""
+        detail = raw
+        try:
+            parsed = json.loads(raw) if raw else {}
+            detail = parsed.get("error", {}).get("message") or raw or str(err)
+        except Exception:
+            detail = raw or str(err)
+        raise RuntimeError(f"HTTP {err.code}: {detail}") from err
+
+
+def call_llm_openai(system_prompt: str, user_message: str, history: list) -> str:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY manquante")
+
+    cleaned_history = []
+    if isinstance(history, list):
+        for item in history[-8:]:
+            if not isinstance(item, dict):
+                continue
+            role = item.get("role")
+            content = str(item.get("content", "")).strip()
+            if role in ("user", "assistant") and content:
+                cleaned_history.append({
+                    "role": role,
+                    "content": [{"type": "input_text", "text": content}]
+                })
+
+    responses_payload = {
+        "model": model,
+        "input": [
+            {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
+            *cleaned_history,
+            {"role": "user", "content": [{"type": "input_text", "text": user_message}]}
+        ],
+        "temperature": 0.3,
+        "max_output_tokens": 600
     }
-    
+
+    try:
+        data = _openai_post("https://api.openai.com/v1/responses", responses_payload, api_key)
+    except RuntimeError as first_error:
+        # Compatibilité: bascule sur Chat Completions si /responses échoue (ex: 400)
+        chat_payload = {
+            "model": model,
+            "temperature": 0.3,
+            "max_tokens": 600,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                *[
+                    {"role": item["role"], "content": item["content"][0]["text"]}
+                    for item in cleaned_history
+                ],
+                {"role": "user", "content": user_message}
+            ]
+        }
+        try:
+            data = _openai_post("https://api.openai.com/v1/chat/completions", chat_payload, api_key)
+            choices = data.get("choices", [])
+            if choices:
+                content = choices[0].get("message", {}).get("content", "")
+                if content:
+                    return str(content).strip()
+            raise RuntimeError("Réponse IA vide (chat/completions)")
+        except RuntimeError:
+            raise first_error
+
+    output_text = (data or {}).get("output_text")
+    if output_text:
+        return output_text.strip()
+
+    output = (data or {}).get("output", [])
+    for item in output:
+        content_items = item.get("content", [])
+        for content in content_items:
+            text_value = content.get("text")
+            if text_value:
+                return str(text_value).strip()
+
+    raise RuntimeError("Réponse IA vide")
+
+
+def get_ia_response(message: str, identity: dict, history: list) -> dict:
+    """Génère une réponse du chat IA avec fallback local."""
+    system_prompt = build_chat_system_prompt(identity)
+    try:
+        return {"text": call_llm_openai(system_prompt, message, history), "source": "openai"}
+    except (urllib_error.URLError, urllib_error.HTTPError, RuntimeError, ValueError, TimeoutError) as llm_error:
+        print(f"Erreur LLM, fallback local: {llm_error}")
+        fallback_error = str(llm_error)
+
+    context = identity.get("context", {})
+    responses = {
+        "symptôme": "Je peux donner des informations générales, mais consultez un médecin pour un avis personnalisé.",
+        "médicament": "Ne modifiez jamais un traitement sans avis médical. Vérifiez avec votre médecin ou pharmacien.",
+        "allergie": f"Allergies connues: {context.get('allergies', 'Aucune connue')}. Évitez les allergènes identifiés.",
+        "traitement": f"Traitements indiqués: {context.get('traitements', 'Aucun')}. Suivez strictement les prescriptions.",
+        "conseil": "Hydratation, sommeil régulier, alimentation équilibrée et activité physique adaptée.",
+        "default": "Je peux aider avec des informations générales de santé et l'utilisation de Dokira."
+    }
+
     message_lower = message.lower()
     for keyword, response in responses.items():
         if keyword in message_lower:
-            return response
-    return responses["default"] 
+            return {"text": response, "source": "fallback", "error": fallback_error}
+    return {"text": responses["default"], "source": "fallback", "error": fallback_error}
 
+
+@router.get("/manifest.webmanifest")
+async def pwa_manifest():
+    manifest = {
+        "name": "Dokira",
+        "short_name": "Dokira",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#0D8ABC",
+        "theme_color": "#0D8ABC",
+        "description": "Plateforme médicale Dokira",
+        "icons": [
+            {"src": "/static/images/hero-image.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/static/images/hero-image.png", "sizes": "512x512", "type": "image/png"}
+        ]
+    }
+    return Response(content=json.dumps(manifest, ensure_ascii=False), media_type="application/manifest+json")
+
+
+@router.get("/service-worker.js")
+async def service_worker_js():
+    js_content = """
+const CACHE_NAME = "dokira-cache-v1";
+const URLS_TO_CACHE = ["/", "/main", "/static/css/styles.css", "/static/js/main.js"];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(URLS_TO_CACHE)));
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
+});
+"""
+    return Response(content=js_content, media_type="application/javascript")
 
 
 # ============= FONCTION POUR VERIFIER L'AUTH (RAPIDE) =============
 
 def verify_token(token: str):
-    """Vérifie un token JWT rapidement"""
+    """VÃ©rifie un token JWT rapidement"""
     try:
         if token.startswith("Bearer "):
             token = token[7:]
@@ -2033,17 +3159,17 @@ def verify_token(token: str):
         return None
 
 
-# ============= INFORMATIONS MÉDICALES PATIENT =============
+# ============= INFORMATIONS MÃ‰DICALES PATIENT =============
 @router.get("/api/patient/medical-info")
 async def get_patient_medical_info(request: Request, db: Session = Depends(get_db)):
     """
-    API pour récupérer UNIQUEMENT les informations médicales du patient
+    API pour rÃ©cupÃ©rer UNIQUEMENT les informations mÃ©dicales du patient
     (Sans les infos sensibles de connexion)
     """
-    # Vérification rapide du token
+    # VÃ©rification rapide du token
     token = request.cookies.get("access_token")
     if not token:
-        raise HTTPException(status_code=401, detail="Non authentifié")
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
     
     payload = verify_token(token)
     if not payload:
@@ -2055,9 +3181,9 @@ async def get_patient_medical_info(request: Request, db: Session = Depends(get_d
     
     patient = get_user_by_email(db, email)
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient non trouvé")
+        raise HTTPException(status_code=404, detail="Patient non trouvÃ©")
     
-    # Retourner uniquement les infos médicales
+    # Retourner uniquement les infos mÃ©dicales
     return {
         "allergies": patient.allergies or "",
         "antecedents_medicaux": patient.antecedents_medicaux or "",
@@ -2071,16 +3197,16 @@ async def get_patient_medical_info(request: Request, db: Session = Depends(get_d
         "medecin_traitant_telephone": patient.medecin_traitant_telephone or ""
     }
 
-# ============= RÉCUPÉRER INFORMATIONS MÉDICALES VIA ASYNC =============
+# ============= RÃ‰CUPÃ‰RER INFORMATIONS MÃ‰DICALES VIA ASYNC =============
 
 async def get_medical_info(request: Request, db: Session = Depends(get_db)):
     """
-    Version alternative pour récupérer les infos médicales
+    Version alternative pour rÃ©cupÃ©rer les infos mÃ©dicales
     """
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
-        return {"success": False, "message": "Non authentifié"}
+        return {"success": False, "message": "Non authentifiÃ©"}
     
     return {
         "success": True,
@@ -2099,7 +3225,7 @@ async def get_medical_info(request: Request, db: Session = Depends(get_db)):
     }
     
     
-# ============= METTRE À JOUR INFORMATIONS MÉDICALES PATIENT =============
+# ============= METTRE Ã€ JOUR INFORMATIONS MÃ‰DICALES PATIENT =============
 @router.post("/api/patient/update-medical")
 async def update_patient_medical_info(
     request: Request,
@@ -2107,13 +3233,13 @@ async def update_patient_medical_info(
     db: Session = Depends(get_db)
 ):
     """
-    API pour mettre à jour UNIQUEMENT les informations médicales
-    (Différent de /api/patient/update qui met à jour toutes les infos)
+    API pour mettre Ã  jour UNIQUEMENT les informations mÃ©dicales
+    (DiffÃ©rent de /api/patient/update qui met Ã  jour toutes les infos)
     """
-    # Vérification rapide du token
+    # VÃ©rification rapide du token
     token = request.cookies.get("access_token")
     if not token:
-        raise HTTPException(status_code=401, detail="Non authentifié")
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
     
     payload = verify_token(token)
     if not payload:
@@ -2125,10 +3251,48 @@ async def update_patient_medical_info(
     
     patient = get_user_by_email(db, email)
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient non trouvé")
+        raise HTTPException(status_code=404, detail="Patient non trouvÃ©")
+
+    def sync_patient_dossier_medical() -> bool:
+        rdv_recent = db.query(RendezVous).filter(
+            RendezVous.patient_id == patient.id
+        ).order_by(RendezVous.date_heure.desc()).first()
+
+        dossier_recent = db.query(DossierMedical).filter(
+            DossierMedical.patient_id == patient.id
+        ).order_by(DossierMedical.date_consultation.desc()).first()
+
+        medecin_id = rdv_recent.medecin_id if rdv_recent else (dossier_recent.medecin_id if dossier_recent else None)
+        if not medecin_id:
+            return False
+
+        dossier = db.query(DossierMedical).filter(
+            DossierMedical.patient_id == patient.id,
+            DossierMedical.medecin_id == medecin_id
+        ).order_by(DossierMedical.date_consultation.desc()).first()
+
+        if not dossier:
+            dossier = DossierMedical(
+                medecin_id=medecin_id,
+                patient_id=patient.id,
+                date_consultation=datetime.utcnow(),
+                motif_consultation="Mise a jour dossier patient",
+                diagnostic="Mise a jour des informations medicales",
+            )
+            db.add(dossier)
+
+        dossier.groupe_sanguin = patient.groupe_sanguin
+        dossier.allergies = patient.allergies or ""
+        dossier.antecedents_medicaux = patient.antecedents_medicaux or ""
+        dossier.antecedents_familiaux = patient.antecedents_familiaux or ""
+        dossier.numero_securite_sociale = patient.numero_securite_sociale or ""
+        dossier.traitement = patient.traitements_en_cours or ""
+        dossier.observations = "Synchro depuis espace patient"
+        dossier.date_modification = datetime.utcnow()
+        return True
     
     try:
-        # Mettre à jour uniquement les champs médicaux
+        # Mettre Ã  jour uniquement les champs mÃ©dicaux
         if "allergies" in patient_data:
             patient.allergies = patient_data["allergies"].strip()
         if "antecedents_medicaux" in patient_data:
@@ -2151,20 +3315,79 @@ async def update_patient_medical_info(
             patient.medecin_traitant_telephone = patient_data["medecin_traitant_telephone"].strip()
         
         patient.date_modification = datetime.utcnow()
+        sync_ok = sync_patient_dossier_medical()
         db.commit()
         
         return {
             "success": True,
-            "message": "Informations médicales mises à jour avec succès"
+            "message": "Informations mÃ©dicales mises Ã  jour avec succÃ¨s",
+            "dossier_sync": sync_ok
         }
         
     except Exception as e:
         db.rollback()
-        print(f"Erreur mise à jour infos médicales: {str(e)}")
+        print(f"Erreur mise Ã  jour infos mÃ©dicales: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erreur lors de la mise à jour: {str(e)}"
+            detail=f"Erreur lors de la mise Ã  jour: {str(e)}"
         )
+
+
+@router.post("/api/dossier-medical/sync")
+async def sync_dossier_medical_patient(request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user_from_cookie(request, db)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Non authentifie")
+
+    rdv_recent = db.query(RendezVous).filter(
+        RendezVous.patient_id == current_user.id
+    ).order_by(RendezVous.date_heure.desc()).first()
+
+    dossier_recent = db.query(DossierMedical).filter(
+        DossierMedical.patient_id == current_user.id
+    ).order_by(DossierMedical.date_consultation.desc()).first()
+
+    medecin_id = rdv_recent.medecin_id if rdv_recent else (dossier_recent.medecin_id if dossier_recent else None)
+    if not medecin_id:
+        return {
+            "success": False,
+            "message": "Aucun medecin lie au patient pour synchroniser le dossier"
+        }
+
+    dossier = db.query(DossierMedical).filter(
+        DossierMedical.patient_id == current_user.id,
+        DossierMedical.medecin_id == medecin_id
+    ).order_by(DossierMedical.date_consultation.desc()).first()
+
+    if not dossier:
+        dossier = DossierMedical(
+            medecin_id=medecin_id,
+            patient_id=current_user.id,
+            date_consultation=datetime.utcnow(),
+            motif_consultation="Mise a jour dossier patient",
+            diagnostic="Mise a jour des informations medicales"
+        )
+        db.add(dossier)
+
+    dossier.groupe_sanguin = current_user.groupe_sanguin
+    dossier.allergies = current_user.allergies or ""
+    dossier.antecedents_medicaux = current_user.antecedents_medicaux or ""
+    dossier.antecedents_familiaux = current_user.antecedents_familiaux or ""
+    dossier.numero_securite_sociale = current_user.numero_securite_sociale or ""
+    dossier.traitement = current_user.traitements_en_cours or ""
+    dossier.observations = "Synchro manuelle depuis espace patient"
+    dossier.date_modification = datetime.utcnow()
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erreur sync dossier medical: {str(e)}")
+
+    return {
+        "success": True,
+        "message": "Dossier medical synchronise avec succes"
+    }
 
 
 
@@ -2177,10 +3400,10 @@ async def delete_patient_account(
     """
     Supprime le compte du patient (soft delete)
     """
-    # Vérification rapide du token
+    # VÃ©rification rapide du token
     token = request.cookies.get("access_token")
     if not token:
-        raise HTTPException(status_code=401, detail="Non authentifié")
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
     
     payload = verify_token(token)
     if not payload:
@@ -2192,19 +3415,19 @@ async def delete_patient_account(
     
     patient = get_user_by_email(db, email)
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient non trouvé")
+        raise HTTPException(status_code=404, detail="Patient non trouvÃ©")
     
     try:
-        # Soft delete: désactiver le compte au lieu de le supprimer
+        # Soft delete: dÃ©sactiver le compte au lieu de le supprimer
         patient.est_actif = False
-        patient.email = f"deleted_{patient.id}_{patient.email}"  # Empêche la réutilisation
+        patient.email = f"deleted_{patient.id}_{patient.email}"  # EmpÃªche la rÃ©utilisation
         patient.date_modification = datetime.utcnow()
         
         db.commit()
         
         return {
             "success": True,
-            "message": "Compte désactivé avec succès"
+            "message": "Compte dÃ©sactivÃ© avec succÃ¨s"
         }
         
     except Exception as e:
@@ -2215,17 +3438,17 @@ async def delete_patient_account(
         )
         
         
- # ============= ROUTES DOSSIER MÉDICAL =============
+ # ============= ROUTES DOSSIER MÃ‰DICAL =============
 
 @router.get("/api/dossier-medical")
 async def get_dossier_medical_complet(request: Request, db: Session = Depends(get_db)):
-    """API UNIFIÉE pour récupérer TOUTES les données du dossier médical"""
+    """API UNIFIÃ‰E pour rÃ©cupÃ©rer TOUTES les donnÃ©es du dossier mÃ©dical"""
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
-        raise HTTPException(status_code=401, detail="Non authentifié")
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
     
-    # 1. Données du patient (table patients)
+    # 1. DonnÃ©es du patient (table patients)
     allergies = current_user.allergies or ""
     antecedents_medicaux = current_user.antecedents_medicaux or ""
     antecedents_familiaux = current_user.antecedents_familiaux or ""
@@ -2238,7 +3461,7 @@ async def get_dossier_medical_complet(request: Request, db: Session = Depends(ge
         DossierMedical.patient_id == current_user.id
     ).count()
     
-    # 3. Récupérer quelques consultations récentes
+    # 3. RÃ©cupÃ©rer quelques consultations rÃ©centes
     consultations_recentes = db.query(DossierMedical, Medecin).outerjoin(
         Medecin, DossierMedical.medecin_id == Medecin.id
     ).filter(
@@ -2251,13 +3474,13 @@ async def get_dossier_medical_complet(request: Request, db: Session = Depends(ge
     for dossier, medecin in consultations_recentes:
         consultations_list.append({
             "date": dossier.date_consultation.strftime("%d/%m/%Y") if dossier.date_consultation else "",
-            "medecin": f"Dr. {medecin.prenom} {medecin.nom}" if medecin else "Médecin",
+            "medecin": f"Dr. {medecin.prenom} {medecin.nom}" if medecin else "MÃ©decin",
             "specialite": medecin.specialite.value if medecin and medecin.specialite else "",
             "motif": dossier.motif_consultation or "",
             "diagnostic": dossier.diagnostic or ""
         })
     
-    # 4. ✅ Récupérer les documents médicaux du patient (depuis la table documents)
+    # 4. âœ… RÃ©cupÃ©rer les documents mÃ©dicaux du patient (depuis la table documents)
     documents = db.query(Document).filter(
         Document.patient_id == current_user.id
     ).order_by(Document.date_upload.desc()).all()
@@ -2273,7 +3496,7 @@ async def get_dossier_medical_complet(request: Request, db: Session = Depends(ge
             "fichier_url": doc.fichier_url
         })
     
-    # 5. ✅ Récupérer les ordonnances du patient (depuis la table ordonnances)
+    # 5. âœ… RÃ©cupÃ©rer les ordonnances du patient (depuis la table ordonnances)
     ordonnances = db.query(Ordonnance).filter(
         Ordonnance.patient_id == current_user.id
     ).order_by(Ordonnance.date_emission.desc()).all()
@@ -2293,7 +3516,7 @@ async def get_dossier_medical_complet(request: Request, db: Session = Depends(ge
     return {
         "success": True,
         "data": {
-            # Infos médicales
+            # Infos mÃ©dicales
             "allergies": allergies,
             "allergies_count": len([a for a in allergies.split(",") if a.strip()]) if allergies else 0,
             "antecedents_medicaux": antecedents_medicaux,
@@ -2308,7 +3531,7 @@ async def get_dossier_medical_complet(request: Request, db: Session = Depends(ge
             "documents_count": len(documents_list),
             "ordonnances_count": len(ordonnances_list),
             
-            # Détails
+            # DÃ©tails
             "consultations_recentes": consultations_list,
             "documents": documents_list,
             "ordonnances": ordonnances_list,
@@ -2318,11 +3541,11 @@ async def get_dossier_medical_complet(request: Request, db: Session = Depends(ge
 
 @router.get("/api/dossier-medical/historique-detaille")
 async def get_historique_detaille(request: Request, db: Session = Depends(get_db)):
-    """API pour l'historique détaillé"""
+    """API pour l'historique dÃ©taillÃ©"""
     current_user = get_current_user_from_cookie(request, db)
     
     if not current_user:
-        raise HTTPException(status_code=401, detail="Non authentifié")
+        raise HTTPException(status_code=401, detail="Non authentifiÃ©")
     
     dossiers = db.query(DossierMedical, Medecin).outerjoin(
         Medecin, DossierMedical.medecin_id == Medecin.id
@@ -2336,7 +3559,7 @@ async def get_historique_detaille(request: Request, db: Session = Depends(get_db
             "id": dossier.id,
             "date": dossier.date_consultation.isoformat() if dossier.date_consultation else None,
             "date_formatee": dossier.date_consultation.strftime("%d/%m/%Y %H:%M") if dossier.date_consultation else "",
-            "medecin_nom": f"Dr. {medecin.prenom} {medecin.nom}" if medecin else "Médecin",
+            "medecin_nom": f"Dr. {medecin.prenom} {medecin.nom}" if medecin else "MÃ©decin",
             "medecin_specialite": medecin.specialite.value if medecin and medecin.specialite else "",
             "motif": dossier.motif_consultation or "",
             "diagnostic": dossier.diagnostic or "",
@@ -2349,3 +3572,185 @@ async def get_historique_detaille(request: Request, db: Session = Depends(get_db
         "total": len(result),
         "consultations": result
     }
+
+
+
+# ============= STATISTIQUES PUBLIQUES =============
+
+@router.get("/api/public/stats")
+async def get_public_stats(db: Session = Depends(get_db)):
+    """
+    API pour rÃ©cupÃ©rer les statistiques rÃ©elles depuis la base de donnÃ©es
+    - Patients gÃ©rÃ©s : nombre total de patients inscrits
+    - Professionnels de santÃ© : nombre total de mÃ©decins inscrits
+    - Consultations rÃ©alisÃ©es : nombre total de consultations + rendez-vous effectuÃ©s
+    """
+    try:
+        # 1. Nombre total de patients inscrits
+        total_patients = db.query(Patient).filter(Patient.est_actif == True).count()
+        
+        # 2. Nombre total de mÃ©decins inscrits (professionnels de santÃ©)
+        total_medecins = db.query(Medecin).filter(Medecin.est_actif == True).count()
+        
+        # 3. Nombre total de consultations effectuÃ©es (depuis la table consultations)
+        total_consultations = db.query(Consultation).count()
+        
+        # 4. Nombre total de rendez-vous effectuÃ©s (depuis la table rendez_vous)
+        # On compte les rendez-vous avec statut "TerminÃ©" ou "ConfirmÃ©" comme effectuÃ©s
+        total_rendez_vous_effectues = db.query(RendezVous).filter(
+            RendezVous.statut.in_(["TerminÃ©", "ConfirmÃ©"])
+        ).count()
+        
+        # Total des consultations rÃ©alisÃ©es = consultations + rendez-vous effectuÃ©s
+        total_consultations_realisees = total_consultations + total_rendez_vous_effectues
+        
+        # 5. Taux de satisfaction (par dÃ©faut 99.9% si pas de donnÃ©es)
+        # Vous pouvez calculer ce taux si vous avez des donnÃ©es de satisfaction
+        # Sinon on garde la valeur par dÃ©faut
+        taux_satisfaction = 99.9
+        
+        print(f"âœ… Stats rÃ©cupÃ©rÃ©es - Patients: {total_patients}, MÃ©decins: {total_medecins}, Consultations: {total_consultations_realisees}")
+        
+        return {
+            "success": True,
+            "stats": {
+                "patients_geres": total_patients,
+                "professionnels_sante": total_medecins,
+                "consultations_realisees": total_consultations_realisees,
+                "taux_satisfaction": taux_satisfaction
+            }
+        }
+        
+    except Exception as e:
+        print(f"âŒ Erreur lors de la rÃ©cupÃ©ration des stats: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # En cas d'erreur, retourner des valeurs par dÃ©faut
+        return {
+            "success": False,
+            "stats": {
+                "patients_geres": 50000,
+                "professionnels_sante": 1500,
+                "consultations_realisees": 200000,
+                "taux_satisfaction": 99.9
+            },
+            "error": str(e)
+        }
+
+
+@router.get("/api/public/stats/details")
+async def get_public_stats_details(db: Session = Depends(get_db)):
+    """
+    API dÃ©taillÃ©e pour les statistiques (avec breakdown des consultations)
+    """
+    try:
+        # Patients actifs
+        total_patients_actifs = db.query(Patient).filter(Patient.est_actif == True).count()
+        total_patients_inactifs = db.query(Patient).filter(Patient.est_actif == False).count()
+        
+        # MÃ©decins par spÃ©cialitÃ©
+        medecins_par_specialite = db.query(
+            Medecin.specialite, 
+            func.count(Medecin.id).label('count')
+        ).filter(
+            Medecin.est_actif == True
+        ).group_by(Medecin.specialite).all()
+        
+        specialites = []
+        for specialite, count in medecins_par_specialite:
+            specialites.append({
+                "specialite": specialite.value if specialite else "Non spÃ©cifiÃ©",
+                "count": count
+            })
+        
+        # Consultations par statut
+        consultations_par_statut = db.query(
+            Consultation.statut,
+            func.count(Consultation.id).label('count')
+        ).group_by(Consultation.statut).all()
+        
+        consultations_stats = []
+        for statut, count in consultations_par_statut:
+            consultations_stats.append({
+                "statut": statut or "Inconnu",
+                "count": count
+            })
+        
+        # Rendez-vous par statut
+        rendez_vous_par_statut = db.query(
+            RendezVous.statut,
+            func.count(RendezVous.id).label('count')
+        ).group_by(RendezVous.statut).all()
+        
+        rendez_vous_stats = []
+        for statut, count in rendez_vous_par_statut:
+            rendez_vous_stats.append({
+                "statut": statut or "Inconnu",
+                "count": count
+            })
+        
+        return {
+            "success": True,
+            "details": {
+                "patients": {
+                    "actifs": total_patients_actifs,
+                    "inactifs": total_patients_inactifs,
+                    "total": total_patients_actifs + total_patients_inactifs
+                },
+                "medecins": {
+                    "total": db.query(Medecin).filter(Medecin.est_actif == True).count(),
+                    "par_specialite": specialites
+                },
+                "consultations": {
+                    "total": db.query(Consultation).count(),
+                    "par_statut": consultations_stats
+                },
+                "rendez_vous": {
+                    "total": db.query(RendezVous).count(),
+                    "par_statut": rendez_vous_stats
+                }
+            }
+        }
+        
+    except Exception as e:
+        print(f"âŒ Erreur stats dÃ©taillÃ©es: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+        
+        
+        
+# ============= ROUTE PUBLIQUE - PARTENAIRES =============
+
+# ============= ROUTE PUBLIQUE - PARTENAIRES =============
+
+@router.get("/api/public/partenaires")
+async def get_public_partenaires(
+    db: Session = Depends(get_db)
+):
+    """RÃ©cupÃ¨re tous les partenaires pour l'affichage public"""
+    partenaires = db.query(Partenaire).order_by(Partenaire.date_ajout.desc()).all()
+    
+    result = []
+    for p in partenaires:
+        logo_url = p.logo_url
+        
+        # CORRECTION: Si l'URL contient 'app/', on la corrige pour le frontend
+        if logo_url and 'app/' in logo_url:
+            # Transformer app/static/uploads/partenaires/xxx.jpg en /static/uploads/partenaires/xxx.jpg
+            logo_url = '/' + logo_url.replace('app/', '', 1)
+        # Ou si c'est un chemin absolu commenÃ§ant par app/
+        elif logo_url and logo_url.startswith('app/'):
+            logo_url = '/' + logo_url.replace('app/', '', 1)
+        
+        result.append({
+            "id": p.id,
+            "nom": p.nom,
+            "type": p.type_partenaire,
+            "logo_url": logo_url
+        })
+    
+    return result
+

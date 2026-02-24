@@ -1,11 +1,15 @@
-// ============= VARIABLES GLOBALES =============
+﻿// ============= VARIABLES GLOBALES =============
 
 let currentMedecin = {
     id: null,
     nom: 'Dr. Médecin',
     prenom: '',
     specialite: '',
-    email: ''
+    email: '',
+    telephone: '',
+    adresse_cabinet: '',
+    annees_experience: 0,
+    photo: ''
 };
 
 let patientSelectionne = null;
@@ -24,6 +28,17 @@ let ordonnancesData = {
     patients: []
 };
 
+let historiqueData = {
+    consultations: { semaine: [], mois: [], total_semaine: 0, total_mois: 0 },
+    rendez_vous: { semaine: [], mois: [], total_semaine: 0, total_mois: 0 }
+};
+let historiquePeriode = 'semaine';
+
+let visioState = {
+    patients: [],
+    patientSelectionne: null
+};
+
 
 let messagerie = {
     conversations: [],
@@ -32,6 +47,7 @@ let messagerie = {
     patients: [],
     autoRefresh: null
 };
+let medecinSearchTimeout = null;
 // ============= INITIALISATION =============
 
 document.addEventListener('DOMContentLoaded', async function () {
@@ -41,21 +57,81 @@ document.addEventListener('DOMContentLoaded', async function () {
     // Configuration de la navigation
     setupNavigation();
     
-    // Configuration des événements
+    // Configuration des évènements
     setupEventListeners();
     
     // Charger le dashboard
     loadSection('dashboard');
     
+    // Recherche globale top bar
+    initializeMedecinSearch();
+
+    // Langue interface
+    setupMedecinLanguage();
+    loadMedecinNotifications();
+    setupMedecinNotificationsPanel();
+    setInterval(loadMedecinNotifications, 30000);
+    
+    
     // Configuration logout
     setupLogout();
 });
+
+function setupMedecinNotificationsPanel() {
+    const btn = document.querySelector('.notification-btn');
+    if (!btn || btn.dataset.boundNotifPanel === '1') return;
+    btn.dataset.boundNotifPanel = '1';
+
+    let panel = document.getElementById('medecinNotifPanel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'medecinNotifPanel';
+        panel.style.cssText = 'position:absolute;top:56px;right:0;width:320px;max-height:360px;overflow:auto;background:#fff;border:1px solid #dbe2ea;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);display:none;z-index:1500;padding:8px;';
+        const top = btn.closest('.top-navbar');
+        if (top) top.style.position = 'relative';
+        (top || document.body).appendChild(panel);
+    }
+
+    const load = async () => {
+        const res = await fetch('/medecin/api/notifications/list', { credentials: 'include' });
+        const list = await res.json();
+        if (!Array.isArray(list) || !list.length) {
+            panel.innerHTML = '<div style="padding:10px;color:#64748b;">Aucune notification.</div>';
+            return;
+        }
+        panel.innerHTML = list.map(n => `
+            <div class="notif-item" data-id="${n.id}" style="padding:10px;border-bottom:1px solid #eef2f7;cursor:pointer;background:${n.lu ? '#fff' : '#f0f9ff'}">
+                <strong>${escapeHtml(n.titre || 'Notification')}</strong>
+                <div style="font-size:12px;color:#64748b;">${n.date ? new Date(n.date).toLocaleString('fr-FR') : ''}</div>
+                <div>${escapeHtml(n.contenu || '')}</div>
+            </div>
+        `).join('');
+        panel.querySelectorAll('.notif-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const id = item.getAttribute('data-id');
+                await fetch(`/medecin/api/notifications/${id}/read`, { method: 'PUT', credentials: 'include' });
+                item.style.background = '#fff';
+                loadMedecinNotifications();
+            });
+        });
+    };
+
+    btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const show = panel.style.display === 'none';
+        panel.style.display = show ? 'block' : 'none';
+        if (show) await load();
+    });
+    document.addEventListener('click', (e) => {
+        if (!panel.contains(e.target) && !btn.contains(e.target)) panel.style.display = 'none';
+    });
+}
 
 // ============= CHARGEMENT INFOS MÉDECIN =============
 
 async function loadMedecinInfo() {
     try {
-        const response = await fetch('/medecin/api/info');
+        const response = await fetch('/medecin/api/profil/complete');
         const data = await response.json();
         
         if (data) {
@@ -65,15 +141,26 @@ async function loadMedecinInfo() {
                 prenom: data.prenom,
                 specialite: data.specialite || 'Médecin',
                 email: data.email,
-                photo: data.photo_profil_url
+                telephone: data.telephone || '',
+                adresse_cabinet: data.adresse_cabinet || '',
+                annees_experience: data.annees_experience || 0,
+                photo: data.photo_profil_url || '',
+                prix_consultation: data.prix_consultation || 0
             };
             
             // Mettre à jour l'affichage
-            document.getElementById('medecinName').textContent = `Dr. ${data.prenom} ${data.nom}`;
-            document.getElementById('medecinSpecialite').textContent = data.specialite || 'Médecin';
-            
-            if (data.photo_profil_url) {
-                document.getElementById('profileAvatar').src = data.photo_profil_url;
+            const medecinName = document.getElementById('medecinName');
+            const medecinSpecialite = document.getElementById('medecinSpecialite');
+            const profileAvatar = document.getElementById('profileAvatar');
+
+            if (medecinName) {
+                medecinName.textContent = `Dr. ${data.prenom} ${data.nom}`;
+            }
+            if (medecinSpecialite) {
+                medecinSpecialite.textContent = data.specialite || 'Médecin';
+            }
+            if (data.photo_profil_url && profileAvatar) {
+                profileAvatar.src = data.photo_profil_url;
             }
         }
     } catch (error) {
@@ -85,6 +172,7 @@ async function loadMedecinInfo() {
 
 function setupNavigation() {
     const menuLinks = document.querySelectorAll('.menu-link');
+    const sidebar = document.querySelector('.sidebar');
 
     menuLinks.forEach(link => {
         link.addEventListener('click', function (e) {
@@ -95,6 +183,14 @@ function setupNavigation() {
 
             const section = this.getAttribute('data-section');
             loadSection(section);
+            const lang = localStorage.getItem('app_lang') || 'fr';
+            if (lang !== 'fr') {
+                setTimeout(() => translateMedecinVisibleContent(lang), 80);
+            }
+
+            if (window.innerWidth <= 992 && sidebar) {
+                sidebar.classList.remove('open');
+            }
         });
     });
 }
@@ -123,23 +219,34 @@ function loadSection(section) {
             loadOrdonnances();
             initOrdonnanceModal();
             break;
+        case 'analyses':
+            mainContent.innerHTML = getAnalysesContent();
+            loadAnalysesPatients();
+            break;
         case 'messagerie':
             mainContent.innerHTML = getMessagerieContent();
             loadMessagerie();
             break;
         case 'visio':
             mainContent.innerHTML = getVisioContent();
+            initVisioSection();
+            break;
+        case 'chat-ia':
+            showMedecinChatIAInterface();
             break;
         case 'historique':
             mainContent.innerHTML = getHistoriqueContent();
+            loadHistorique();
             break;
         case 'profil':
             mainContent.innerHTML = getProfilContent();
-            loadProfilData();
             break;
         case 'parametres':
             mainContent.innerHTML = getParametresContent();
             setupParametresListeners();
+            break;
+        case 'calendrier':
+            showCalendar(); 
             break;
     }
 }
@@ -214,6 +321,37 @@ async function loadStats() {
     }
 }
 
+async function loadMedecinNotifications() {
+    try {
+        const response = await fetch('/medecin/api/notifications/summary', { credentials: 'include' });
+        if (!response.ok) return;
+        const data = await response.json();
+
+        const topBadge = document.querySelector('.notification-badge');
+        const total = Number(data?.total || 0);
+        if (topBadge) {
+            topBadge.textContent = total;
+            topBadge.style.display = total > 0 ? 'flex' : 'none';
+        }
+
+        const msgBadge = document.querySelector('.menu-link[data-section="messagerie"] .menu-badge');
+        if (msgBadge) {
+            const count = Number(data?.messages_non_lus || 0);
+            msgBadge.textContent = count;
+            msgBadge.style.display = count > 0 ? 'inline-flex' : 'none';
+        }
+
+        const rdvBadge = document.querySelector('.menu-link[data-section="rdv"] .menu-badge');
+        if (rdvBadge) {
+            const count = Number(data?.rdv_aujourdhui || 0);
+            rdvBadge.textContent = count;
+            rdvBadge.style.display = count > 0 ? 'inline-flex' : 'none';
+        }
+    } catch (error) {
+        console.error('Erreur chargement notifications medecin:', error);
+    }
+}
+
 // ============= GESTION PATIENTS =============
 
 async function loadPatientsList() {
@@ -246,7 +384,7 @@ function displayPatientsList(patients) {
     const container = document.getElementById('patientsTable');
     
     if (patients.length === 0) {
-        container.innerHTML = '<p class="text-center text-muted">Aucun patient trouvé</p>';
+        container.innerHTML = '<p class="text-center text-muted">Aucun patient trouvÃ©</p>';
         return;
     }
 
@@ -257,7 +395,7 @@ function displayPatientsList(patients) {
                     <th>Patient</th>
                     <th>Email</th>
                     <th>Téléphone</th>
-                    <th>Age</th>
+                    <th>Âge</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -314,70 +452,238 @@ function setupPatientSearch() {
 
 async function viewPatientDossier(patientId) {
     try {
-        const response = await fetch(`/medecin/api/dossiers/${patientId}`);
-        const dossier = await response.json();
+        console.log(`📋 Chargement du dossier pour le patient ID: ${patientId}`);
         
-        const patientResponse = await fetch(`/medecin/api/patients`);
-        const patients = await patientResponse.json();
+        // 1. Récupérer la liste des patients (pour les infos de base)
+        const patientsResponse = await fetch('/medecin/api/patients');
+        if (!patientsResponse.ok) {
+            throw new Error(`Erreur HTTP ${patientsResponse.status}`);
+        }
+        const patients = await patientsResponse.json();
+        
+        // Trouver le patient correspondant dans la liste
         const patient = patients.find(p => p.id === patientId);
+        if (!patient) {
+            throw new Error('Patient non trouvé dans la liste');
+        }
+        console.log("✅ Patient trouvé:", patient);
         
+        let patientComplet = patient;
+        
+        try {
+            
+            const patientDetailResponse = await fetch(`/api/patient/full-info?patient_id=${patientId}`, {
+                credentials: 'include'
+            });
+            
+            if (patientDetailResponse.ok) {
+                patientComplet = await patientDetailResponse.json();
+                console.log("✅ Infos complètes patient:", patientComplet);
+            }
+        } catch (e) {
+            console.warn("Impossible de récupérer les infos complètes, utilisation des infos de base");
+        }
+        
+        // 3. Récupérer les dossiers médicaux du patient
+        const dossiersResponse = await fetch('/medecin/api/dossiers-medicaux');
+        if (!dossiersResponse.ok) {
+            throw new Error(`Erreur HTTP ${dossiersResponse.status}`);
+        }
+        const dossiersData = await dossiersResponse.json();
+        
+        // Filtrer les dossiers pour ce patient
+        const dossiersPatient = dossiersData.dossiers ? dossiersData.dossiers.filter(d => d.patient.id === patientId) : [];
+        
+        // Trouver le dernier dossier (le plus récent) ou créer un objet vide
+        const dernierDossier = dossiersPatient.length > 0 ? dossiersPatient[0] : {};
+        
+        console.log("✅ Dossiers trouvés:", dossiersPatient.length);
+        
+        // 4. Construire le contenu de la modale avec TOUTES les informations
         const modalBody = document.getElementById('patientModalBody');
+        
+        // Formater les allergies 
+        const allergies = patientComplet.allergies || 'Aucune allergie renseignée';
+        
+        // Formater les antécédents médicaux
+        const antecedents = patientComplet.antecedents_medicaux || 'Aucun antécédent renseigné';
+        
+        // Formater le groupe sanguin
+        const groupeSanguin = patientComplet.groupe_sanguin || 'Non renseigné';
+        
+        // Formater le numéro de sécurité sociale
+        const numSecu = patientComplet.numero_securite_sociale || 'Non renseigné';
+        
+        // Formater les traitements en cours
+        const traitements = patientComplet.traitements_en_cours || 'Aucun traitement';
+        
+        // Formater l'adresse complète
+        const adresse = patientComplet.adresse ? 
+            `${patientComplet.adresse}${patientComplet.ville ? ', ' + patientComplet.ville : ''}${patientComplet.code_postal ? ' ' + patientComplet.code_postal : ''}` : 
+            'Non renseignée';
+        
         modalBody.innerHTML = `
             <div class="patient-dossier">
-                <h5>${patient.nom_complet}</h5>
-                <div class="dossier-grid">
-                    <div>
-                        <strong>Email:</strong> ${patient.email}
-                    </div>
-                    <div>
-                        <strong>Téléphone:</strong> ${patient.telephone}
-                    </div>
-                    <div>
-                        <strong>Age:</strong> ${patient.age} ans
-                    </div>
-                    <div>
-                        <strong>Genre:</strong> ${patient.genre || 'N/A'}
+                <h5>${patient.nom_complet || 'Patient'}</h5>
+                
+                <div class="info-section">
+                    <h6><i class="fas fa-address-card"></i> Informations Personnelles</h6>
+                    <div class="dossier-grid">
+                        <div><strong>Email:</strong> ${patient.email || 'Non renseigné'}</div>
+                        <div><strong>Téléphone:</strong> ${patient.telephone || 'Non renseigné'}</div>
+                        <div><strong>Âge:</strong> ${patient.age || 'N/A'} ans</div>
+                        <div><strong>Genre:</strong> ${patient.genre || 'Non renseigné'}</div>
+                        <div><strong>Adresse:</strong> ${adresse}</div>
                     </div>
                 </div>
                 
-                <h6 style="margin-top: 20px; margin-bottom: 10px;">Antécédents Médicaux</h6>
-                <div class="dossier-info">
-                    ${dossier.antecedents_medicaux || 'Aucun antécédent renseigné'}
-                </div>
-                
-                <h6 style="margin-top: 15px; margin-bottom: 10px;">Allergies</h6>
-                <div class="dossier-info">
-                    ${dossier.allergies || 'Aucune allergie renseignée'}
-                </div>
-                
-                <h6 style="margin-top: 15px; margin-bottom: 10px;">Dossiers de Consultation</h6>
-                ${dossier.consultations && dossier.consultations.length > 0 ? `
-                    <div class="consultations-list">
-                        ${dossier.consultations.map(c => `
-                            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                                <strong>${c.date_consultation}</strong><br>
-                                <small>Diagnostic: ${c.diagnostic}</small>
-                            </div>
-                        `).join('')}
+                <div class="info-section">
+                    <h6><i class="fas fa-heartbeat"></i> Informations Médicales</h6>
+                    <div class="dossier-grid">
+                        <div><strong>Groupe sanguin:</strong> ${groupeSanguin}</div>
+                        <div><strong>N° Sécurité sociale:</strong> ${numSecu}</div>
                     </div>
-                ` : '<p class="text-muted">Aucune consultation</p>'}
+                    
+                    <div class="medical-detail">
+                        <strong>Allergies:</strong>
+                        <p>${allergies}</p>
+                    </div>
+                    
+                    <div class="medical-detail">
+                        <strong>Antécédents médicaux:</strong>
+                        <p>${antecedents}</p>
+                    </div>
+                    
+                    <div class="medical-detail">
+                        <strong>Traitements en cours:</strong>
+                        <p>${traitements}</p>
+                    </div>
+                </div>
                 
-                <div style="margin-top: 20px;">
+                <div class="info-section">
+                    <h6><i class="fas fa-notes-medical"></i> Consultations</h6>
+                    ${dossiersPatient.length > 0 ? `
+                        <div class="consultations-list">
+                            ${dossiersPatient.map((d, index) => `
+                                <div class="consultation-item" style="margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-left: 4px solid #0D8ABC; border-radius: 4px;">
+                                    <strong>Consultation du ${d.date_consultation || 'Date inconnue'}</strong><br>
+                                    <small>Motif: ${d.motif || 'Non renseigné'}</small><br>
+                                    <small>Diagnostic: ${d.diagnostic || 'Non renseigné'}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : '<p class="text-muted">Aucune consultation enregistrée</p>'}
+                </div>
+                
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
                     <button class="btn btn-primary" onclick="newOrdonnance(${patientId}, '${patient.nom_complet}')">
                         <i class="fas fa-prescription-bottle"></i> Nouvelle Ordonnance
+                    </button>
+                    <button class="btn btn-secondary" onclick="sendMessageToPatient(${patientId})">
+                        <i class="fas fa-envelope"></i> Message
                     </button>
                 </div>
             </div>
         `;
         
+        // Ajoute le CSS spécifique
+        if (!document.getElementById('dossier-patient-css')) {
+            const style = document.createElement('style');
+            style.id = 'dossier-patient-css';
+            style.textContent = `
+                .patient-dossier {
+                    padding: 5px;
+                }
+                
+                .info-section {
+                    background: white;
+                    border-radius: 8px;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                }
+                
+                .info-section h6 {
+                    color: #0D8ABC;
+                    margin-bottom: 15px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    border-bottom: 1px solid #e5e7eb;
+                    padding-bottom: 8px;
+                }
+                
+                .info-section h6 i {
+                    margin-right: 8px;
+                }
+                
+                .dossier-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 12px;
+                    margin-bottom: 15px;
+                }
+                
+                .dossier-grid div {
+                    line-height: 1.5;
+                    color: #374151;
+                }
+                
+                .dossier-grid strong {
+                    color: #4b5563;
+                    font-weight: 600;
+                    margin-right: 5px;
+                }
+                
+                .medical-detail {
+                    margin-top: 12px;
+                    padding: 10px;
+                    background: #f8fafc;
+                    border-radius: 6px;
+                }
+                
+                .medical-detail strong {
+                    color: #4b5563;
+                    display: block;
+                    margin-bottom: 5px;
+                }
+                
+                .medical-detail p {
+                    margin: 0;
+                    color: #1f2937;
+                    white-space: pre-wrap;
+                }
+                
+                .consultations-list {
+                    max-height: 250px;
+                    overflow-y: auto;
+                    padding-right: 5px;
+                }
+                
+                .consultation-item {
+                    transition: all 0.2s ease;
+                }
+                
+                .consultation-item:hover {
+                    transform: translateX(5px);
+                    box-shadow: 0 2px 8px rgba(13,138,188,0.1);
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        // Stocker le patient sélectionné pour un usage ultérieur
+        patientSelectionne = patient;
+        
+        // Afficher la modale
         const modal = new bootstrap.Modal(document.getElementById('patientModal'));
         modal.show();
         
-        patientSelectionne = patient;
     } catch (error) {
-        console.error('Erreur chargement dossier:', error);
+        console.error('❌ Erreur chargement dossier:', error);
+        alert('Erreur lors du chargement des informations du patient: ' + error.message);
     }
 }
+
 
 // ============= ORDONNANCES =============
 
@@ -466,9 +772,60 @@ function getVisioContent() {
             <div class="section-header">
                 <h2 class="section-title">Visioconférences</h2>
             </div>
-            <p class="text-muted">Fonctionnalité en développement</p>
+            <div class="custom-table p-3">
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label"><strong>Patient</strong></label>
+                        <select id="visioPatientSelect" class="form-control">
+                            <option value="">Sélectionnez un patient...</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6 d-flex gap-2">
+                        <button class="btn btn-primary" onclick="launchVisioFromSection('video')">
+                            <i class="fas fa-video"></i> Lancer appel vidéo
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="launchVisioFromSection('audio')">
+                            <i class="fas fa-phone"></i> Appel vocal
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="visioSectionCallPanel" class="chat-call-panel mt-3" style="display:none;"></div>
         </div>
     `;
+}
+
+async function initVisioSection() {
+    try {
+        const response = await fetch('/medecin/api/messagerie/patients-list', { credentials: 'include' });
+        if (!response.ok) throw new Error('Erreur chargement patients');
+
+        visioState.patients = await response.json();
+        const select = document.getElementById('visioPatientSelect');
+        if (!select) return;
+
+        select.innerHTML = '<option value="">Sélectionnez un patient...</option>';
+        visioState.patients.forEach(patient => {
+            const option = document.createElement('option');
+            option.value = String(patient.id);
+            option.textContent = `${patient.nom_complet} (${patient.email})`;
+            select.appendChild(option);
+        });
+
+        select.addEventListener('change', function() {
+            visioState.patientSelectionne = visioState.patients.find(p => String(p.id) === this.value) || null;
+        });
+    } catch (error) {
+        console.error('Erreur init visio:', error);
+    }
+}
+
+function launchVisioFromSection(mode = 'video') {
+    if (!visioState.patientSelectionne) {
+        alert('Veuillez sélectionner un patient avant de lancer l’appel');
+        return;
+    }
+    openInAppCall(visioState.patientSelectionne, mode, 'visioSectionCallPanel');
 }
 
 function getHistoriqueContent() {
@@ -477,166 +834,33 @@ function getHistoriqueContent() {
             <div class="section-header">
                 <h2 class="section-title">Historique</h2>
             </div>
-            <p class="text-muted">Historique de vos consultations</p>
-        </div>
-    `;
-}
-
-// ============= FONCTION PRINCIPALE - SECTION MON PROFIL =============
-
-function getProfilContent() {
-    return `
-        <div class="content-section">
-            <div class="section-header">
-                <h2 class="section-title">
-                    <i class="fas fa-user-circle"></i> Mon Profil
-                </h2>
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <button class="btn btn-sm btn-primary" id="historiquePeriodeSemaine" onclick="setHistoriquePeriode('semaine')">Semaine</button>
+                <button class="btn btn-sm btn-outline-primary" id="historiquePeriodeMois" onclick="setHistoriquePeriode('mois')">Mois</button>
             </div>
-            
-            <!-- Conteneur Principal -->
-            <div class="profil-container">
-                
-                <!-- Partie Gauche: Avatar et Info Rapide -->
-                <div class="profil-sidebar">
-                    <div class="avatar-section">
-                        <div class="avatar-container">
-                            <img id="profilAvatarImg" 
-                                src="" 
-                                alt="Avatar"
-                                class="avatar-image"
-                                onerror="this.src='https://ui-avatars.com/api/?name=${currentMedecin.prenom}+${currentMedecin.nom}&background=0D8ABC&color=fff&size=200'">
-                            <input type="file" id="photoInput" style="display:none;" accept="image/*">
-                            <button class="btn-change-photo" onclick="document.getElementById('photoInput').click()" title="Changer la photo">
-                                <i class="fas fa-camera"></i>
-                            </button>
+
+            <div class="row g-3">
+                <div class="col-12 col-lg-6">
+                    <div class="custom-table p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0"><i class="fas fa-stethoscope"></i> Historique Consultations</h5>
+                            <span class="badge bg-info text-dark" id="historiqueConsultationsCount">0</span>
                         </div>
-                        <h3 class="medecin-name">Dr. ${currentMedecin.prenom} ${currentMedecin.nom}</h3>
-                        <p class="medecin-specialite">${currentMedecin.specialite || 'Médecin'}</p>
-                    </div>
-                    
-                    <!-- Badges Info Rapides -->
-                    <div class="info-badges">
-                        <div class="badge-item">
-                            <span class="badge-icon">📧</span>
-                            <span class="badge-label">Email</span>
-                            <span class="badge-value" id="badgeEmail">${currentMedecin.email}</span>
-                        </div>
-                        <div class="badge-item">
-                            <span class="badge-icon">📱</span>
-                            <span class="badge-label">Téléphone</span>
-                            <span class="badge-value" id="badgeTelephone">Chargement...</span>
+                        <div id="historiqueConsultationsTable">
+                            <p class="text-muted mb-0">Chargement...</p>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Partie Droite: Informations Détaillées -->
-                <div class="profil-main">
-                    
-                    <!-- Section Personnelles -->
-                    <div class="profil-section">
-                        <div class="section-header-profil">
-                            <h4 class="section-title-profil">
-                                <i class="fas fa-id-card"></i> Informations Personnelles
-                            </h4>
-                            <button class="btn-edit-section" onclick="editPersonnelInfo()" title="Modifier">
-                                <i class="fas fa-edit"></i>
-                            </button>
+
+                <div class="col-12 col-lg-6">
+                    <div class="custom-table p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0"><i class="fas fa-calendar-check"></i> Historique Rendez-vous</h5>
+                            <span class="badge bg-info text-dark" id="historiqueRdvCount">0</span>
                         </div>
-                        
-                        <div class="info-grid">
-                            <div class="info-row">
-                                <div class="info-col">
-                                    <label class="info-label">Prénom</label>
-                                    <p class="info-value" id="profilPrenom">${currentMedecin.prenom}</p>
-                                </div>
-                                <div class="info-col">
-                                    <label class="info-label">Nom</label>
-                                    <p class="info-value" id="profilNom">${currentMedecin.nom}</p>
-                                </div>
-                            </div>
-                            
-                            <div class="info-row">
-                                <div class="info-col full-width">
-                                    <label class="info-label">Email</label>
-                                    <p class="info-value" id="profilEmail">${currentMedecin.email}</p>
-                                </div>
-                            </div>
-                            
-                            <div class="info-row">
-                                <div class="info-col">
-                                    <label class="info-label">Téléphone</label>
-                                    <p class="info-value" id="profilTelephone">Chargement...</p>
-                                </div>
-                                <div class="info-col">
-                                    <label class="info-label">Spécialité</label>
-                                    <p class="info-value" id="profilSpecialite">${currentMedecin.specialite || 'Médecin'}</p>
-                                </div>
-                            </div>
+                        <div id="historiqueRdvTable">
+                            <p class="text-muted mb-0">Chargement...</p>
                         </div>
-                    </div>
-                    
-                    <!-- Section Professionnelles -->
-                    <div class="profil-section">
-                        <div class="section-header-profil">
-                            <h4 class="section-title-profil">
-                                <i class="fas fa-stethoscope"></i> Informations Professionnelles
-                            </h4>
-                            <button class="btn-edit-section" onclick="editProfessionalInfo()" title="Modifier">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </div>
-                        
-                        <div class="info-grid">
-                            <div class="info-row">
-                                <div class="info-col">
-                                    <label class="info-label">Numéro d'Ordre</label>
-                                    <p class="info-value" id="profilNumeroOrdre">Chargement...</p>
-                                </div>
-                                <div class="info-col">
-                                    <label class="info-label">Années d'Expérience</label>
-                                    <p class="info-value" id="profilAnneeExperience">Chargement...</p>
-                                </div>
-                            </div>
-                            
-                            <div class="info-row">
-                                <div class="info-col">
-                                    <label class="info-label">Montant de Consultation (FCFA)</label>
-                                    <p class="info-value" id="profilPrixConsultation">Chargement...</p>
-                                </div>
-                                <div class="info-col">
-                                    <label class="info-label">Langues</label>
-                                    <p class="info-value" id="profilLangues">Chargement...</p>
-                                </div>
-                            </div>
-                            
-                            <div class="info-row">
-                                <div class="info-col full-width">
-                                    <label class="info-label">Adresse du Cabinet</label>
-                                    <p class="info-value" id="profilAdresse">Chargement...</p>
-                                </div>
-                            </div>
-                            
-                            <div class="info-row">
-                                <div class="info-col">
-                                    <label class="info-label">Ville</label>
-                                    <p class="info-value" id="profilVille">Chargement...</p>
-                                </div>
-                                <div class="info-col">
-                                    <label class="info-label">Code Postal</label>
-                                    <p class="info-value" id="profilCodePostal">Chargement...</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Section Actions -->
-                    <div class="profil-actions">
-                        <button class="btn btn-primary" onclick="goToParametres()">
-                            <i class="fas fa-cog"></i> Modifier mes informations
-                        </button>
-                        <button class="btn btn-outline" onclick="printProfil()">
-                            <i class="fas fa-print"></i> Imprimer
-                        </button>
                     </div>
                 </div>
             </div>
@@ -644,475 +868,178 @@ function getProfilContent() {
     `;
 }
 
-// ============= CHARGER DONNÉES PROFIL =============
+function setHistoriquePeriode(periode) {
+    historiquePeriode = periode === 'mois' ? 'mois' : 'semaine';
 
-async function loadProfilData() {
-    try {
-        // Charger les infos personnelles
-        const response = await fetch('/medecin/api/info');
-        const personalData = await response.json();
-        
-        // Charger les infos professionnelles
-        const proResponse = await fetch('/medecin/api/profil/professional-info');
-        const proData = proResponse.ok ? await proResponse.json() : {};
-        
-        // Remplir les informations personnelles
-        document.getElementById('profilPrenom').textContent = personalData.prenom || '';
-        document.getElementById('profilNom').textContent = personalData.nom || '';
-        document.getElementById('profilEmail').textContent = personalData.email || '';
-        document.getElementById('profilTelephone').textContent = personalData.telephone || 'Non renseigné';
-        document.getElementById('profilSpecialite').textContent = personalData.specialite || 'Médecin';
-        document.getElementById('badgeEmail').textContent = personalData.email || '';
-        document.getElementById('badgeTelephone').textContent = personalData.telephone || 'Non renseigné';
-        
-        // Afficher la photo de profil
-        if (personalData.photo_profil_url) {
-            document.getElementById('profilAvatarImg').src = personalData.photo_profil_url;
+    const btnSemaine = document.getElementById('historiquePeriodeSemaine');
+    const btnMois = document.getElementById('historiquePeriodeMois');
+
+    if (btnSemaine && btnMois) {
+        if (historiquePeriode === 'semaine') {
+            btnSemaine.className = 'btn btn-sm btn-primary';
+            btnMois.className = 'btn btn-sm btn-outline-primary';
         } else {
-            document.getElementById('profilAvatarImg').src = 
-                `https://ui-avatars.com/api/?name=${personalData.prenom}+${personalData.nom}&background=0D8ABC&color=fff&size=200`;
+            btnSemaine.className = 'btn btn-sm btn-outline-primary';
+            btnMois.className = 'btn btn-sm btn-primary';
         }
-        
-        // Remplir les informations professionnelles
-        document.getElementById('profilNumeroOrdre').textContent = proData.numero_ordre || 'Non renseigné';
-        document.getElementById('profilAnneeExperience').textContent = 
-            (proData.annees_experience ? proData.annees_experience + ' ans' : 'Non renseigné');
-        document.getElementById('profilPrixConsultation').textContent = 
-            (proData.prix_consultation ? proData.prix_consultation + ' FCFA' : 'Non renseigné');
-        document.getElementById('profilLangues').textContent = 
-            (Array.isArray(personalData.langues) ? personalData.langues.join(', ') : 'Non renseigné');
-        document.getElementById('profilAdresse').textContent = 
-            (proData.adresse ? proData.adresse : 'Non renseigné');
-        document.getElementById('profilVille').textContent = 
-            (proData.ville ? proData.ville : 'Non renseigné');
-        document.getElementById('profilCodePostal').textContent = 
-            (proData.code_postal ? proData.code_postal : 'Non renseigné');
-        
-        // Setup événement upload photo
-        setupPhotoUpload();
-        
+    }
+
+    renderHistorique();
+}
+
+async function loadHistorique() {
+    try {
+        const response = await fetch('/medecin/api/historique', { credentials: 'include' });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || 'Erreur chargement historique');
+        }
+
+        const data = await response.json();
+        historiqueData = {
+            consultations: data.consultations || { semaine: [], mois: [], total_semaine: 0, total_mois: 0 },
+            rendez_vous: data.rendez_vous || { semaine: [], mois: [], total_semaine: 0, total_mois: 0 }
+        };
+        renderHistorique();
     } catch (error) {
-        console.error('Erreur chargement profil:', error);
+        console.error('Erreur historique:', error);
+        const consultationsTable = document.getElementById('historiqueConsultationsTable');
+        const rdvTable = document.getElementById('historiqueRdvTable');
+        if (consultationsTable) consultationsTable.innerHTML = '<p class="text-danger mb-0">Erreur de chargement</p>';
+        if (rdvTable) rdvTable.innerHTML = '<p class="text-danger mb-0">Erreur de chargement</p>';
     }
 }
 
-// ============= UPLOAD PHOTO DE PROFIL =============
+function renderHistorique() {
+    const consultations = historiqueData.consultations?.[historiquePeriode] || [];
+    const rdvs = historiqueData.rendez_vous?.[historiquePeriode] || [];
 
-function setupPhotoUpload() {
-    const photoInput = document.getElementById('photoInput');
-    if (!photoInput) return;
-    
-    photoInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        // Vérifier que c'est une image
-        if (!file.type.startsWith('image/')) {
-            alert('⚠️ Veuillez sélectionner une image');
-            return;
+    const consultationsCount = document.getElementById('historiqueConsultationsCount');
+    const rdvCount = document.getElementById('historiqueRdvCount');
+    if (consultationsCount) consultationsCount.textContent = consultations.length;
+    if (rdvCount) rdvCount.textContent = rdvs.length;
+
+    const consultationsTable = document.getElementById('historiqueConsultationsTable');
+    if (consultationsTable) {
+        if (consultations.length === 0) {
+            consultationsTable.innerHTML = '<p class="text-muted mb-0">Aucune consultation sur cette période.</p>';
+        } else {
+            consultationsTable.innerHTML = `
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Date</th>
+                            <th>Motif</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${consultations.map(c => `
+                            <tr>
+                                <td>${c.patient_nom}</td>
+                                <td>${formatHistoriqueDate(c.date_consultation)}</td>
+                                <td>${truncateText(c.motif || 'N/A', 35)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
         }
-        
-        // Vérifier la taille (max 5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            alert('⚠️ L\'image doit faire moins de 5MB');
-            return;
+    }
+
+    const rdvTable = document.getElementById('historiqueRdvTable');
+    if (rdvTable) {
+        if (rdvs.length === 0) {
+            rdvTable.innerHTML = '<p class="text-muted mb-0">Aucun rendez-vous sur cette période.</p>';
+        } else {
+            rdvTable.innerHTML = `
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rdvs.map(r => `
+                            <tr>
+                                <td>${r.patient_nom}</td>
+                                <td>${formatHistoriqueDate(r.date_heure)}</td>
+                                <td>${r.type || 'N/A'}</td>
+                                <td>${r.statut || 'N/A'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
         }
-        
-        const formData = new FormData();
-        formData.append('photo', file);
-        
-        try {
-            const response = await fetch('/medecin/api/upload-photo', {
-                method: 'POST',
-                body: formData
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                // Mettre à jour l'image
-                document.getElementById('profilAvatarImg').src = data.photo_url;
-                alert('✅ Photo de profil mise à jour avec succès!');
-                
-                // Mettre à jour le profil global
-                currentMedecin.photo = data.photo_url;
-                
-                // Mettre à jour les autres avatars sur la page
-                const profileAvatars = document.querySelectorAll('#profileAvatar');
-                profileAvatars.forEach(avatar => {
-                    avatar.src = data.photo_url;
-                });
-            } else {
-                alert('❌ Erreur lors du téléchargement');
-            }
-        } catch (error) {
-            console.error('Erreur upload:', error);
-            alert('❌ Erreur lors du téléchargement');
-        }
-        
-        // Réinitialiser l'input
-        photoInput.value = '';
-    });
+    }
 }
 
-// ============= FONCTIONS ÉDITION =============
-
-function editPersonnelInfo() {
-    alert('Veuillez vous rendre dans la section "Paramètres" pour modifier vos informations personnelles');
-    loadSection('parametres');
+function formatHistoriqueDate(value) {
+    if (!value) return 'N/A';
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return value;
+    return dt.toLocaleString('fr-FR');
 }
 
-function editProfessionalInfo() {
-    alert('Veuillez vous rendre dans la section "Paramètres" pour modifier vos informations professionnelles');
-    loadSection('parametres');
+function getProfilContent() {
+    const profilePhoto = currentMedecin.photo
+        ? currentMedecin.photo
+        : `https://ui-avatars.com/api/?name=Dr+${encodeURIComponent(currentMedecin.prenom + ' ' + currentMedecin.nom)}&background=0D8ABC&color=fff&size=180`;
+
+        // Formater le prix
+    const prixConsultation = currentMedecin.prix_consultation 
+        ? new Intl.NumberFormat('fr-FR').format(currentMedecin.prix_consultation) + ' CFA'
+        : 'Non renseigné';
+    return `
+        <div class="content-section">
+            <div class="section-header">
+                <h2 class="section-title">Mon Profil</h2>
+            </div>
+            <div style="background: white; padding: 30px; border-radius: 12px;">
+                <div style="display:flex; gap:20px; align-items:center; margin-bottom: 25px; flex-wrap: wrap;">
+                    <img id="profilAvatar"
+                        src="${profilePhoto}"
+                        alt="Avatar"
+                        style="width: 120px; height: 120px; border-radius: 50%; border: 3px solid #0D8ABC; object-fit: cover;">
+                    <div>
+                        <h4 style="margin: 0;">Dr. ${currentMedecin.prenom} ${currentMedecin.nom}</h4>
+                        <p style="margin: 6px 0 0 0; color: #6b7280;">${currentMedecin.specialite || 'Médecin'}</p>
+                        <p style="margin: 6px 0 0 0; color: #6b7280;">${currentMedecin.email || 'Email non renseigné'}</p>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <div style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:16px;">
+                            <h5 style="margin-bottom: 12px;">Informations Personnelles</h5>
+                            <p style="margin: 6px 0;"><strong>Prénom:</strong> ${currentMedecin.prenom || 'N/A'}</p>
+                            <p style="margin: 6px 0;"><strong>Nom:</strong> ${currentMedecin.nom || 'N/A'}</p>
+                            <p style="margin: 6px 0;"><strong>Email:</strong> ${currentMedecin.email || 'N/A'}</p>
+                            <p style="margin: 6px 0;"><strong>Téléphone:</strong> ${currentMedecin.telephone || 'N/A'}</p>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div style="background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:16px;">
+                            <h5 style="margin-bottom: 12px;">Informations Professionnelles</h5>
+                            <p style="margin: 6px 0;"><strong>Spécialité:</strong> ${currentMedecin.specialite || 'N/A'}</p>
+                            <p style="margin: 6px 0;"><strong>Adresse du cabinet:</strong> ${currentMedecin.adresse_cabinet || 'N/A'}</p>
+                            <p style="margin: 6px 0;"><strong>Prix de consultation:</strong> ${prixConsultation}</p>
+                            <p style="margin: 6px 0;"><strong>Années d'expérience:</strong> ${currentMedecin.annees_experience || 0} an(s)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> Utilisez la section "Paramètres" pour modifier vos informations
+                </div>
+            </div>
+        </div>
+    `;
 }
-
-function goToParametres() {
-    loadSection('parametres');
-}
-
-function printProfil() {
-    window.print();
-}
-
-// ============= STYLES CSS POUR MON PROFIL =============
-
-const profilStyles = `
-    <style>
-        .profil-container {
-            display: grid;
-            grid-template-columns: 280px 1fr;
-            gap: 30px;
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-        }
-        
-        .profil-sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 25px;
-            border-right: 1px solid #f0f0f0;
-            padding-right: 30px;
-        }
-        
-        .avatar-section {
-            text-align: center;
-        }
-        
-        .avatar-container {
-            position: relative;
-            width: 200px;
-            height: 200px;
-            margin: 0 auto 15px;
-            border-radius: 50%;
-            overflow: hidden;
-            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
-            box-shadow: 0 4px 16px rgba(13, 139, 188, 0.3);
-        }
-        
-        .avatar-image {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .btn-change-photo {
-            position: absolute;
-            bottom: 8px;
-            right: 8px;
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
-            color: white;
-            border: none;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(13, 139, 188, 0.4);
-        }
-        
-        .btn-change-photo:hover {
-            transform: scale(1.1);
-            box-shadow: 0 4px 12px rgba(13, 139, 188, 0.6);
-        }
-        
-        .medecin-name {
-            font-size: 20px;
-            font-weight: 700;
-            color: #1a1a1a;
-            margin: 0 0 5px 0;
-        }
-        
-        .medecin-specialite {
-            font-size: 14px;
-            color: #0d8abc;
-            font-weight: 600;
-            margin: 0;
-        }
-        
-        .info-badges {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        
-        .badge-item {
-            background: #f8f9fa;
-            border-left: 4px solid #0d8abc;
-            padding: 12px 15px;
-            border-radius: 6px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        
-        .badge-icon {
-            font-size: 20px;
-        }
-        
-        .badge-label {
-            font-size: 11px;
-            color: #666;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .badge-value {
-            font-size: 13px;
-            color: #1a1a1a;
-            font-weight: 600;
-            word-break: break-word;
-        }
-        
-        .profil-main {
-            display: flex;
-            flex-direction: column;
-            gap: 25px;
-        }
-        
-        .profil-section {
-            background: #f9f9f9;
-            border: 1px solid #f0f0f0;
-            border-radius: 8px;
-            padding: 20px;
-        }
-        
-        .section-header-profil {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e0e0e0;
-        }
-        
-        .section-title-profil {
-            margin: 0;
-            font-size: 16px;
-            font-weight: 700;
-            color: #0d8abc;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .section-title-profil i {
-            font-size: 18px;
-        }
-        
-        .btn-edit-section {
-            background: #0d8abc;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-edit-section:hover {
-            background: #0a6d9e;
-            transform: scale(1.05);
-        }
-        
-        .info-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        
-        .info-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        
-        .info-row.single {
-            grid-template-columns: 1fr;
-        }
-        
-        .info-col {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .info-col.full-width {
-            grid-column: 1 / -1;
-        }
-        
-        .info-label {
-            font-size: 12px;
-            color: #666;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin: 0;
-        }
-        
-        .info-value {
-            font-size: 15px;
-            color: #1a1a1a;
-            margin: 0;
-            font-weight: 500;
-            padding: 10px;
-            background: white;
-            border-radius: 6px;
-            border: 1px solid #e0e0e0;
-        }
-        
-        .profil-actions {
-            display: flex;
-            gap: 15px;
-            margin-top: 20px;
-        }
-        
-        .btn {
-            padding: 12px 24px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%);
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(13, 139, 188, 0.3);
-        }
-        
-        .btn-outline {
-            background: white;
-            color: #0d8abc;
-            border: 2px solid #0d8abc;
-        }
-        
-        .btn-outline:hover {
-            background: #f0f8ff;
-        }
-        
-        /* Responsive Design */
-        @media (max-width: 1024px) {
-            .profil-container {
-                grid-template-columns: 1fr;
-                gap: 20px;
-            }
-            
-            .profil-sidebar {
-                border-right: none;
-                border-bottom: 1px solid #f0f0f0;
-                padding-right: 0;
-                padding-bottom: 20px;
-            }
-            
-            .info-row {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .profil-container {
-                padding: 20px;
-            }
-            
-            .avatar-container {
-                width: 150px;
-                height: 150px;
-            }
-            
-            .medecin-name {
-                font-size: 18px;
-            }
-            
-            .section-header-profil {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 10px;
-            }
-            
-            .btn-edit-section {
-                width: 32px;
-                height: 32px;
-            }
-            
-            .profil-actions {
-                flex-direction: column;
-            }
-            
-            .btn {
-                width: 100%;
-                justify-content: center;
-            }
-        }
-        
-        /* Print Styles */
-        @media print {
-            .btn-change-photo,
-            .btn-edit-section,
-            .profil-actions {
-                display: none;
-            }
-            
-            .profil-container {
-                box-shadow: none;
-                border: 1px solid #ccc;
-            }
-            
-            .info-value {
-                background: white;
-                border: none;
-            }
-        }
-    </style>
-`;
-
-// Injecter les styles
-if (document.head) {
-    document.head.insertAdjacentHTML('beforeend', profilStyles);
-}
-
-// ============= PARAMÈTRES - CONTENU =============
 
 function getParametresContent() {
     return `
@@ -1121,12 +1048,8 @@ function getParametresContent() {
                 <h2 class="section-title">Paramètres</h2>
             </div>
             
-            <!-- Section Informations Personnelles -->
-            <div style="background: white; padding: 30px; border-radius: 12px; margin-bottom: 20px;">
-                <h4 class="mb-4">
-                    <i class="fas fa-user-circle" style="color: #0d8abc; margin-right: 10px;"></i>
-                    Informations Personnelles
-                </h4>
+            <div style="background: white; padding: 30px; border-radius: 12px;">
+                <h4 class="mb-4">Informations Personnelles</h4>
                 
                 <form id="parametresForm">
                     <div class="row">
@@ -1147,7 +1070,30 @@ function getParametresContent() {
                     
                     <div class="mb-3">
                         <label class="form-label">Téléphone</label>
-                        <input type="tel" class="form-control" id="paramTelephone">
+                        <input type="tel" class="form-control" id="paramTelephone" value="${currentMedecin.telephone || ''}">
+                    </div>
+
+                    <hr class="my-4" />
+                    <h4 class="mb-3">Informations Professionnelles</h4>
+
+                    <div class="mb-3">
+                        <label class="form-label">Spécialité</label>
+                        <input type="text" class="form-control" id="paramSpecialite" value="${currentMedecin.specialite || ''}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Adresse du cabinet</label>
+                        <input type="text" class="form-control" id="paramAdresseCabinet" value="${currentMedecin.adresse_cabinet || ''}">
+                    </div>
+
+                   <div class="mb-3">
+                        <label class="form-label">Prix de consultation (CFA)</label>
+                        <input type="number" min="0" class="form-control" id="paramPrixConsultation" value="${currentMedecin.prix_consultation || 0}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Nombre d'années d'expérience</label>
+                        <input type="number" min="0" class="form-control" id="paramAnneesExperience" value="${currentMedecin.annees_experience || 0}">
                     </div>
                     
                     <div class="mb-3">
@@ -1160,67 +1106,14 @@ function getParametresContent() {
                     </button>
                 </form>
             </div>
-
-            <!-- Section Informations Professionnelles -->
-            <div style="background: white; padding: 30px; border-radius: 12px;">
-                <h4 class="mb-4">
-                    <i class="fas fa-stethoscope" style="color: #10b981; margin-right: 10px;"></i>
-                    Informations Professionnelles
-                </h4>
-                
-                <form id="parametresProfessionnelsForm">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Années d'expérience</label>
-                            <input type="number" class="form-control" id="paramAnneeExperience" min="0" placeholder="Ex: 10">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Montant de consultation (FCFA)</label>
-                            <input type="number" class="form-control" id="paramPrixConsultation" min="0" step="100" placeholder="Ex: 25000">
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Numéro d'ordre</label>
-                        <input type="text" class="form-control" id="paramNumeroOrdre" placeholder="Numéro d'ordre médical">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Nom du cabinet</label>
-                        <input type="text" class="form-control" id="paramNomCabinet" placeholder="Ex: Cabinet Médical du Docteur X">
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Adresse du cabinet</label>
-                            <input type="text" class="form-control" id="paramAdresseCabinet" placeholder="Adresse complète">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Ville</label>
-                            <input type="text" class="form-control" id="paramVilleCabinet" placeholder="Ville">
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Code postal</label>
-                            <input type="text" class="form-control" id="paramCodePostalCabinet" placeholder="Code postal">
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-success">
-                        <i class="fas fa-save"></i> Sauvegarder les informations professionnelles
-                    </button>
-                </form>
-            </div>
         </div>
     `;
 }
 
-// ============= SETUP PARAMÈTRES LISTENERS (MODIFIÉE) =============
-
 function setupParametresListeners() {
-    // ===== FORMULAIRE INFORMATIONS PERSONNELLES =====
-    const formPersonnel = document.getElementById('parametresForm');
-    if (formPersonnel) {
-        formPersonnel.addEventListener('submit', async function(e) {
+    const form = document.getElementById('parametresForm');
+    if (form) {
+        form.addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const formData = new FormData();
@@ -1228,6 +1121,10 @@ function setupParametresListeners() {
             formData.append('nom', document.getElementById('paramNom').value);
             formData.append('email', document.getElementById('paramEmail').value);
             formData.append('telephone', document.getElementById('paramTelephone').value || '');
+            formData.append('specialite', document.getElementById('paramSpecialite').value || '');
+            formData.append('adresse_cabinet', document.getElementById('paramAdresseCabinet').value || '');
+            formData.append('prix_consultation', currentMedecin.prix_consultation || '0');
+            formData.append('annees_experience', document.getElementById('paramAnneesExperience').value || '0');
             
             const photoInput = document.getElementById('paramPhoto');
             if (photoInput.files.length > 0) {
@@ -1241,119 +1138,84 @@ function setupParametresListeners() {
                 });
                 
                 if (response.ok) {
-                    alert('✅ Profil personnel mis à jour avec succès!');
+                    alert('Profil mis à jour avec succès!');
                     await loadMedecinInfo();
                 } else {
-                    alert('❌ Erreur lors de la mise à jour');
+                    alert('Erreur lors de la mise à jour');
                 }
             } catch (error) {
                 console.error('Erreur:', error);
-                alert('❌ Erreur lors de la mise à jour');
-            }
-        });
-    }
-
-    // ===== FORMULAIRE INFORMATIONS PROFESSIONNELLES =====
-    const formProfessionnel = document.getElementById('parametresProfessionnelsForm');
-    if (formProfessionnel) {
-        // Charger les données existantes au chargement du formulaire
-        loadProfessionalInfoData();
-        
-        formProfessionnel.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const anneeExperience = document.getElementById('paramAnneeExperience').value;
-            const prixConsultation = document.getElementById('paramPrixConsultation').value;
-            const numeroOrdre = document.getElementById('paramNumeroOrdre').value;
-            const nomCabinet = document.getElementById('paramNomCabinet').value;
-            const adresseCabinet = document.getElementById('paramAdresseCabinet').value;
-            const villeCabinet = document.getElementById('paramVilleCabinet').value;
-            const codePostalCabinet = document.getElementById('paramCodePostalCabinet').value;
-            
-            // Au moins un champ doit être rempli
-            if (!anneeExperience && !prixConsultation && !numeroOrdre && !nomCabinet && !adresseCabinet && !villeCabinet && !codePostalCabinet) {
-                alert('⚠️ Veuillez remplir au moins un champ');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('annees_experience', anneeExperience || '');
-            formData.append('prix_consultation', prixConsultation || '');
-            formData.append('numero_ordre', numeroOrdre || '');
-            formData.append('cabinet_nom', nomCabinet || '');
-            formData.append('adresse', adresseCabinet || '');
-            formData.append('ville', villeCabinet || '');
-            formData.append('code_postal', codePostalCabinet || '');
-            
-            try {
-                const response = await fetch('/medecin/api/profil/update-professional', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    alert('✅ ' + (result.message || 'Informations professionnelles mises à jour avec succès!'));
-                    await loadMedecinInfo();
-                } else {
-                    const error = await response.json();
-                    alert('❌ ' + (error.detail || 'Erreur lors de la mise à jour'));
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
-                alert('❌ Erreur lors de la mise à jour');
+                alert('Erreur lors de la mise à jour');
             }
         });
     }
 }
 
-// ============= CHARGER DONNÉES PROFESSIONNELLES =============
-
-async function loadProfessionalInfoData() {
-    try {
-        const response = await fetch('/medecin/api/profil/professional-info');
-        if (!response.ok) {
-            console.log('Pas d\'informations professionnelles existantes');
-            return;
-        }
-        
-        const data = await response.json();
-        
-        // Remplir les champs avec les données existantes
-        if (data.annees_experience) {
-            document.getElementById('paramAnneeExperience').value = data.annees_experience;
-        }
-        if (data.prix_consultation) {
-            document.getElementById('paramPrixConsultation').value = data.prix_consultation;
-        }
-        if (data.numero_ordre) {
-            document.getElementById('paramNumeroOrdre').value = data.numero_ordre;
-        }
-        if (data.cabinet_nom) {
-            document.getElementById('paramNomCabinet').value = data.cabinet_nom;
-        }
-        if (data.adresse) {
-            document.getElementById('paramAdresseCabinet').value = data.adresse;
-        }
-        if (data.ville) {
-            document.getElementById('paramVilleCabinet').value = data.ville;
-        }
-        if (data.code_postal) {
-            document.getElementById('paramCodePostalCabinet').value = data.code_postal;
-        }
-    } catch (error) {
-        console.error('Erreur chargement infos professionnelles:', error);
-    }
-}
 // ============= HELPER FUNCTIONS =============
 
 function sendMessageToPatient(patientId) {
-    alert('Fonctionnalité messagerie en développement pour patient ' + patientId);
+    if (!patientId) {
+        alert('Impossible d\'identifier le patient');
+        return;
+    }
+    
+    // Fermer la modale
+    const modal = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
+    if (modal) modal.hide();
+    
+    // Aller à la section messagerie
+    const messagerieLink = document.querySelector('[data-section="messagerie"]');
+    if (messagerieLink) {
+        messagerieLink.click();
+        
+        // Attendre que la messagerie soit chargée puis ouvrir la conversation
+        setTimeout(() => {
+            // Chercher la conversation avec ce patient
+            const convItem = document.querySelector(`[data-patient-id="${patientId}"]`);
+            if (convItem) {
+                convItem.click();
+            } else {
+                // Si pas de conversation, ouvrir le formulaire de nouveau message
+                if (typeof openNewMessageModal === 'function') {
+                    // Stocker l'ID pour pré-sélectionner
+                    sessionStorage.setItem('preselectPatientId', patientId);
+                    openNewMessageModal();
+                    
+                    // Après ouverture de la modale, sélectionner le patient
+                    setTimeout(() => {
+                        const select = document.getElementById('newMessagePatient');
+                        if (select) {
+                            select.value = patientId;
+                            // Déclencher l'événement change
+                            select.dispatchEvent(new Event('change'));
+                        }
+                    }, 500);
+                }
+            }
+        }, 1000);
+    }
 }
 
 // ============= EVENT LISTENERS =============
 
 function setupEventListeners() {
+    const menuToggle = document.querySelector('.menu-toggle');
+    const sidebar = document.querySelector('.sidebar');
+
+    if (menuToggle && sidebar) {
+        menuToggle.addEventListener('click', function () {
+            sidebar.classList.toggle('open');
+        });
+
+        document.addEventListener('click', function (e) {
+            const clickedInsideSidebar = sidebar.contains(e.target);
+            const clickedToggle = menuToggle.contains(e.target);
+            if (window.innerWidth <= 992 && !clickedInsideSidebar && !clickedToggle) {
+                sidebar.classList.remove('open');
+            }
+        });
+    }
+
     // Soumettre ordonnance
     const submitBtn = document.getElementById('submitOrdonnance');
     if (submitBtn) {
@@ -1405,53 +1267,600 @@ async function submitOrdonnance() {
 }
 
 
-// ============= CHARGEMENT RDV =============
+// ============= CHARGEMENT RDV + CONSULTATIONS =============
 async function loadRDV() {
     const tbody = document.getElementById("rdvBody");
 
     try {
-        const response = await fetch("/medecin/api/rendez-vous", {
+        console.log("📅 Chargement des rendez-vous et consultations...");
+        
+        // Récupérer les rendez-vous
+        const rdvResponse = await fetch("/medecin/api/rendez-vous", {
             credentials: "include"
         });
 
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.detail || "Erreur chargement RDV");
+        if (!rdvResponse.ok) {
+            throw new Error(`Erreur HTTP ${rdvResponse.status}`);
+        }
+        const rdvs = await rdvResponse.json();
+        console.log("✅ Rendez-vous reçus:", rdvs.length);
+
+        // Récupérer les consultations
+        const consultationResponse = await fetch("/medecin/api/consultations", {
+            credentials: "include"
+        });
+
+        let consultations = [];
+        if (consultationResponse.ok) {
+            consultations = await consultationResponse.json();
+            console.log("✅ Consultations reçues:", consultations.length);
+        } else {
+            console.warn("⚠️ Impossible de charger les consultations");
         }
 
-        const rdvs = await response.json();
+        // Fusionner les deux listes
+        const tousRendezVous = [...rdvs, ...consultations];
 
-        if (rdvs.length === 0) {
+        if (tousRendezVous.length === 0) {
             tbody.innerHTML = `<tr>
-                <td colspan="5" class="text-center text-muted">Aucun rendez-vous</td>
+                <td colspan="5" class="text-center text-muted">Aucun rendez-vous ou consultation</td>
             </tr>`;
             return;
         }
 
-        tbody.innerHTML = rdvs.map(rdv => `
-            <tr>
-                <td>${rdv.patient.nom_complet}</td>
-                <td>${new Date(rdv.date_heure).toLocaleString()}</td>
-                <td>${rdv.type}</td>
-                <td>${rdv.statut}</td>
-                <td>
-                    <button class="btn-action view" title="Voir">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                </td>
-            </tr>
-        `).join("");
+        // Trier par date (du plus récent au plus ancien)
+        tousRendezVous.sort((a, b) => new Date(b.date_heure) - new Date(a.date_heure));
+
+        tbody.innerHTML = tousRendezVous.map(item => {
+            // Déterminer le type et le statut
+            let type = item.type || "Consultation";
+            let statut = item.statut || "Demandée";
+            
+            // Formater la date
+            const date = new Date(item.date_heure);
+            const dateFormatee = date.toLocaleDateString('fr-FR') + ' ' + 
+                                 date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+            // Déterminer la couleur du badge selon le statut
+            let badgeClass = 'badge-secondary';
+            if (statut.toLowerCase().includes('confirmé') || statut.toLowerCase().includes('confirme')) {
+                badgeClass = 'badge-success';
+            } else if (statut.toLowerCase().includes('planifié') || statut.toLowerCase().includes('planifie')) {
+                badgeClass = 'badge-primary';
+            } else if (statut.toLowerCase().includes('terminé') || statut.toLowerCase().includes('termine')) {
+                badgeClass = 'badge-info';
+            } else if (statut.toLowerCase().includes('annulé') || statut.toLowerCase().includes('annule')) {
+                badgeClass = 'badge-danger';
+            } else if (statut.toLowerCase().includes('demandé') || statut.toLowerCase().includes('demande')) {
+                badgeClass = 'badge-warning';
+            }
+
+            return `
+                <tr>
+                    <td>
+                        <div class="patient-info">
+                            <div class="patient-avatar">
+                                ${item.patient.nom_complet ? item.patient.nom_complet.charAt(0).toUpperCase() : 'P'}
+                            </div>
+                            <div class="patient-details">
+                                <div class="patient-name">${item.patient.nom_complet || 'Patient'}</div>
+                                <div class="patient-meta">${item.patient.email || ''}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${dateFormatee}</td>
+                    <td>
+                        <span class="badge badge-type ${type.toLowerCase()}">${type}</span>
+                    </td>
+                    <td>
+                        <span class="badge ${badgeClass}">${statut}</span>
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn-action view" onclick="viewRdvDetail(${item.id}, '${item.source || 'rdv'}')" title="Voir détails">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-action message" onclick="sendMessageToPatient(${item.patient.id})" title="Message">
+                                <i class="fas fa-envelope"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join("");
 
     } catch (error) {
-        console.error("Erreur RDV:", error);
+        console.error("❌ Erreur RDV:", error);
         tbody.innerHTML = `<tr>
             <td colspan="5" class="text-center text-danger">
-                Erreur de chargement des rendez-vous
+                Erreur de chargement: ${error.message}
             </td>
         </tr>`;
     }
 }
 
+/// Fonction pour voir les détails d'un rendez-vous/consultation
+function viewRdvDetail(id, source) {
+    if (source === 'consultation') {
+        // Récupérer les détails de la consultation
+        fetch(`/medecin/api/consultations/${id}`, {
+            credentials: 'include'
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Erreur chargement');
+            return response.json();
+        })
+        .then(data => {
+            // Formater la date
+            const date = new Date(data.date_heure);
+            const dateFormatee = date.toLocaleDateString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+            const heureFormatee = date.toLocaleTimeString('fr-FR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            // Créer la modale dynamique
+            showConsultationModal(data, dateFormatee, heureFormatee);
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            alert('Impossible de charger les détails de la consultation');
+        });
+    } else {
+        // Pour les rendez-vous
+        fetch(`/medecin/api/rendez-vous/${id}`, {
+            credentials: 'include'
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Erreur chargement');
+            return response.json();
+        })
+        .then(data => {
+            // Formater la date
+            const date = new Date(data.date_heure);
+            const dateFormatee = date.toLocaleDateString('fr-FR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+            const heureFormatee = date.toLocaleTimeString('fr-FR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            // Créer la modale pour rendez-vous
+            showRendezVousModal(data, dateFormatee, heureFormatee);
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            alert('Impossible de charger les détails du rendez-vous');
+        });
+    }
+}
+
+// Fonction pour afficher la modale de consultation
+function showConsultationModal(data, dateFormatee, heureFormatee) {
+    // Déterminer la couleur du badge selon le statut
+    let badgeClass = 'badge-secondary';
+    let badgeText = data.statut || 'Demandée';
+    
+    if (badgeText.toLowerCase().includes('confirmé') || badgeText.toLowerCase().includes('confirme')) {
+        badgeClass = 'badge-success';
+    } else if (badgeText.toLowerCase().includes('planifié') || badgeText.toLowerCase().includes('planifie')) {
+        badgeClass = 'badge-primary';
+    } else if (badgeText.toLowerCase().includes('terminé') || badgeText.toLowerCase().includes('termine')) {
+        badgeClass = 'badge-info';
+    } else if (badgeText.toLowerCase().includes('annulé') || badgeText.toLowerCase().includes('annule')) {
+        badgeClass = 'badge-danger';
+    } else if (badgeText.toLowerCase().includes('demandé') || badgeText.toLowerCase().includes('demande')) {
+        badgeClass = 'badge-warning';
+    }
+    
+    const modalHTML = `
+        <div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius: 16px; overflow: hidden;">
+                    <!-- En-tête avec dégradé -->
+                    <div class="modal-header" style="background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%); color: white; border-bottom: none; padding: 20px 24px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-calendar-check" style="font-size: 24px;"></i>
+                            </div>
+                            <div>
+                                <h5 class="modal-title" style="font-weight: 700; font-size: 1.25rem; margin: 0;">Détails de la consultation</h5>
+                                <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 0.85rem;">ID: #${data.id}</p>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+                    
+                    <div class="modal-body" style="padding: 24px;">
+                        <!-- Badge statut -->
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+                            <span class="badge ${badgeClass}" style="padding: 8px 16px; font-size: 0.9rem; border-radius: 30px;">
+                                ${badgeText}
+                            </span>
+                        </div>
+                        
+                        <!-- Informations patient -->
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                            <h6 style="color: #0d8abc; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-user-circle"></i> Informations patient
+                            </h6>
+                            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
+                                <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #0d8abc, #00bcd4); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 20px;">
+                                    ${data.patient.nom_complet ? data.patient.nom_complet.charAt(0).toUpperCase() : 'P'}
+                                </div>
+                                <div>
+                                    <div style="font-weight: 700; font-size: 1.1rem;">${data.patient.nom_complet || 'Patient'}</div>
+                                    ${data.patient.id ? `<div style="font-size: 0.85rem; color: #6b7280;">ID: #${data.patient.id}</div>` : ''}
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #6b7280;">Email</div>
+                                    <div style="font-weight: 500;">${data.patient.email || 'Non renseigné'}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #6b7280;">Téléphone</div>
+                                    <div style="font-weight: 500;">${data.patient.telephone || 'Non renseigné'}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Informations consultation -->
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                            <h6 style="color: #0d8abc; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-stethoscope"></i> Détails de la consultation
+                            </h6>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #6b7280;">Date</div>
+                                    <div style="font-weight: 500;">${dateFormatee}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #6b7280;">Heure</div>
+                                    <div style="font-weight: 500;">${heureFormatee}</div>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top: 16px;">
+                                <div style="font-size: 0.8rem; color: #6b7280; margin-bottom: 4px;">Motif</div>
+                                <div style="background: white; border-radius: 8px; padding: 12px; border: 1px solid #e5e7eb;">
+                                    ${data.motif || 'Non spécifié'}
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top: 12px;">
+                                <div style="font-size: 0.8rem; color: #6b7280;">Médecin</div>
+                                <div style="font-weight: 500;">${data.medecin_nom || currentMedecin.nom_complet || 'Dr. Médecin'}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer" style="border-top: 1px solid #e5e7eb; padding: 16px 24px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 30px; padding: 8px 24px;">Fermer</button>
+                        <button type="button" class="btn btn-warning" onclick="openRescheduleForm(${data.id}, 'consultation', '${data.date_heure || ''}')" style="border-radius: 30px; padding: 8px 24px;">
+                            <i class="fas fa-calendar-alt"></i> Reporter
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="sendMessageToPatient(${data.patient.id})" style="border-radius: 30px; padding: 8px 24px; background: #0d8abc; border: none;">
+                            <i class="fas fa-envelope"></i> Contacter le patient
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Ajoute les styles pour les badges 
+    if (!document.getElementById('badge-styles')) {
+        const style = document.createElement('style');
+        style.id = 'badge-styles';
+        style.textContent = `
+            .badge-success { background-color: #d1fae5; color: #065f46; }
+            .badge-primary { background-color: #dbeafe; color: #1e40af; }
+            .badge-info { background-color: #cffafe; color: #0891b2; }
+            .badge-danger { background-color: #fee2e2; color: #991b1b; }
+            .badge-warning { background-color: #fed7aa; color: #92400e; }
+            .badge-secondary { background-color: #f3f4f6; color: #374151; }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // Supprimer l'ancienne modale si elle existe
+    const oldModal = document.getElementById('detailModal');
+    if (oldModal) oldModal.remove();
+    
+    // Ajouter la nouvelle modale au body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Afficher la modale
+    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+    modal.show();
+    
+    // Nettoyer après fermeture
+    document.getElementById('detailModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
+
+// Fonction pour afficher la modale de rendez-vous
+function showRendezVousModal(data, dateFormatee, heureFormatee) {
+    // Déterminer la couleur du badge selon le statut
+    let badgeClass = 'badge-secondary';
+    let badgeText = data.statut || 'Planifié';
+    
+    if (badgeText.toLowerCase().includes('confirmé') || badgeText.toLowerCase().includes('confirme')) {
+        badgeClass = 'badge-success';
+    } else if (badgeText.toLowerCase().includes('planifié') || badgeText.toLowerCase().includes('planifie')) {
+        badgeClass = 'badge-primary';
+    } else if (badgeText.toLowerCase().includes('terminé') || badgeText.toLowerCase().includes('termine')) {
+        badgeClass = 'badge-info';
+    } else if (badgeText.toLowerCase().includes('annulé') || badgeText.toLowerCase().includes('annule')) {
+        badgeClass = 'badge-danger';
+    }
+    
+    // Icône selon le type
+    let typeIcon = 'fa-calendar';
+    if (data.type?.toLowerCase().includes('cabinet')) typeIcon = 'fa-hospital';
+    else if (data.type?.toLowerCase().includes('vidéo')) typeIcon = 'fa-video';
+    else if (data.type?.toLowerCase().includes('domicile')) typeIcon = 'fa-home';
+    
+    const modalHTML = `
+        <div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="border-radius: 16px; overflow: hidden;">
+                    <!-- En-tête avec dégradé -->
+                    <div class="modal-header" style="background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%); color: white; border-bottom: none; padding: 20px 24px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas ${typeIcon}" style="font-size: 24px;"></i>
+                            </div>
+                            <div>
+                                <h5 class="modal-title" style="font-weight: 700; font-size: 1.25rem; margin: 0;">Détails du rendez-vous</h5>
+                                <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 0.85rem;">ID: #${data.id}</p>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+                    
+                    <div class="modal-body" style="padding: 24px;">
+                        <!-- Badge statut et type -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <span class="badge" style="background: #e0f2fe; color: #0369a1; padding: 6px 12px; border-radius: 30px;">
+                                <i class="fas ${typeIcon}"></i> ${data.type || 'Cabinet'}
+                            </span>
+                            <span class="badge ${badgeClass}" style="padding: 8px 16px; font-size: 0.9rem; border-radius: 30px;">
+                                ${badgeText}
+                            </span>
+                        </div>
+                        
+                        <!-- Informations patient -->
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                            <h6 style="color: #0d8abc; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-user-circle"></i> Patient
+                            </h6>
+                            <div style="display: flex; align-items: center; gap: 16px;">
+                                <div style="width: 50px; height: 50px; background: linear-gradient(135deg, #0d8abc, #00bcd4); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 20px;">
+                                    ${data.patient.nom_complet ? data.patient.nom_complet.charAt(0).toUpperCase() : 'P'}
+                                </div>
+                                <div>
+                                    <div style="font-weight: 700; font-size: 1.1rem;">${data.patient.nom_complet || 'Patient'}</div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">${data.patient.telephone || 'Téléphone non renseigné'}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Informations rendez-vous -->
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px;">
+                            <h6 style="color: #0d8abc; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-clock"></i> Date et heure
+                            </h6>
+                            
+                            <div style="display: flex; align-items: center; justify-content: space-between; background: white; border-radius: 8px; padding: 12px; border: 1px solid #e5e7eb; margin-bottom: 12px;">
+                                <div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">Date</div>
+                                    <div style="font-weight: 600;">${dateFormatee}</div>
+                                </div>
+                                <div style="width: 1px; height: 30px; background: #e5e7eb;"></div>
+                                <div>
+                                    <div style="font-size: 0.85rem; color: #6b7280;">Heure</div>
+                                    <div style="font-weight: 600;">${heureFormatee}</div>
+                                </div>
+                            </div>
+                            
+                            ${data.motif ? `
+                                <div style="margin-top: 12px;">
+                                    <div style="font-size: 0.85rem; color: #6b7280; margin-bottom: 4px;">Motif</div>
+                                    <div style="background: white; border-radius: 8px; padding: 12px; border: 1px solid #e5e7eb;">
+                                        ${data.motif}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            ${data.lieu ? `
+                                <div style="margin-top: 12px;">
+                                    <div style="font-size: 0.85rem; color: #6b7280; margin-bottom: 4px;">Lieu</div>
+                                    <div style="background: white; border-radius: 8px; padding: 12px; border: 1px solid #e5e7eb;">
+                                        <i class="fas fa-map-marker-alt" style="color: #ef4444; margin-right: 8px;"></i>
+                                        ${data.lieu}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer" style="border-top: 1px solid #e5e7eb; padding: 16px 24px;">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius: 30px; padding: 8px 24px;">Fermer</button>
+                        <button type="button" class="btn btn-warning" onclick="openRescheduleForm(${data.id}, 'rdv', '${data.date_heure || ''}')" style="border-radius: 30px; padding: 8px 24px;">
+                            <i class="fas fa-calendar-alt"></i> Reporter
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="sendMessageToPatient(${data.patient.id})" style="border-radius: 30px; padding: 8px 24px; background: #0d8abc; border: none;">
+                            <i class="fas fa-envelope"></i> Contacter
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Supprimer l'ancienne modale si elle existe
+    const oldModal = document.getElementById('detailModal');
+    if (oldModal) oldModal.remove();
+    
+    // Ajouter la nouvelle modale au body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Afficher la modale
+    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+    modal.show();
+    
+    // Nettoyer après fermeture
+    document.getElementById('detailModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
+
+
+// ============ STYLES RDV + CONSULTATIONS =============
+const rdvStyles = `
+    <style>
+        .badge-type {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .badge-type.cabinet {
+            background-color: #e3f2fd;
+            color: #0d47a1;
+        }
+        
+        .badge-type.vidéo, .badge-type.video {
+            background-color: #f3e5f5;
+            color: #4a148c;
+        }
+        
+        .badge-type.domicile {
+            background-color: #e8f5e8;
+            color: #1b5e20;
+        }
+        
+        .badge-type.consultation {
+            background-color: #fff3e0;
+            color: #e65100;
+        }
+        
+        .badge-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .badge-primary {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+        
+        .badge-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .badge-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .badge-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .badge-secondary {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+        
+        .patient-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .patient-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0d8abc, #00bcd4);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+        }
+        
+        .patient-details {
+            line-height: 1.4;
+        }
+        
+        .patient-name {
+            font-weight: 600;
+            color: #1a2b3c;
+        }
+        
+        .patient-meta {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-action {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+        }
+        
+        .btn-action.view {
+            background-color: #0d8abc;
+        }
+        
+        .btn-action.message {
+            background-color: #10b981;
+        }
+        
+        .btn-action:hover {
+            transform: scale(1.1);
+            opacity: 0.9;
+        }
+    </style>
+`;
+
+// Injecter les styles
+if (!document.getElementById('rdv-styles')) {
+    const styleElement = document.createElement('style');
+    styleElement.id = 'rdv-styles';
+    styleElement.textContent = rdvStyles.replace(/<\/?style>/g, '');
+    document.head.appendChild(styleElement);
+}
 
 // ============= LOGOUT =============
 
@@ -1462,7 +1871,7 @@ function setupLogout() {
         logoutLink.addEventListener('click', function(e) {
             e.preventDefault();
             
-            const confirmed = confirm('Êtes-vous sûr de vouloir vous déconnecter ?');
+            const confirmed = confirm('êtes-vous sûr de vouloir vous déconnecter ?');
             
             if (confirmed) {
                 window.location.href = '/medecin/deconnexionMedecin';
@@ -1506,7 +1915,7 @@ function getMessagerieContent() {
                     <div class="empty-content">
                         <i class="fas fa-envelope-open-text"></i>
                         <h4>Sélectionnez une conversation</h4>
-                        <p>Choisissez un patient dans la liste pour commencer à discuter</p>
+                        <p>Choisissez un patient dans la liste pour commencer à  discuter</p>
                     </div>
                 </div>
                 
@@ -1520,10 +1929,28 @@ function getMessagerieContent() {
                                 <p id="chatPatientEmail" class="text-muted"></p>
                             </div>
                         </div>
-                        <button class="btn-close-chat" onclick="closeChat()" title="Fermer">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <div class="chat-actions">
+                            <button class="btn-action-call" onclick="startVideoCall()" title="Appel vidéo">
+                                <i class="fas fa-video"></i>
+                            </button>
+                            <button class="btn-action-call" onclick="startVoiceCall()" title="Appel vocal">
+                                <i class="fas fa-phone"></i>
+                            </button>
+                            <button class="btn-action-call" onclick="toggleChatActionsMenu(event)" title="Plus d'actions">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <button class="btn-close-chat" onclick="closeChat()" title="Fermer">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <div id="chatActionsMenu" class="chat-actions-menu">
+                                <button type="button" class="chat-menu-item" onclick="sendPatientEmail()">
+                                    <i class="fas fa-envelope"></i> Envoyer un mail
+                                </button>
+                            </div>
+                        </div>
                     </div>
+
+                    <div id="chatCallPanel" class="chat-call-panel" style="display:none;"></div>
                     
                     <!-- Messages -->
                     <div class="messages-container" id="messagesContainer">
@@ -1533,10 +1960,6 @@ function getMessagerieContent() {
                     <!-- Formulaire Envoi -->
                     <div class="message-input-area">
                         <form id="messageForm" onsubmit="sendMessage(event)">
-                            <div class="form-group">
-                                <input type="text" id="messageSubject" placeholder="Sujet du message..." 
-                                    class="form-control" required>
-                            </div>
                             <div class="form-group">
                                 <textarea id="messageContent" placeholder="Écrivez votre message ici..." 
                                     class="form-control" rows="3" required></textarea>
@@ -1565,10 +1988,6 @@ function getMessagerieContent() {
                                 <select id="newMessagePatient" class="form-control" required>
                                     <option value="">Sélectionnez un patient...</option>
                                 </select>
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="form-label"><strong>Sujet</strong></label>
-                                <input type="text" id="newMessageSubject" class="form-control" required>
                             </div>
                             <div class="form-group mb-3">
                                 <label class="form-label"><strong>Message</strong></label>
@@ -1607,6 +2026,9 @@ async function loadMessagerie() {
 
 async function loadConversations() {
     try {
+        const listContainer = document.getElementById('conversationsList');
+        if (!listContainer) return;
+
         const response = await fetch('/medecin/api/messagerie/conversations');
         if (!response.ok) throw new Error('Erreur chargement conversations');
         
@@ -1615,8 +2037,251 @@ async function loadConversations() {
         updateUnreadBadge();
     } catch (error) {
         console.error('Erreur chargement conversations:', error);
-        document.getElementById('conversationsList').innerHTML = 
-            '<p class="text-center text-danger">Erreur chargement conversations</p>';
+        const listContainer = document.getElementById('conversationsList');
+        if (listContainer) {
+            listContainer.innerHTML = '<p class="text-center text-danger">Erreur chargement conversations</p>';
+        }
+    }
+}
+
+function getAnalysesContent() {
+    return `
+        <div class="content-section">
+            <div class="section-header" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                <h2><i class="fas fa-vials"></i> Analyses</h2>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-outline-primary btn-sm" onclick="setAnalysesTab('resultats')" id="analysesTabResultats">Résultats</button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="setAnalysesTab('injections')" id="analysesTabInjections">Injections</button>
+                </div>
+            </div>
+            <div id="analysesPatientsList" class="content-cards"></div>
+        </div>
+    `;
+}
+
+let analysesActiveTab = 'resultats';
+
+function setAnalysesTab(tab) {
+    analysesActiveTab = tab;
+    const b1 = document.getElementById('analysesTabResultats');
+    const b2 = document.getElementById('analysesTabInjections');
+    if (b1) b1.classList.toggle('btn-primary', tab === 'resultats');
+    if (b2) b2.classList.toggle('btn-primary', tab === 'injections');
+    if (b1) b1.classList.toggle('btn-outline-primary', tab !== 'resultats');
+    if (b2) b2.classList.toggle('btn-outline-primary', tab !== 'injections');
+}
+
+async function loadAnalysesPatients() {
+    const container = document.getElementById('analysesPatientsList');
+    if (!container) return;
+    setAnalysesTab(analysesActiveTab);
+    container.innerHTML = '<p class="text-muted">Chargement...</p>';
+    try {
+        const response = await fetch('/medecin/api/analyses/patients', { credentials: 'include' });
+        const patients = await response.json();
+        if (!Array.isArray(patients) || patients.length === 0) {
+            container.innerHTML = '<p class="text-muted">Aucun patient disponible.</p>';
+            return;
+        }
+        container.innerHTML = patients.map(p => `
+            <div class="content-card" style="margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <div>
+                        <h4 style="margin:0;">${escapeHtml(p.nom_complet || 'Patient')}</h4>
+                        <small class="text-muted">${escapeHtml(p.email || '')}</small>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="viewPatientAnalyses(${p.id})"><i class="fas fa-eye"></i> Visualiser</button>
+                        <button class="btn btn-sm btn-primary" onclick="openAddAnalyseOrInjection(${p.id}, '${escapeHtml(p.nom_complet || 'Patient')}')"><i class="fas fa-plus"></i> Ajouter</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error('Erreur chargement patients analyses:', e);
+        container.innerHTML = '<p class="text-danger">Erreur de chargement.</p>';
+    }
+}
+
+async function viewPatientAnalyses(patientId) {
+    try {
+        const response = await fetch(`/medecin/api/analyses/patient/${patientId}`, { credentials: 'include' });
+        const data = await response.json();
+        const analyses = (data.analyses || []).map(a => `<li><strong>${escapeHtml(a.titre)}</strong> - ${a.date_analyse ? new Date(a.date_analyse).toLocaleString('fr-FR') : ''}</li>`).join('') || '<li>Aucune analyse</li>';
+        const injections = (data.injections || []).map(i => `<li><strong>${escapeHtml(i.nom_injection)}</strong> - ${i.date_injection ? new Date(i.date_injection).toLocaleString('fr-FR') : ''}</li>`).join('') || '<li>Aucune injection</li>';
+        alert(`Analyses:\n${(data.analyses || []).length}\nInjections:\n${(data.injections || []).length}`);
+        const container = document.getElementById('analysesPatientsList');
+        if (container) {
+            container.insertAdjacentHTML('afterbegin', `
+                <div class="content-card" style="margin-bottom:12px;border-left:4px solid #0d8abc;">
+                    <h4>Détail patient #${patientId}</h4>
+                    <p><strong>Analyses:</strong></p><ul>${analyses}</ul>
+                    <p><strong>Injections:</strong></p><ul>${injections}</ul>
+                </div>
+            `);
+        }
+    } catch (e) {
+        console.error('Erreur visualisation analyses/injections:', e);
+    }
+}
+
+function openAddAnalyseOrInjection(patientId, patientName) {
+    const isAnalyse = analysesActiveTab === 'resultats';
+    const modalId = 'analyseInjectionModal';
+    const old = document.getElementById(modalId);
+    if (old) old.remove();
+    const html = `
+        <div class="modal fade" id="${modalId}" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">${isAnalyse ? "Ajouter un résultat d'analyse" : "Prescrire une injection"} - ${patientName}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form id="analyseInjectionForm">
+                        <div class="modal-body">
+                            <input type="hidden" name="patient_id" value="${patientId}">
+                            ${isAnalyse ? `
+                                <div class="mb-2"><label class="form-label">Titre</label><input name="titre" class="form-control" required></div>
+                                <div class="mb-2"><label class="form-label">Résultat</label><textarea name="resultat" class="form-control" rows="4" required></textarea></div>
+                                <div class="mb-2"><label class="form-label">Notes</label><textarea name="notes" class="form-control" rows="2"></textarea></div>
+                                <div class="mb-2"><label class="form-label">Date analyse</label><input type="datetime-local" name="date_analyse" class="form-control"></div>
+                                <div class="mb-2"><label class="form-label">Document (radio, scanner...)</label><input type="file" name="document" class="form-control"></div>
+                            ` : `
+                                <div class="mb-2"><label class="form-label">Nom injection</label><input name="nom_injection" class="form-control" required></div>
+                                <div class="mb-2"><label class="form-label">Dosage</label><input name="dosage" class="form-control"></div>
+                                <div class="mb-2"><label class="form-label">Fréquence</label><input name="frequence" class="form-control"></div>
+                                <div class="mb-2"><label class="form-label">Instructions</label><textarea name="instructions" class="form-control" rows="3"></textarea></div>
+                                <div class="mb-2"><label class="form-label">Date injection</label><input type="datetime-local" name="date_injection" class="form-control"></div>
+                            `}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                            <button type="submit" class="btn btn-primary">Enregistrer</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modalEl = document.getElementById(modalId);
+    const modal = new bootstrap.Modal(modalEl);
+    const form = document.getElementById('analyseInjectionForm');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const url = isAnalyse ? '/medecin/api/analyses/resultats' : '/medecin/api/analyses/injections';
+        const r = await fetch(url, { method: 'POST', body: fd, credentials: 'include' });
+        const d = await r.json();
+        if (!r.ok) {
+            alert(d.detail || 'Erreur enregistrement');
+            return;
+        }
+        alert('Enregistré avec succès.');
+        modal.hide();
+        loadAnalysesPatients();
+    });
+    modalEl.addEventListener('hidden.bs.modal', () => modalEl.remove());
+    modal.show();
+}
+
+function openRescheduleForm(id, source = 'rdv', initialDate = '') {
+    const oldModalEl = document.getElementById('detailModal');
+    const oldModal = oldModalEl ? bootstrap.Modal.getInstance(oldModalEl) : null;
+    if (oldModal) oldModal.hide();
+
+    const defaultValue = initialDate ? String(initialDate).slice(0, 16) : '';
+    const modalHTML = `
+        <div class="modal fade" id="rescheduleModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-calendar-alt"></i> Reporter le rendez-vous</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                    </div>
+                    <form id="rescheduleForm">
+                        <div class="modal-body">
+                            <input type="hidden" id="rescheduleTargetId" value="${id}">
+                            <input type="hidden" id="rescheduleSource" value="${source}">
+                            <div class="mb-3">
+                                <label for="rescheduleDateTime" class="form-label">Nouvelle date et heure</label>
+                                <input type="datetime-local" class="form-control" id="rescheduleDateTime" value="${defaultValue}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="rescheduleReason" class="form-label">Motif du report</label>
+                                <textarea class="form-control" id="rescheduleReason" rows="3" placeholder="Expliquez le motif du report (optionnel)"></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane"></i> Confirmer le report
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const oldReschedule = document.getElementById('rescheduleModal');
+    if (oldReschedule) oldReschedule.remove();
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    const rescheduleModal = new bootstrap.Modal(document.getElementById('rescheduleModal'));
+    const form = document.getElementById('rescheduleForm');
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const targetId = document.getElementById('rescheduleTargetId')?.value;
+            const targetSource = document.getElementById('rescheduleSource')?.value || 'rdv';
+            const newDate = document.getElementById('rescheduleDateTime')?.value;
+            const reason = document.getElementById('rescheduleReason')?.value || '';
+            await rescheduleMedecinAppointment(targetId, targetSource, newDate, reason);
+        });
+    }
+
+    document.getElementById('rescheduleModal')?.addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+    rescheduleModal.show();
+}
+
+async function rescheduleMedecinAppointment(id, source = 'rdv', input = '', reason = '') {
+    if (!input) {
+        alert('Veuillez sélectionner une nouvelle date.');
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append('new_date_heure', input);
+        formData.append('motif_report', reason || '');
+
+        const url = source === 'consultation'
+            ? `/medecin/api/consultations/${id}/reporter`
+            : `/medecin/api/rendez-vous/${id}/reporter`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data?.detail || 'Erreur lors du report');
+        }
+
+        alert('Report enregistré. Le patient a été notifié par mail et dans la plateforme.');
+        const modalEl = document.getElementById('rescheduleModal');
+        const modal = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
+        if (modal) modal.hide();
+        await loadRDV();
+        loadMedecinNotifications();
+    } catch (error) {
+        console.error('Erreur report rendez-vous:', error);
+        alert(error.message || 'Impossible de reporter ce rendez-vous.');
     }
 }
 
@@ -1636,6 +2301,7 @@ async function loadPatientsForMessaging() {
 
 function displayConversations(conversations) {
     const container = document.getElementById('conversationsList');
+    if (!container) return;
     
     if (!conversations || conversations.length === 0) {
         container.innerHTML = '<p class="text-center text-muted p-3">Aucune conversation</p>';
@@ -1648,7 +2314,7 @@ function displayConversations(conversations) {
         const dernierMsg = conv.derniere_date ? new Date(conv.derniere_date).toLocaleDateString('fr-FR') : '';
         
         return `
-            <div class="conversation-item ${classe}" onclick="openConversation(${conv.patient_id}, '${conv.nom_complet}', '${conv.email}')">
+            <div class="conversation-item ${classe}" data-patient-id="${conv.patient_id}" onclick="openConversation(${conv.patient_id})">
                 <div class="conversation-avatar">
                     ${conv.nom_complet.charAt(0).toUpperCase()}${conv.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || ''}
                 </div>
@@ -1669,58 +2335,68 @@ function displayConversations(conversations) {
 
 function updateUnreadBadge() {
     const totalNonLus = messagerie.conversations.reduce((sum, conv) => sum + (conv.non_lus || 0), 0);
-    const messagerieBadge = document.querySelector('[data-section="messagerie"] .badge');
+    const messagerieBadge = document.querySelector('[data-section="messagerie"] .menu-badge');
     
     if (messagerieBadge) {
         if (totalNonLus > 0) {
             messagerieBadge.textContent = totalNonLus;
-            messagerieBadge.style.display = 'block';
+            messagerieBadge.style.display = 'inline-flex';
         } else {
             messagerieBadge.style.display = 'none';
         }
+    }
+
+    const topBadge = document.querySelector('.notification-badge');
+    if (topBadge) {
+        topBadge.textContent = totalNonLus;
+        topBadge.style.display = totalNonLus > 0 ? 'flex' : 'none';
     }
 }
 
 // ============= OUVERTURE CONVERSATION =============
 
-async function openConversation(patientId, patientName, patientEmail) {
+async function openConversation(patientId) {
     try {
-        messagerie.patientActuel = {
-            id: patientId,
-            nom_complet: patientName,
-            email: patientEmail
-        };
-        
         // Fetch messages
         const response = await fetch(`/medecin/api/messagerie/conversation/${patientId}`);
         if (!response.ok) throw new Error('Erreur chargement conversation');
         
         const data = await response.json();
-        messagerie.messagesActuels = data.messages;
+        messagerie.messagesActuels = data.messages || [];
+        messagerie.patientActuel = {
+            id: data.patient?.id || patientId,
+            nom_complet: data.patient?.nom_complet || 'Patient',
+            email: data.patient?.email || '',
+            telephone: data.patient?.telephone || ''
+        };
         
         // Afficher le chat
         document.getElementById('emptyState').style.display = 'none';
         document.getElementById('chatContent').style.display = 'flex';
         
         // Remplir les infos du patient
-        document.getElementById('chatPatientName').textContent = data.patient.nom_complet;
-        document.getElementById('chatPatientEmail').textContent = data.patient.email;
+        document.getElementById('chatPatientName').textContent = messagerie.patientActuel.nom_complet;
+        document.getElementById('chatPatientEmail').textContent = messagerie.patientActuel.email;
         document.getElementById('chatPatientAvatar').textContent = 
-            data.patient.nom_complet.charAt(0).toUpperCase() + 
-            (data.patient.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || '');
+            messagerie.patientActuel.nom_complet.charAt(0).toUpperCase() + 
+            (messagerie.patientActuel.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || '');
         
         // Afficher les messages
         displayMessages(data.messages);
         
-        // Mise à jour visuelle
+        // Mise Ã  jour visuelle
         document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
-        event.target.closest('.conversation-item')?.classList.add('active');
+        const activeItem = document.querySelector(`[data-patient-id="${patientId}"]`);
+        if (activeItem) activeItem.classList.add('active');
         
         // Reset form
         document.getElementById('messageForm').reset();
     } catch (error) {
         console.error('Erreur ouverture conversation:', error);
-        alert('Erreur lors de l\'ouverture de la conversation');
+        const container = document.getElementById('messagesContainer');
+        if (container) {
+            container.innerHTML = '<p class="text-center text-danger p-3">Impossible de charger cette conversation</p>';
+        }
     }
 }
 
@@ -1743,9 +2419,8 @@ function displayMessages(messages) {
         return `
             <div class="message-group ${fromClass}">
                 <div class="message-bubble">
-                    <div class="message-subject"><strong>${msg.sujet}</strong></div>
                     <div class="message-content">${msg.contenu}</div>
-                    <div class="message-time">${dateStr} à ${timeStr}</div>
+                    <div class="message-time">${dateStr} Ã  ${timeStr}</div>
                 </div>
             </div>
         `;
@@ -1764,52 +2439,96 @@ function displayMessages(messages) {
 async function sendMessage(event) {
     event.preventDefault();
     
-    const sujet = document.getElementById('messageSubject').value;
+    const sujet = 'Message';
     const contenu = document.getElementById('messageContent').value;
     
-    if (!sujet.trim() || !contenu.trim()) {
-        alert('Veuillez remplir tous les champs');
+    if (!contenu.trim()) {
+        alert('Veuillez écrire un message');
         return;
     }
     
     const formData = new FormData();
-    formData.append('patient_id', messagerie.patientActuel.id);
-    formData.append('sujet', sujet);
-    formData.append('contenu', contenu);
     
-    try {
-        const response = await fetch('/medecin/api/messagerie/send', {
-            method: 'POST',
-            body: formData
-        });
+    // Vérifier si c'est une conversation avec l'admin
+    if (messagerie.patientActuel && messagerie.patientActuel.id === 0) {
+        // C'est l'admin
+        formData.append('contenu', contenu);
         
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Erreur envoi message');
+        try {
+            const response = await fetch('/medecin/api/messagerie/reply-to-admin', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Erreur envoi message');
+            }
+            
+            const result = await response.json();
+            
+            // Ajouter le message à la liste
+            messagerie.messagesActuels.push({
+                id: result.message.id,
+                sujet: sujet,
+                contenu: contenu,
+                de_medecin: true,
+                date_envoi: result.message.date_envoi,
+                statut: 'Envoyé'
+            });
+            
+            displayMessages(messagerie.messagesActuels);
+            document.getElementById('messageForm').reset();
+            
+            // Recharger les conversations
+            await loadConversations();
+            
+        } catch (error) {
+            console.error('Erreur envoi message:', error);
+            alert('Erreur lors de l\'envoi: ' + error.message);
         }
+    } else {
+        // C'est un patient (code existant)
+        formData.append('patient_id', messagerie.patientActuel.id);
+        formData.append('sujet', sujet);
+        formData.append('contenu', contenu);
         
-        const result = await response.json();
-        
-        // Ajouter le message à la liste
-        messagerie.messagesActuels.push({
-            id: result.message_id,
-            sujet: sujet,
-            contenu: contenu,
-            de_medecin: true,
-            date_envoi: result.date_envoi,
-            statut: 'Envoyé'
-        });
-        
-        displayMessages(messagerie.messagesActuels);
-        document.getElementById('messageForm').reset();
-        
-        // Recharger les conversations
-        await loadConversations();
-    } catch (error) {
-        console.error('Erreur envoi message:', error);
-        alert('Erreur lors de l\'envoi: ' + error.message);
+        try {
+            const response = await fetch('/medecin/api/messagerie/send', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Erreur envoi message');
+            }
+            
+            const result = await response.json();
+            
+            // Ajouter le message à la liste
+            messagerie.messagesActuels.push({
+                id: result.message_id,
+                sujet: sujet,
+                contenu: contenu,
+                de_medecin: true,
+                date_envoi: result.date_envoi,
+                statut: 'Envoyé'
+            });
+            
+            displayMessages(messagerie.messagesActuels);
+            document.getElementById('messageForm').reset();
+            
+            // Recharger les conversations
+            await loadConversations();
+            
+        } catch (error) {
+            console.error('Erreur envoi message:', error);
+            alert('Erreur lors de l\'envoi: ' + error.message);
+        }
     }
 }
+
 
 // ============= NOUVEAU MESSAGE MODAL =============
 
@@ -1832,10 +2551,10 @@ function populatePatientsSelect() {
 
 async function submitNewMessage() {
     const patientId = document.getElementById('newMessagePatient').value;
-    const sujet = document.getElementById('newMessageSubject').value;
+    const sujet = 'Message';
     const contenu = document.getElementById('newMessageContent').value;
     
-    if (!patientId || !sujet.trim() || !contenu.trim()) {
+    if (!patientId || !contenu.trim()) {
         alert('Veuillez remplir tous les champs');
         return;
     }
@@ -1868,7 +2587,7 @@ async function submitNewMessage() {
         setTimeout(() => {
             const conv = messagerie.conversations.find(c => c.patient_id == patientId);
             if (conv) {
-                openConversation(patientId, patient.nom_complet, patient.email);
+                openConversation(patientId);
             }
         }, 500);
     } catch (error) {
@@ -1877,11 +2596,83 @@ async function submitNewMessage() {
     }
 }
 
+function toggleChatActionsMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('chatActionsMenu');
+    if (!menu) return;
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+function closeChatActionsMenu() {
+    const menu = document.getElementById('chatActionsMenu');
+    if (menu) menu.style.display = 'none';
+}
+
+function openInAppCall(patient, mode = 'video', targetId = 'chatCallPanel') {
+    const panel = document.getElementById(targetId);
+    if (!panel) return;
+
+    const room = `dokira-${patient.id}-${new Date().toISOString().slice(0, 10)}`;
+    const audioOnly = mode === 'audio';
+    const displayName = encodeURIComponent(`Dr. ${currentMedecin.prenom || ''} ${currentMedecin.nom || ''}`.trim());
+    const title = audioOnly ? 'Appel vocal en cours' : 'Appel vidéo en cours';
+    const jitsiUrl = `https://meet.jit.si/${room}#userInfo.displayName=\"${displayName}\"&config.startWithVideoMuted=${audioOnly}`;
+
+    panel.innerHTML = `
+        <div class="call-panel-header">
+            <div>
+                <strong>${title}</strong>
+                <span class="call-patient-name">${patient.nom_complet}</span>
+            </div>
+            <button class="btn-end-call" onclick="closeInAppCall('${targetId}')">
+                <i class="fas fa-phone-slash"></i> Terminer
+            </button>
+        </div>
+        <iframe class="call-frame" src="${jitsiUrl}" allow="camera; microphone; fullscreen; display-capture" title="Visioconférence Dokira"></iframe>
+    `;
+    panel.style.display = 'block';
+}
+
+function closeInAppCall(targetId = 'chatCallPanel') {
+    const panel = document.getElementById(targetId);
+    if (!panel) return;
+    panel.innerHTML = '';
+    panel.style.display = 'none';
+}
+
+function startVoiceCall() {
+    if (!messagerie.patientActuel) {
+        alert('Sélectionnez un patient avant de lancer un appel');
+        return;
+    }
+    openInAppCall(messagerie.patientActuel, 'audio', 'chatCallPanel');
+}
+
+function startVideoCall() {
+    if (!messagerie.patientActuel) {
+        alert('Sélectionnez un patient avant de lancer un appel');
+        return;
+    }
+    openInAppCall(messagerie.patientActuel, 'video', 'chatCallPanel');
+}
+
+function sendPatientEmail() {
+    if (!messagerie.patientActuel) return;
+    const email = (messagerie.patientActuel.email || '').trim();
+    if (!email) {
+        alert('Email indisponible pour ce patient');
+        return;
+    }
+    const subject = encodeURIComponent('Suivi médical Dokira');
+    window.location.href = `mailto:${email}?subject=${subject}`;
+}
+
 // ============= FERMETURE CHAT =============
 
 function closeChat() {
     messagerie.patientActuel = null;
     messagerie.messagesActuels = [];
+    closeInAppCall('chatCallPanel');
     document.getElementById('emptyState').style.display = 'flex';
     document.getElementById('chatContent').style.display = 'none';
     document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
@@ -1890,6 +2681,8 @@ function closeChat() {
 // ============= EVENT LISTENERS =============
 
 function setupMessagerieListeners() {
+    document.addEventListener('click', closeChatActionsMenu);
+
     // Recherche conversation
     const searchInput = document.getElementById('searchConversation');
     if (searchInput) {
@@ -1914,7 +2707,7 @@ function getDossiersContent() {
         <div class="content-section">
             <div class="section-header">
                 <h2 class="section-title">
-                    <i class="fas fa-folder-medical"></i> Dossiers Médicaux
+                    <i class="fas fa-folder-medical"></i> Dossiers MÃ©dicaux
                 </h2>
                 <div class="section-actions">
                     <input type="text" 
@@ -2004,7 +2797,7 @@ function displayDossiers(dossiers) {
             <thead>
                 <tr>
                     <th>Patient</th>
-                    <th>Age</th>
+                    <th>Âge</th>
                     <th>Date Consultation</th>
                     <th>Motif</th>
                     <th>Diagnostic</th>
@@ -2124,7 +2917,7 @@ function createDossierModal(d) {
                                         <span class="value">${d.patient.nom_complet}</span>
                                     </div>
                                     <div class="info-item">
-                                        <span class="label">Age:</span>
+                                        <span class="label">Âge:</span>
                                         <span class="value">${d.patient.age || 'N/A'} ans</span>
                                     </div>
                                     <div class="info-item">
@@ -2171,7 +2964,7 @@ function createDossierModal(d) {
                                 
                                 ${d.antecedents_medicaux ? `
                                     <div class="info-item full-width mt-2">
-                                        <strong>📋 Antécédents Médicaux:</strong>
+                                        <strong>🧾 Antécédents Médicaux:</strong>
                                         <p>${d.antecedents_medicaux}</p>
                                     </div>
                                 ` : ''}
@@ -2263,7 +3056,7 @@ function createDossierModal(d) {
                                             </div>
                                         </div>
                                         <div class="info-item full-width">
-                                            <strong>💊 Médicaments:</strong>
+                                            <strong>🧾 Médicaments:</strong>
                                             <p>${d.ordonnance.medicaments}</p>
                                         </div>
                                         <div class="info-item full-width">
@@ -2362,16 +3155,41 @@ async function initOrdonnanceModal() {
     setupOrdonnanceListeners();
 }
 
+function getOrdonnanceModalElement() {
+    const modals = document.querySelectorAll('#ordonnanceModal');
+    if (!modals.length) return null;
+    return Array.from(modals).find(modal => modal.querySelector('#ordonnancePatientSelect')) || modals[0];
+}
+
+function getOrdonnanceElementById(elementId) {
+    const modal = getOrdonnanceModalElement();
+    if (!modal) return document.getElementById(elementId);
+    return modal.querySelector(`#${elementId}`) || document.getElementById(elementId);
+}
+
 async function chargerPatientsOrdonnance() {
     try {
+        console.log("Chargement des patients pour ordonnance...");
         const response = await fetch('/medecin/api/patients');
         if (!response.ok) throw new Error('Erreur chargement patients');
         
         ordonnancesData.patients = await response.json();
+        console.log("Patients reçus:", ordonnancesData.patients);
         
-        // Remplir le select
-        const select = document.getElementById('ordonnancePatientSelect');
+        // Vérifier que le select existe
+        const select = getOrdonnanceElementById('ordonnancePatientSelect');
+        if (!select) {
+            console.error("ERREUR CRITIQUE: Element 'ordonnancePatientSelect' non trouvé!");
+            console.log("Le HTML de la modale est-il bien chargé?");
+            return;
+        }
+        
         select.innerHTML = '<option value="">-- Sélectionner un patient --</option>';
+        
+        if (ordonnancesData.patients.length === 0) {
+            select.innerHTML += '<option value="" disabled>Aucun patient disponible</option>';
+            return;
+        }
         
         ordonnancesData.patients.forEach(patient => {
             const option = document.createElement('option');
@@ -2380,6 +3198,9 @@ async function chargerPatientsOrdonnance() {
             option.dataset.patient = JSON.stringify(patient);
             select.appendChild(option);
         });
+        
+        console.log(`${ordonnancesData.patients.length} patients chargés dans le select`);
+        
     } catch (error) {
         console.error('Erreur chargement patients:', error);
     }
@@ -2387,7 +3208,7 @@ async function chargerPatientsOrdonnance() {
 
 function setupOrdonnanceListeners() {
     // Sélection du patient
-    const patientSelect = document.getElementById('ordonnancePatientSelect');
+    const patientSelect = getOrdonnanceElementById('ordonnancePatientSelect');
     if (patientSelect) {
         patientSelect.addEventListener('change', function() {
             if (this.value) {
@@ -2397,17 +3218,18 @@ function setupOrdonnanceListeners() {
                 ordonnancesData.patientSelectionne = patient;
                 
                 // Afficher les infos du patient
-                document.getElementById('patientInfoDisplay').style.display = 'block';
-                document.getElementById('displayPatientNom').textContent = patient.nom_complet;
-                document.getElementById('displayPatientAge').textContent = patient.age + ' ans';
-                document.getElementById('displayPatientEmail').textContent = patient.email;
-                document.getElementById('displayPatientTel').textContent = patient.telephone || 'N/A';
+                getOrdonnanceElementById('patientInfoDisplay').style.display = 'block';
+                getOrdonnanceElementById('displayPatientNom').textContent = patient.nom_complet;
+                getOrdonnanceElementById('displayPatientAge').textContent = patient.age + ' ans';
+                getOrdonnanceElementById('displayPatientEmail').textContent = patient.email;
+                getOrdonnanceElementById('displayPatientTel').textContent = patient.telephone || 'N/A';
                 
                 // Mettre à jour les champs cachés
-                document.getElementById('ordonnancePatientId').value = patient.id;
-                document.getElementById('ordonnancePatientName').value = patient.nom_complet;
+                getOrdonnanceElementById('ordonnancePatientId').value = patient.id;
+                const patientNameInput = getOrdonnanceElementById('ordonnancePatientName');
+                if (patientNameInput) patientNameInput.value = patient.nom_complet;
             } else {
-                document.getElementById('patientInfoDisplay').style.display = 'none';
+                getOrdonnanceElementById('patientInfoDisplay').style.display = 'none';
             }
         });
     }
@@ -2422,27 +3244,39 @@ function setupOrdonnanceListeners() {
 // ============= OUVRIR MODAL CRÉATION ORDONNANCE =============
 
 function openNouvelleOrdonnance() {
-    const modal = new bootstrap.Modal(document.getElementById('ordonnanceModal'));
+    console.log("Ouverture du modal nouvelle ordonnance");
+    const modalElement = getOrdonnanceModalElement();
+    if (!modalElement) {
+        console.error("Element 'ordonnanceModal' non trouvé!");
+        return;
+    }
     
     // Réinitialiser le formulaire
-    document.getElementById('ordonnanceForm').reset();
-    document.getElementById('patientInfoDisplay').style.display = 'none';
-    document.getElementById('ordonnancePatientSelect').value = '';
+    const form = modalElement.querySelector('#ordonnanceForm') || document.getElementById('ordonnanceForm');
+    if (form) form.reset();
     
-    // Charger les patients frais
-    chargerPatientsOrdonnance();
+    // Cacher le panneau d'info patient
+    const infoDisplay = modalElement.querySelector('#patientInfoDisplay') || getOrdonnanceElementById('patientInfoDisplay');
+    if (infoDisplay) infoDisplay.style.display = 'none';
     
-    modal.show();
+    // Charger les patients et ouvrir la modale
+    chargerPatientsOrdonnance().then(() => {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }).catch(error => {
+        console.error('Erreur chargement patients:', error);
+        alert('Impossible de charger la liste des patients');
+    });
 }
 
 // ============= SOUMETTRE ORDONNANCE =============
 
 async function submitOrdonnance() {
     // Validation
-    const patientId = document.getElementById('ordonnancePatientId').value;
-    const medicaments = document.getElementById('ordonnanceMedicaments').value.trim();
-    const posologie = document.getElementById('ordonnancePosologie').value.trim();
-    const duree = document.getElementById('ordonnanceDuree').value.trim();
+    const patientId = getOrdonnanceElementById('ordonnancePatientId').value;
+    const medicaments = getOrdonnanceElementById('ordonnanceMedicaments').value.trim();
+    const posologie = getOrdonnanceElementById('ordonnancePosologie').value.trim();
+    const duree = getOrdonnanceElementById('ordonnanceDuree').value.trim();
     
     if (!patientId) {
         alert('⚠️ Veuillez sélectionner un patient');
@@ -2468,7 +3302,7 @@ async function submitOrdonnance() {
     const submitBtn = document.getElementById('submitOrdonnanceBtn');
     const originalText = submitBtn.innerHTML;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Création en cours...';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Crétion en cours...';
     
     try {
         const formData = new FormData();
@@ -2490,10 +3324,10 @@ async function submitOrdonnance() {
         const result = await response.json();
         
         // Succès
-        alert('✅ Ordonnance créée et PDF généré avec succès!');
+        alert(' Ordonnance créée et PDF généré avec succès!');
         
         // Fermer la modale
-        const modal = bootstrap.Modal.getInstance(document.getElementById('ordonnanceModal'));
+        const modal = bootstrap.Modal.getInstance(getOrdonnanceModalElement());
         modal.hide();
         
         // Recharger la liste des ordonnances
@@ -2506,7 +3340,7 @@ async function submitOrdonnance() {
         
     } catch (error) {
         console.error('Erreur:', error);
-        alert('❌ Erreur: ' + error.message);
+        alert('âŒ Erreur: ' + error.message);
     } finally {
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
@@ -2549,7 +3383,7 @@ function displayOrdonnances(ordonnances) {
                 <i class="fas fa-prescription-bottle"></i>
                 <p>Aucune ordonnance créée</p>
                 <button class="btn btn-primary mt-3" onclick="openNouvelleOrdonnance()">
-                    <i class="fas fa-plus"></i> Créer une ordonnance
+                    <i class="fas fa-plus"></i> Crée une ordonnance
                 </button>
             </div>
         `;
@@ -2680,7 +3514,7 @@ function viewOrdonnanceDetail(ordonnanceId) {
     modal.show();
 }
 
-// ============= TÉLÉCHARGER PDF =============
+// ============= Télécharger PDF =============
 
 function downloadOrdonnancePDF(ordonnanceId) {
     const link = document.createElement('a');
@@ -2723,7 +3557,6 @@ function getOrdonnancesContent() {
         </div>
     `;
 }
-
 // ============= CSS STYLES ORDONNANCES =============
 
 const ordonnanceStyles = `
@@ -2929,28 +3762,819 @@ if (document.head) {
 }
 
 // ============= UPLOAD PHOTO PROFIL =============
-document.getElementById("profileAvatar").addEventListener("click", () => {
-    document.getElementById("photoInput").click();
-});
+const profileAvatarEl = document.getElementById("profileAvatar");
+const photoInputEl = document.getElementById("profilePhotoInput");
 
-document.getElementById("photoInput").addEventListener("change", async (e) => {
-
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("photo", file);
-
-    const res = await fetch("/medecin/api/upload-photo", {
-        method: "POST",
-        body: formData
+if (profileAvatarEl && photoInputEl) {
+    profileAvatarEl.addEventListener("click", () => {
+        photoInputEl.click();
     });
 
-    const data = await res.json();
+    photoInputEl.addEventListener("change", async (e) => {
 
-    if (data.success) {
-        document.getElementById("profileAvatar").src = data.photo_url;
-    } else {
-        alert("Erreur upload");
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("photo", file);
+
+        const res = await fetch("/medecin/api/upload-photo", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            const avatar = document.getElementById("profileAvatar");
+            if (avatar) avatar.src = data.photo_url;
+        } else {
+            alert("Erreur upload");
+        }
+    });
+}
+
+
+
+
+// ============================================
+// FONCTION DE RECHERCHE 
+// ============================================
+
+function initializeMedecinSearch() {
+    const searchInput = document.querySelector('.navbar-search input');
+    const searchContainer = document.querySelector('.navbar-search');
+    
+    if (!searchInput) {
+        console.warn("⚠️ Recherche non disponible");
+        return;
     }
-});
+    
+    // Créer le conteneur de résultats
+    let searchResults = document.getElementById('medecinSearchResults');
+    if (!searchResults) {
+        searchResults = document.createElement('div');
+        searchResults.id = 'medecinSearchResults';
+        searchResults.className = 'search-results-dropdown';
+        searchContainer.style.position = 'relative';
+        searchContainer.appendChild(searchResults);
+    }
+    
+    function performSearch() {
+        const searchTerm = searchInput.value.trim().toLowerCase();
+        
+        if (searchTerm.length < 2) {
+            searchResults.classList.remove('show');
+            return;
+        }
+        
+        const mainContent = document.getElementById('mainContent');
+        const results = [];
+        const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        
+        // Recherche dans les titres et éléments importants (plus rapide)
+        if (mainContent) {
+            const titles = mainContent.querySelectorAll('h1, h2, h3, h4, .patient-name, .card-title');
+            titles.forEach(el => {
+                const text = el.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    results.push({
+                        title: el.textContent.trim().substring(0, 50),
+                        element: el
+                    });
+                }
+            });
+
+            const paragraphs = (mainContent.innerText || '').split('\n').map(s => s.trim()).filter(Boolean);
+            paragraphs.forEach(line => {
+                if (line.toLowerCase().includes(searchTerm)) {
+                    results.push({
+                        title: line.substring(0, 70),
+                        element: mainContent
+                    });
+                }
+            });
+        }
+        
+        // Affichage des résultats
+        if (results.length === 0) {
+            searchResults.innerHTML = `<div class="search-no-results">Aucun résultat</div>`;
+        } else {
+            let html = '<div class="search-results-container">';
+            html += `<div class="search-header">${results.length} résultat(s)</div>`;
+            
+            results.slice(0, 5).forEach(r => {
+                html += `
+                    <div class="search-item" onclick="scrollToElement('${escapeHtml(r.title)}')">
+                        <i class="fas fa-file-alt"></i>
+                        <span>${r.title}</span>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            searchResults.innerHTML = html;
+        }
+        
+        searchResults.classList.add('show');
+    }
+    
+    // Écouteurs d'événements
+    searchInput.addEventListener('input', () => {
+        clearTimeout(medecinSearchTimeout);
+        medecinSearchTimeout = setTimeout(performSearch, 300);
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (!searchContainer.contains(e.target)) {
+            searchResults.classList.remove('show');
+        }
+    });
+}
+
+// Fonction de défilement
+window.scrollToElement = function(title) {
+    const elements = document.querySelectorAll('h1, h2, h3, h4, .patient-name, .card-title');
+    for (let el of elements) {
+        if (el.textContent.includes(title)) {
+            el.scrollIntoView({ behavior: 'smooth' });
+            el.style.backgroundColor = '#fff3cd';
+            setTimeout(() => el.style.backgroundColor = '', 2000);
+            break;
+        }
+    }
+    closeMedecinSearch();
+};
+
+window.closeMedecinSearch = function() {
+    const results = document.getElementById('medecinSearchResults');
+    if (results) results.classList.remove('show');
+};
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+if (!document.getElementById('search-styles')) {
+    const style = document.createElement('style');
+    style.id = 'search-styles';
+    style.textContent = `
+        .search-results-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: none;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .search-results-dropdown.show { display: block; }
+        .search-results-container { padding: 8px; }
+        .search-header { 
+            padding: 8px 12px; 
+            border-bottom: 1px solid #eee;
+            font-weight: 600;
+        }
+        .search-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .search-item:hover { background: #f5f5f5; }
+        .search-item i { 
+            width: 20px; 
+            color: #0D8ABC; 
+        }
+        .search-no-results {
+            padding: 20px;
+            text-align: center;
+            color: #999;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// ============================================
+// CALENDRIER ANNUEL AVEC JOURS FÉRIÉS 
+// ============================================
+
+let currentYear = new Date().getFullYear();
+let holidaysCache = null;
+
+// Jours fériés fixes en France
+const FIXED_HOLIDAYS = [
+    { day: 1, month: 0, name: "Nouvel An" },                    // 1er janvier
+    { day: 1, month: 4, name: "Fête du Travail" },              // 1er mai
+    { day: 8, month: 4, name: "Victoire 1945" },                // 8 mai
+    { day: 14, month: 6, name: "Fête Nationale" },              // 14 juillet
+    { day: 15, month: 7, name: "Assomption" },                  // 15 août
+    { day: 1, month: 10, name: "Toussaint" },                   // 1er novembre
+    { day: 11, month: 10, name: "Armistice 1918" },             // 11 novembre
+    { day: 25, month: 11, name: "Noël" },                       // 25 décembre
+];
+
+// Fonction principale pour afficher le calendrier
+function showCalendar(year = null) {
+    console.log("✅ showCalendar() est appelée", new Date().toLocaleTimeString());
+    if (year) currentYear = year;
+    
+    const mainContent = document.getElementById('mainContent');
+    if (!mainContent) return;
+
+    // Section dédiée: on remplace le contenu principal
+    mainContent.innerHTML = `
+        <div class="calendar-container" style="padding: 20px;">
+            <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; flex-wrap: wrap; gap: 15px;">
+                <h2><i class="fas fa-calendar-alt"></i> Calendrier Annuel</h2>
+                <div class="calendar-controls" style="display: flex; align-items: center; gap: 10px;">
+                    <button class="btn btn-icon" onclick="changeYear(-1)" title="Année précédente" style="padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span class="current-year" style="font-size: 24px; font-weight: 600; color: #1e293b; min-width: 100px; text-align: center;">${currentYear}</span>
+                    <button class="btn btn-icon" onclick="changeYear(1)" title="Année suivante" style="padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button class="btn btn-primary" onclick="showCalendar()" style="padding: 8px 16px; background: #0D8ABC; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                        <i class="fas fa-sync-alt"></i> Aujourd'hui
+                    </button>
+                </div>
+            </div>
+            
+            <div class="calendar-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                <div class="stat-card small" style="padding: 15px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 15px;">
+                    <div class="stat-icon" style="width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white;">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label" style="color: #6b7280; font-size: 14px;">Jours fériés</span>
+                        <span class="stat-value" id="holidaysCount" style="font-size: 24px; font-weight: 700; color: #1e293b; display: block;">0</span>
+                    </div>
+                </div>
+                <div class="stat-card small" style="padding: 15px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 15px;">
+                    <div class="stat-icon" style="width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); display: flex; align-items: center; justify-content: center; color: white;">
+                        <i class="fas fa-sun"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label" style="color: #6b7280; font-size: 14px;">Week-ends</span>
+                        <span class="stat-value" id="weekendsCount" style="font-size: 24px; font-weight: 700; color: #1e293b; display: block;">0</span>
+                    </div>
+                </div>
+                <div class="stat-card small" style="padding: 15px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 15px;">
+                    <div class="stat-icon" style="width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); display: flex; align-items: center; justify-content: center; color: white;">
+                        <i class="fas fa-briefcase"></i>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label" style="color: #6b7280; font-size: 14px;">Jours ouvrés</span>
+                        <span class="stat-value" id="workdaysCount" style="font-size: 24px; font-weight: 700; color: #1e293b; display: block;">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="calendar-filters" style="display: flex; gap: 10px; margin-bottom: 30px; flex-wrap: wrap;">
+                <button class="filter-btn active" onclick="filterCalendar('all')" style="padding: 8px 16px; border: 1px solid #e2e8f0; background: white; border-radius: 8px; cursor: pointer; font-size: 14px; background: #0D8ABC; color: white; border-color: #0D8ABC;">Tous</button>
+                <button class="filter-btn" onclick="filterCalendar('holidays')" style="padding: 8px 16px; border: 1px solid #e2e8f0; background: white; border-radius: 8px; cursor: pointer; font-size: 14px;">Jours fériés</button>
+                <button class="filter-btn" onclick="filterCalendar('weekends')" style="padding: 8px 16px; border: 1px solid #e2e8f0; background: white; border-radius: 8px; cursor: pointer; font-size: 14px;">Week-ends</button>
+                <button class="filter-btn" onclick="filterCalendar('workdays')" style="padding: 8px 16px; border: 1px solid #e2e8f0; background: white; border-radius: 8px; cursor: pointer; font-size: 14px;">Jours ouvrés</button>
+            </div>
+            
+            <div class="calendar-grid" id="calendarGrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; margin-bottom: 30px;">
+                ${generateCalendarHTML(currentYear)}
+            </div>
+            
+            <div class="calendar-legend" style="display: flex; gap: 20px; justify-content: center; margin: 30px 0; flex-wrap: wrap; padding: 15px; background: white; border-radius: 8px;">
+                <div class="legend-item" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                    <span class="legend-color" style="width: 20px; height: 20px; border-radius: 4px; background: #fee2e2;"></span>
+                    <span>Jour férié</span>
+                </div>
+                <div class="legend-item" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                    <span class="legend-color" style="width: 20px; height: 20px; border-radius: 4px; background: #fff3cd;"></span>
+                    <span>Week-end</span>
+                </div>
+                <div class="legend-item" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                    <span class="legend-color" style="width: 20px; height: 20px; border-radius: 4px; background: #f8fafc;"></span>
+                    <span>Jour ouvré</span>
+                </div>
+                <div class="legend-item" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                    <span class="legend-color" style="width: 20px; height: 20px; border-radius: 4px; background: #dbeafe; border: 2px solid #0D8ABC;"></span>
+                    <span>Aujourd'hui</span>
+                </div>
+            </div>
+            
+            <div class="holidays-list" id="holidaysList" style="background: white; border-radius: 12px; padding: 20px; margin-top: 30px;">
+                <h3 style="margin: 0 0 20px 0; color: #0D8ABC;"><i class="fas fa-star"></i> Jours fériés ${currentYear}</h3>
+                <div class="holidays-grid" id="holidaysGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;"></div>
+            </div>
+        </div>
+    `;
+    
+    // Charger les jours fériés et mettre à jour les statistiques
+    loadHolidays(currentYear).then(() => {
+        // Attendre que le DOM soit complètement mis à jour
+        setTimeout(() => {
+            markHolidaysOnCalendar(currentYear, holidaysCache);
+            updateCalendarStats(currentYear);
+            displayHolidaysList(currentYear);
+        }, 100);
+    });
+}
+
+// Générer le HTML du calendrier
+function generateCalendarHTML(year) {
+    const months = [
+        'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+    ];
+    
+    const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    
+    let html = '';
+    
+    for (let month = 0; month < 12; month++) {
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startOffset = (firstDay.getDay() + 6) % 7; // Lundi = 0
+        const daysInMonth = lastDay.getDate();
+        
+        html += `
+            <div class="calendar-month" style="background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                <h3 class="month-title" style="margin: 0 0 15px 0; color: #0D8ABC; font-size: 18px; text-align: center;">${months[month]}</h3>
+                <div class="month-grid" style="display: flex; flex-direction: column;">
+                    <div class="weekdays" style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 8px;">
+                        ${weekDays.map(day => `<div class="weekday" style="padding: 5px;">${day}</div>`).join('')}
+                    </div>
+                    <div class="days-grid" id="month-${year}-${month}" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;">
+        `;
+        
+        // Cellules vides avant le premier jour
+        for (let i = 0; i < startOffset; i++) {
+            html += `<div class="day-cell empty" style="aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 4px; border-radius: 6px; background: transparent; cursor: default; position: relative; min-height: 45px;"></div>`;
+        }
+        
+        // Jours du mois
+        for (let day = 1; day <= daysInMonth; day++) {
+            const date = new Date(year, month, day);
+            const dayOfWeek = date.getDay();
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            const isToday = isSameDay(date, new Date());
+            
+            html += `
+                <div class="day-cell ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}" 
+                     data-date="${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}"
+                     data-month="${month}"
+                     data-day="${day}"
+                     style="aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 4px; border-radius: 6px; background: ${isWeekend ? '#fff3cd' : '#f8fafc'}; cursor: default; position: relative; min-height: 45px; ${isToday ? 'background: #dbeafe; border: 2px solid #0D8ABC;' : ''}">
+                    <span class="day-number" style="font-weight: 600; font-size: 14px; color: #1e293b;">${day}</span>
+                    <div class="day-events" id="events-${year}-${month}-${day}" style="position: absolute; top: 2px; right: 2px;"></div>
+                </div>
+            `;
+        }
+        
+        html += `
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    return html;
+}
+
+// Charger les jours fériés
+async function loadHolidays(year) {
+    try {
+        const response = await fetch(`/api/public/holidays?year=${year}`);
+        if (response.ok) {
+            const data = await response.json();
+            holidaysCache = data;
+            return;
+        }
+    } catch (error) {
+        console.log('API jours fériés non disponible, utilisation des données locales');
+    }
+    
+    // Fallback: générer les jours fériés localement
+    holidaysCache = generateLocalHolidays(year);
+}
+
+// Générer les jours fériés localement
+function generateLocalHolidays(year) {
+    const holidays = [];
+    
+    // Ajouter les jours fériés fixes
+    FIXED_HOLIDAYS.forEach(holiday => {
+        holidays.push({
+            date: new Date(year, holiday.month, holiday.day),
+            name: holiday.name,
+            type: 'fixed'
+        });
+    });
+    
+    // Calculer Pâques
+    const easter = calculateEaster(year);
+    if (easter) {
+        const easterMonday = new Date(easter);
+        easterMonday.setDate(easterMonday.getDate() + 1);
+        holidays.push({ date: easterMonday, name: "Lundi de Pâques", type: 'movable' });
+        
+        const ascension = new Date(easter);
+        ascension.setDate(ascension.getDate() + 39);
+        holidays.push({ date: ascension, name: "Ascension", type: 'movable' });
+        
+        const pentecost = new Date(easter);
+        pentecost.setDate(pentecost.getDate() + 50);
+        holidays.push({ date: pentecost, name: "Pentecôte", type: 'movable' });
+    }
+    
+    return holidays;
+}
+
+// Calculer la date de Pâques
+function calculateEaster(year) {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    
+    return new Date(year, month - 1, day);
+}
+
+// Marquer les jours fériés sur le calendrier
+function markHolidaysOnCalendar(year, holidays) {
+    if (!holidays || holidays.length === 0) return;
+    
+    holidays.forEach(holiday => {
+        const date = holiday.date;
+        if (date.getFullYear() !== year) return;
+        
+        const month = date.getMonth();
+        const day = date.getDate();
+        
+        setTimeout(() => {
+            const dayCell = document.querySelector(`.day-cell[data-month="${month}"][data-day="${day}"]`);
+            if (dayCell) {
+                dayCell.classList.add('holiday');
+                dayCell.style.background = '#fee2e2';
+                
+                const eventsDiv = document.getElementById(`events-${year}-${month}-${day}`);
+                if (eventsDiv) {
+                    eventsDiv.innerHTML = `
+                        <div class="holiday-badge" title="${holiday.name}" style="width: 16px; height: 16px; border-radius: 50%; background: #ef4444; color: white; display: flex; align-items: center; justify-content: center; font-size: 10px;">
+                            <i class="fas fa-star"></i>
+                        </div>
+                    `;
+                }
+            }
+        }, 50);
+    });
+}
+
+// Mettre à jour les statistiques du calendrier
+function updateCalendarStats(year) {
+    const holidays = holidaysCache || [];
+    const holidaysInYear = holidays.filter(h => h.date.getFullYear() === year).length;
+    
+    let weekendsCount = 0;
+    let workdaysCount = 0;
+    
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31);
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const dayOfWeek = d.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        
+        if (isWeekend) {
+            weekendsCount++;
+        } else {
+            workdaysCount++;
+        }
+    }
+    
+    // Soustraire les jours fériés qui tombent en semaine
+    holidays.forEach(holiday => {
+        if (holiday.date.getFullYear() !== year) return;
+        const dayOfWeek = holiday.date.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            workdaysCount--;
+        }
+    });
+    
+    const holidaysElement = document.getElementById('holidaysCount');
+    const weekendsElement = document.getElementById('weekendsCount');
+    const workdaysElement = document.getElementById('workdaysCount');
+    
+    if (holidaysElement) holidaysElement.textContent = holidaysInYear;
+    if (weekendsElement) weekendsElement.textContent = weekendsCount;
+    if (workdaysElement) workdaysElement.textContent = workdaysCount;
+}
+
+// Afficher la liste des jours fériés
+function displayHolidaysList(year) {
+    const holidays = holidaysCache?.filter(h => h.date.getFullYear() === year) || [];
+    holidays.sort((a, b) => a.date - b.date);
+    
+    const grid = document.getElementById('holidaysGrid');
+    if (!grid) return;
+    
+    if (holidays.length === 0) {
+        grid.innerHTML = '<p class="empty-state" style="color: #6b7280; text-align: center;">Aucun jour férié trouvé</p>';
+        return;
+    }
+    
+    let html = '';
+    holidays.forEach(holiday => {
+        const date = holiday.date;
+        const dayOfWeek = date.toLocaleDateString('fr-FR', { weekday: 'long' });
+        const formattedDate = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+        
+        html += `
+            <div class="holiday-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444;">
+                <div class="holiday-date" style="display: flex; flex-direction: column;">
+                    <span class="holiday-day" style="font-size: 12px; color: #6b7280; text-transform: capitalize;">${dayOfWeek}</span>
+                    <span class="holiday-full-date" style="font-weight: 600; color: #1e293b;">${formattedDate}</span>
+                </div>
+                <div class="holiday-name" style="font-weight: 500; color: #0D8ABC;">${escapeHtml(holiday.name)}</div>
+                <div class="holiday-type">
+                    <span class="badge ${holiday.type === 'fixed' ? 'badge-primary' : 'badge-info'}" style="padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: ${holiday.type === 'fixed' ? '#0D8ABC' : '#6b7280'}; color: white;">
+                        ${holiday.type === 'fixed' ? 'Fixe' : 'Variable'}
+                    </span>
+                </div>
+            </div>
+        `;
+    });
+    
+    grid.innerHTML = html;
+}
+
+// Filtrer le calendrier
+function filterCalendar(filter) {
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.background = 'white';
+        btn.style.color = '#1e293b';
+        btn.style.borderColor = '#e2e8f0';
+    });
+    event.target.classList.add('active');
+    event.target.style.background = '#0D8ABC';
+    event.target.style.color = 'white';
+    event.target.style.borderColor = '#0D8ABC';
+    
+    const dayCells = document.querySelectorAll('.day-cell:not(.empty)');
+    
+    dayCells.forEach(cell => {
+        const isHoliday = cell.classList.contains('holiday');
+        const isWeekend = cell.classList.contains('weekend');
+        
+        switch(filter) {
+            case 'all':
+                cell.style.display = '';
+                break;
+            case 'holidays':
+                cell.style.display = isHoliday ? '' : 'none';
+                break;
+            case 'weekends':
+                cell.style.display = isWeekend ? '' : 'none';
+                break;
+            case 'workdays':
+                cell.style.display = !isWeekend && !isHoliday ? '' : 'none';
+                break;
+        }
+    });
+}
+
+// Changer l'année
+function changeYear(delta) {
+    currentYear += delta;
+    showCalendar(currentYear);
+}
+
+// Vérifier si deux dates sont le même jour
+function isSameDay(date1, date2) {
+    return date1.getFullYear() === date2.getFullYear() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getDate() === date2.getDate();
+}
+
+function setupMedecinLanguage() {
+    const selector = document.querySelector('.language-selector');
+    if (!selector) return;
+
+    const dict = {
+        fr: {
+            search: 'Rechercher un patient, un dossier...',
+            dashboard: 'Tableau de Bord',
+            patients: 'Mes Patients',
+            rdv: 'Mes Rendez-vous',
+            dossiers: 'Dossiers Médicaux',
+            ordonnances: 'Ordonnances',
+            messagerie: 'Messagerie',
+            visio: 'Visioconférences',
+            historique: 'Historique',
+            profil: 'Mon Profil',
+            calendrier: 'Calendrier',
+            parametres: 'Paramètres',
+            chatia: 'Chat IA'
+        },
+        en: {
+            search: 'Search patient, file...',
+            dashboard: 'Dashboard',
+            patients: 'My Patients',
+            rdv: 'Appointments',
+            dossiers: 'Medical Records',
+            ordonnances: 'Prescriptions',
+            messagerie: 'Messaging',
+            visio: 'Video Calls',
+            historique: 'History',
+            profil: 'My Profile',
+            calendrier: 'Calendar',
+            parametres: 'Settings',
+            chatia: 'AI Chat'
+        },
+        es: {
+            search: 'Buscar paciente, expediente...',
+            dashboard: 'Panel',
+            patients: 'Mis Pacientes',
+            rdv: 'Citas',
+            dossiers: 'Historiales',
+            ordonnances: 'Recetas',
+            messagerie: 'Mensajeria',
+            visio: 'Videollamadas',
+            historique: 'Historial',
+            profil: 'Mi Perfil',
+            calendrier: 'Calendario',
+            parametres: 'Configuracion',
+            chatia: 'Chat IA'
+        }
+    };
+
+    const apply = (lang) => {
+        const t = dict[lang] || dict.fr;
+        localStorage.setItem('app_lang', lang);
+
+        const searchInput = document.querySelector('.navbar-search input');
+        if (searchInput) searchInput.placeholder = t.search;
+
+        const map = {
+            dashboard: t.dashboard,
+            patients: t.patients,
+            rdv: t.rdv,
+            dossiers: t.dossiers,
+            ordonnances: t.ordonnances,
+            messagerie: t.messagerie,
+            visio: t.visio,
+            historique: t.historique,
+            profil: t.profil,
+            calendrier: t.calendrier,
+            parametres: t.parametres,
+            'chat-ia': t.chatia
+        };
+
+        Object.entries(map).forEach(([section, text]) => {
+            const el = document.querySelector(`.menu-link[data-section="${section}"] span`);
+            if (el) el.textContent = text;
+        });
+
+        translateMedecinVisibleContent(lang);
+    };
+
+    const saved = localStorage.getItem('app_lang') || 'fr';
+    selector.value = saved === 'es' ? 'fr' : saved;
+    apply(selector.value);
+    selector.addEventListener('change', (e) => apply(e.target.value));
+}
+
+function translateMedecinVisibleContent(lang) {
+    const content = document.getElementById('mainContent');
+    if (!content) return;
+    if (lang === 'fr') return;
+
+    const replaceMap = {
+        en: [
+            ['Bonjour', 'Hello'],
+            ['Bienvenue dans votre espace médecin Dokira', 'Welcome to your Dokira doctor area'],
+            ['Patients', 'Patients'],
+            ['RDV Aujourd\'hui', 'Appointments Today'],
+            ['En Traitement', 'In Treatment'],
+            ['Ordonnances', 'Prescriptions'],
+            ['Calendrier Annuel', 'Annual Calendar'],
+            ['Jours fériés', 'Public Holidays'],
+            ['Week-ends', 'Weekends'],
+            ['Jours ouvrés', 'Working Days'],
+            ['Aujourd\'hui', 'Today'],
+            ['Messagerie', 'Messaging'],
+            ['Aucune conversation', 'No conversation']
+        ],
+        es: [
+            ['Bonjour', 'Hola'],
+            ['Bienvenue dans votre espace médecin Dokira', 'Bienvenido a su espacio medico Dokira'],
+            ['Patients', 'Pacientes'],
+            ['RDV Aujourd\'hui', 'Citas de hoy'],
+            ['En Traitement', 'En tratamiento'],
+            ['Ordonnances', 'Recetas'],
+            ['Calendrier Annuel', 'Calendario anual'],
+            ['Jours fériés', 'Dias festivos'],
+            ['Week-ends', 'Fines de semana'],
+            ['Jours ouvrés', 'Dias laborables'],
+            ['Aujourd\'hui', 'Hoy'],
+            ['Messagerie', 'Mensajeria'],
+            ['Aucune conversation', 'Sin conversacion']
+        ]
+    };
+
+    const pairs = replaceMap[lang] || [];
+    pairs.forEach(([fr, translated]) => {
+        const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+        const targets = [];
+        while (walker.nextNode()) {
+            if (walker.currentNode.nodeValue && walker.currentNode.nodeValue.includes(fr)) {
+                targets.push(walker.currentNode);
+            }
+        }
+        targets.forEach(node => {
+            node.nodeValue = node.nodeValue.replaceAll(fr, translated);
+        });
+    });
+}
+
+// ============= CHAT IA MÉDECIN =============
+function showMedecinChatIAInterface() {
+    const mainContent = document.getElementById('mainContent');
+    if (!mainContent) return;
+
+    mainContent.innerHTML = `
+        <div class="medecin-chat-ia-container">
+            <div class="medecin-chat-ia-header">
+                <div>
+                    <h2><i class="fas fa-brain"></i> Assistant IA Médical</h2>
+                    <p>Support clinique général, communication patient et organisation.</p>
+                </div>
+            </div>
+            <div class="medecin-chat-ia-disclaimer">
+                Les réponses sont informatives et ne remplacent pas votre jugement clinique.
+            </div>
+            <div id="medecinChatMessages" class="medecin-chat-ia-messages">
+                <div class="medecin-chat-msg ia">Bonjour Dr. ${escapeHtml(`${currentMedecin.prenom || ''} ${currentMedecin.nom || ''}`.trim())}, comment puis-je vous assister aujourd'hui ?</div>
+            </div>
+            <form id="medecinChatForm" class="medecin-chat-ia-form">
+                <textarea id="medecinChatInput" rows="2" placeholder="Décrivez votre question..." required></textarea>
+                <button type="submit"><i class="fas fa-paper-plane"></i> Envoyer</button>
+            </form>
+        </div>
+    `;
+
+    const form = document.getElementById('medecinChatForm');
+    const input = document.getElementById('medecinChatInput');
+    const messages = document.getElementById('medecinChatMessages');
+    const history = [];
+
+    const appendMessage = (text, role) => {
+        messages.insertAdjacentHTML('beforeend', `<div class="medecin-chat-msg ${role}">${escapeHtml(text)}</div>`);
+        messages.scrollTop = messages.scrollHeight;
+    };
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const userText = input.value.trim();
+        if (!userText) return;
+
+        appendMessage(userText, 'user');
+        history.push({ role: 'user', content: userText });
+        input.value = '';
+
+        try {
+            const response = await fetch('/api/chat-ia/message', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: userText, history })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || 'Erreur IA');
+
+            const iaText = data.ia_response || "Je n'ai pas de réponse pour l'instant.";
+            appendMessage(iaText, 'ia');
+            history.push({ role: 'assistant', content: iaText });
+        } catch (error) {
+            appendMessage("Erreur de communication avec l'assistant IA.", 'ia');
+            console.error('Erreur chat IA médecin:', error);
+        }
+    });
+}
