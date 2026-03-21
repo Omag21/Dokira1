@@ -441,7 +441,7 @@
             min-height: calc(100vh - var(--navbar-height));
         }
 
-        /* Barre latÃ©rale - POSITIONNÃ‰E Ã€ GAUCHE */
+        /* Barre latérale - POSITIONNÉE À GAUCHE */
         .left-sidebar {
             position: fixed;
             left: 0;
@@ -456,11 +456,11 @@
             box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
         }
         
-        /* Zone de contenu - AJUSTÃ‰E POUR BARRE LATÃ‰RALE GAUCHE */
+        /* Zone de contenu - AJUSTÉE POUR BARRE LATÉRALE GAUCHE */
         .content-area {
             flex: 1;
             padding: 30px;
-            margin-left: var(--sidebar-width); /* DÃ©calage pour la barre latÃ©rale gauche */
+            margin-left: var(--sidebar-width); /* Décalage pour la barre latérale gauche */
            /* width: calc(100% - var(--sidebar-width));  Calcul correct de la largeur */
             width: auto; 
             min-width: 0; 
@@ -1350,7 +1350,7 @@
 }
 
 
-/* ============= CHAT IA - DESIGN COMPLÃˆTEMENT REVU ============= */
+/* ============= CHAT IA - DESIGN COMPLÈTEMENT REVU ============= */
 
 .chat-ia-container {
     display: flex;
@@ -1626,9 +1626,9 @@
     }
 }
 
-/* ======== RENDEZ-VOUS - STYLES AMÃ‰LIORÃ‰S ======== */
+/* ======== RENDEZ-VOUS - STYLES AMÉLIORÉS ======== */
 
-/* Container gÃ©nÃ©ral */
+/* Container général */
 .rendez-vous-interface {
     padding: 24px;
     background-color: #f8f9fa;
@@ -1649,7 +1649,7 @@
     border-bottom: 3px solid #e7f1ff;
 }
 
-/* Onglets amÃ©liorÃ©s */
+/* Onglets améliorés */
 .rdv-tabs {
     display: flex;
     gap: 12px;
@@ -1691,7 +1691,7 @@
     transform: translateY(-2px);
 }
 
-/* Form sections amÃ©liorÃ©es */
+/* Form sections améliorées */
 .rdv-form .form-section {
     background-color: #ffffff;
     padding: 28px;
@@ -1707,7 +1707,7 @@
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
 }
 
-/* Section titres amÃ©liorÃ©s */
+/* Section titres améliorés */
 .rdv-form h3 {
     font-family: 'Montserrat', sans-serif;
     font-weight: 600;
@@ -1728,7 +1728,7 @@
     border-radius: 50%;
 }
 
-/* MÃ©decins grid amÃ©liorÃ© */
+/* Médecins grid amélioré */
 .medecins-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -1798,7 +1798,7 @@
     z-index: 10;
 }
 
-/* MÃ©decin label amÃ©liorÃ© */
+/* Médecin label amélioré */
 .medecin-label {
     display: flex;
     align-items: center;
@@ -1855,7 +1855,7 @@
     border: 1px solid #dee2e6;
 }
 
-/* Type consultation amÃ©liorÃ© */
+/* Type consultation amélioré */
 .consultation-types {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1961,7 +1961,7 @@
     margin: 0;
 }
 
-/* Champ lieu amÃ©liorÃ© */
+/* Champ lieu amélioré */
 #lieu-container {
     margin-top: 20px;
     padding: 20px;
@@ -1982,7 +1982,7 @@
     }
 }
 
-/* Champs de formulaire amÃ©liorÃ©s */
+/* Champs de formulaire améliorés */
 .form-group {
     margin-bottom: 24px;
 }
@@ -2021,7 +2021,7 @@ textarea.form-control {
     min-height: 100px;
 }
 
-/* Bouton confirmer amÃ©liorÃ© */
+/* Bouton confirmer amélioré */
 .form-actions {
     text-align: center;
     margin-top: 32px;
@@ -2075,7 +2075,7 @@ textarea.form-control {
     }
 }
 
-/* Mes RDV amÃ©liorÃ© */
+/* Mes RDV amélioré */
 .rdv-cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -2191,7 +2191,7 @@ textarea.form-control {
     transform: translateY(-2px);
 }
 
-/* Empty state amÃ©liorÃ© */
+/* Empty state amélioré */
 .empty-state {
     text-align: center;
     padding: 60px 40px;
@@ -2264,7 +2264,7 @@ textarea.form-control {
 
 
 
-/* ============= STYLE POUR LE DOSSIER MÃ‰DICAL ============= */
+/* ============= STYLE POUR LE DOSSIER MÉDICAL ============= */
 
 .medical-details-modal {
     animation: fadeIn 0.3s ease;
@@ -2294,7 +2294,7 @@ textarea.form-control {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* Style pour les cartes du dossier mÃ©dical */
+/* Style pour les cartes du dossier médical */
 .content-card[data-card-type="dossier"] {
     cursor: pointer;
     position: relative;
@@ -2315,7 +2315,7 @@ textarea.form-control {
     opacity: 0.6;
 }
 
-/* Badges spÃ©cifiques pour le dossier mÃ©dical */
+/* Badges spécifiques pour le dossier médical */
 .badge-warning {
     background: rgba(245, 158, 11, 0.15);
     color: #f59e0b;
@@ -2611,7 +2611,7 @@ textarea.form-control {
     background-color: white !important;
 }
 
-/* Styles pour le message de prÃ©visualisation */
+/* Styles pour le message de prévisualisation */
 .document-preview-message {
     text-align: center !important;
     padding: 60px 30px !important;
@@ -2679,7 +2679,7 @@ textarea.form-control {
 }
 
 
-/* Styles supplÃ©mentaires pour la recherche */
+/* Styles supplémentaires pour la recherche */
 .patient-search-container {
     width: min(1100px, calc(100% - 24px));
     margin: calc(var(--navbar-height) + 10px) auto 10px auto;
@@ -2835,7 +2835,7 @@ textarea.form-control {
 
 /* ============= MEDIA QUERIES ============= */
 
-/* TrÃ¨s grands Ã©crans (1600px et plus) */
+/* Très grands écrans (1600px et plus) */
 @media (min-width: 1600px) {
     .main-wrapper {
         max-width: 1800px;
@@ -2863,7 +2863,7 @@ textarea.form-control {
     }
 }
 
-/* Grands Ã©crans (1200px - 1599px) */
+/* Grands écrans (1200px - 1599px) */
 @media (min-width: 1200px) and (max-width: 1599px) {
     .cards-grid {
         grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -2878,7 +2878,7 @@ textarea.form-control {
     }
 }
 
-/* Ã‰crans moyens (992px - 1199px) */
+/* Écrans moyens (992px - 1199px) */
 @media (min-width: 992px) and (max-width: 1199px) {
     .content-area {
         padding: 25px;
@@ -3779,14 +3779,14 @@ textarea.form-control {
     transform: scale(0.95);
 }
 
-/* Afficher le bouton sur tous les Ã©crans MOINS DE 992px */
+/* Afficher le bouton sur tous les écrans MOINS DE 992px */
 @media (max-width: 991px) {
     .menu-toggle {
         display: flex !important; /* FORCER l'affichage */
     }
 }
 
-/* Ajustement pour trÃ¨s petits Ã©crans */
+/* Ajustement pour très petits écrans */
 @media (max-width: 575px) {
     .menu-toggle {
         top: 10px;
@@ -3798,12 +3798,12 @@ textarea.form-control {
 }
 
 
-/* Animation pour la sidebar - dÃ©jÃ  prÃ©sent dans votre CSS */
+/* Animation pour la sidebar - déjà présent dans votre CSS */
 .left-sidebar {
     transition: transform 0.3s ease;
 }
 
-/* Overlay pour mobile - dÃ©jÃ  prÃ©sent dans votre CSS */
+/* Overlay pour mobile - déjà présent dans votre CSS */
 .sidebar-overlay {
     display: none;
     position: fixed;
@@ -3824,7 +3824,7 @@ textarea.form-control {
 
 /* ============= FIN DES CORRECTIONS ============= */
 
-/* AccessibilitÃ© - taille des Ã©lÃ©ments tactiles */
+/* Accessibilité - taille des éléments tactiles */
 @media (max-width: 767px) {
     .nav-link-custom,
     .btn,
@@ -3842,7 +3842,7 @@ textarea.form-control {
     input,
     select,
     textarea {
-        font-size: 16px !important; /* EmpÃªche le zoom automatique sur iOS */
+        font-size: 16px !important; /* Empêche le zoom automatique sur iOS */
     }
 }
 
@@ -3902,7 +3902,7 @@ textarea.form-control {
     }
 }
 
-/* TrÃ¨s petits Ã©crans */
+/* Très petits écrans */
 @media (max-width: 575px) {
     .patient-search-container {
         padding: 0 10px;
@@ -3915,7 +3915,7 @@ textarea.form-control {
     }
 }
 
-/* ============= MEDIA QUERIES SUPPLÃ‰MENTAIRES ============= */
+/* ============= MEDIA QUERIES SUPPLÉMENTAIRES ============= */
 @media (max-width: 1199px) {
     .content-area {
         padding: 16px;

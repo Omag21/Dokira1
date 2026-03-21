@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
 
-    <title>Dokira - Espace Médecin</title>
+    <title data-i18n="medecin_page_title">Dokira - Espace Médecin</title>
 
     <!-- Styles -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -14,6 +14,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="/static/css/medecin.css" rel="stylesheet" />
     <link rel="stylesheet" href="/static/css/messagerie.css">
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23000000'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='28' fill='white'%3ED%3C/text%3E%3C/svg%3E">
 </head>
 
 <body>
@@ -22,40 +24,48 @@
         <button class="menu-toggle">
             <i class="fas fa-bars"></i>
         </button>
-        
+
         <div class="navbar-search">
             <i class="fas fa-search"></i>
-            <input type="text" placeholder="Rechercher un patient, un dossier..." />
+            <input type="text" placeholder="Rechercher un patient, un dossier..."
+                data-i18n-placeholder="medecin_search_placeholder" />
         </div>
 
         <div class="navbar-actions">
-            <select class="language-selector">
-                <option value="fr">FR</option>
-                <option value="en">EN</option>
-                <option value="es">ES</option>
-            </select>
-
-            <button class="notification-btn">
+            <!-- Notifications -->
+            <button class="notification-btn" style="position: relative;">
                 <i class="fas fa-bell"></i>
                 <span class="notification-badge">0</span>
             </button>
 
-            <div class="profile-dropdown">
-                <div class="profile-avatar-container" style="position: relative; display: inline-block;">
+            <!-- Profil -->
+            <div class="profile-section" id="navbarProfileSection"
+                onclick="document.querySelector('[data-section=\'profil\']')?.click()">
+                <div class="profile-avatar-container">
+                    {% if medecin.photo_profil_url %}
+                    <img id="profileAvatar" src="{{ medecin.photo_profil_url }}" alt="Avatar" class="profile-avatar">
+                    {% else %}
                     <img id="profileAvatar"
-                        src="https://ui-avatars.com/api/?name={{ medecin.prenom|default('')|first }}+{{ medecin.nom|default('')|first }}&background=0D8ABC&color=fff&size=45"
-                        alt="Avatar" class="profile-avatar" style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover;">
+                        src="https://ui-avatars.com/api/?name={{ medecin.prenom }}+{{ medecin.nom }}&background=0D8ABC&color=fff&size=80"
+                        alt="Avatar" class="profile-avatar">
+                    {% endif %}
                     <div class="avatar-status"></div>
-                    <label for="profilePhotoInput" class="upload-overlay" style="position: absolute; bottom: 0; right: 0; background: #0d8abc; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px solid #fff;">
-                        <i class="fas fa-camera" style="color: #fff; font-size: 14px;"></i>
-                    </label>
-                    <input type="file" id="profilePhotoInput" name="profilePhoto" accept="image/*" style="display: none;" onchange="previewProfilePhoto(event)">
                 </div>
                 <div class="profile-info">
-                    <div class="profile-name" id="medecinName">Dr. {{ medecin.prenom }} {{ medecin.nom }}</div>
-                    <div class="profile-role" id="medecinSpecialite">{{ medecin.specialite }}</div>
+                    <div class="profile-name">Dr. {{ medecin.prenom }} {{ medecin.nom }}</div>
+                    <div class="profile-role">{{ medecin.specialite or 'Médecin' }}</div>
                 </div>
             </div>
+
+            <!-- Sélecteur de langue -->
+            <select class="language-selector">
+                <option value="fr">🇫🇷 FR</option>
+                <option value="en">🇬🇧 EN</option>
+                <option value="es">🇪🇸 ES</option>
+            </select>
+
+            <input type="file" id="profilePhotoInput" name="profilePhoto" accept="image/*" style="display: none;"
+                onchange="previewProfilePhoto(event)">
         </div>
     </nav>
 
@@ -72,81 +82,88 @@
             <li class="menu-item">
                 <a href="#" class="menu-link active" data-section="dashboard">
                     <i class="fas fa-th-large"></i>
-                    <span>Tableau de Bord</span>
+                    <span data-i18n="medecin_dashboard">Tableau de Bord</span>
                 </a>
             </li>
             <li class="menu-item">
                 <a href="#" class="menu-link" data-section="patients">
                     <i class="fas fa-users"></i>
-                    <span>Mes Patients</span>
+                    <span data-i18n="medecin_patients">Mes Patients</span>
                 </a>
             </li>
             <li class="menu-item">
                 <a href="#" class="menu-link" data-section="rdv">
                     <i class="fas fa-calendar-check"></i>
-                    <span>Mes Rendez-vous</span>
+                    <span data-i18n="medecin_rdv">Mes Rendez-vous</span>
                     <span class="menu-badge">0</span>
                 </a>
             </li>
             <li class="menu-item">
                 <a href="#" class="menu-link" data-section="dossiers">
                     <i class="fas fa-file-medical"></i>
-                    <span>Dossiers Médicaux</span>
+                    <span data-i18n="medecin_dossiers">Dossiers Médicaux</span>
                 </a>
             </li>
             <li class="menu-item">
                 <a href="#" class="menu-link" data-section="ordonnances">
                     <i class="fas fa-prescription-bottle"></i>
-                    <span>Ordonnances</span>
+                    <span data-i18n="medecin_ordonnances">Ordonnances</span>
                 </a>
             </li>
             <li class="menu-item">
                 <a href="#" class="menu-link" data-section="analyses">
                     <i class="fas fa-vials"></i>
-                    <span>Analyses</span>
+                    <span data-i18n="medecin_analyses">Analyses</span>
                 </a>
             </li>
             <li class="menu-item">
                 <a href="#" class="menu-link" data-section="messagerie">
                     <i class="fas fa-comments"></i>
-                    <span>Messagerie</span>
+                    <span data-i18n="medecin_messagerie">Messagerie</span>
                     <span class="menu-badge">0</span>
                 </a>
             </li>
             <li class="menu-item">
                 <a href="#" class="menu-link" data-section="visio">
                     <i class="fas fa-video"></i>
-                    <span>Visioconférences</span>
+                    <span data-i18n="medecin_visio">Visioconférences</span>
                 </a>
             </li>
             <li class="menu-item">
                 <a href="#" class="menu-link" data-section="chat-ia">
                     <i class="fas fa-brain"></i>
-                    <span>Chat IA</span>
+                    <span data-i18n="medecin_chat_ia">Chat IA</span>
                 </a>
             </li>
             <li class="menu-item">
                 <a href="#" class="menu-link" data-section="historique">
                     <i class="fas fa-history"></i>
-                    <span>Historique</span>
+                    <span data-i18n="medecin_historique">Historique</span>
                 </a>
             </li>
             <li class="menu-item">
                 <a href="#" class="menu-link" data-section="profil">
                     <i class="fas fa-user-circle"></i>
-                    <span>Mon Profil</span>
+                    <span data-i18n="medecin_profil">Mon Profil</span>
                 </a>
             </li>
-             <li>
-                <a href="#calendrier" class="menu-link" data-section="calendrier">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span>Calendrier</span>
+            <li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" data-section="calendrier">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span data-i18n="medecin_calendrier">Calendrier</span>
                 </a>
-                </li>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" data-section="aide">
+                    <i class="fas fa-question-circle"></i>
+                    <span data-i18n="medecin_aide">Aide & Support</span>
+                </a>
+            </li>
             <li class="menu-item">
                 <a href="#" class="menu-link" data-section="parametres">
                     <i class="fas fa-cog"></i>
-                    <span>Paramètres</span>
+                    <span data-i18n="medecin_parametres">Paramètres</span>
                 </a>
             </li>
         </ul>
@@ -154,7 +171,7 @@
         <div style="padding: 20px 30px; margin-top: auto;">
             <a href="/medecin/deconnexionMedecin" class="menu-link" style="color: #fda4af;">
                 <i class="fas fa-sign-out-alt"></i>
-                <span>Déconnexion</span>
+                <span data-i18n="medecin_nav_logout">Déconnexion</span>
             </a>
         </div>
     </aside>
@@ -171,7 +188,7 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Dossier Patient</h5>
+                    <h5 class="modal-title" data-i18n="medecin_modal_dossier_title">Dossier Patient</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body" id="patientModalBody">
@@ -186,85 +203,100 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Nouvelle Ordonnance</h5>
+                    <h5 class="modal-title" data-i18n="medecin_modal_ordo_title">Nouvelle Ordonnance</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <form id="ordonnanceForm">
                         <input type="hidden" id="ordonnancePatientId">
-                        
+
                         <div class="mb-3">
-                            <label class="form-label">Patient</label>
+                            <label class="form-label" data-i18n="medecin_label_patient">Patient</label>
                             <input type="text" class="form-control" id="ordonnancePatientName" readonly>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Médicament *</label>
-                            <input type="text" class="form-control" id="ordonnanceMedicament" required placeholder="Nom du mÃ©dicament">
+                            <label class="form-label" data-i18n="medecin_label_medicament">Médicament *</label>
+                            <input type="text" class="form-control" id="ordonnanceMedicament" required
+                                placeholder="Nom du médicament" data-i18n-placeholder="medecin_placeholder_med_single">
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Posologie *</label>
-                            <textarea class="form-control" id="ordonnancePosologie" required placeholder="Ex: 1 comprimÃ© matin et soir"></textarea>
+                            <label class="form-label" data-i18n="medecin_label_posologie">Posologie *</label>
+                            <textarea class="form-control" id="ordonnancePosologie" required
+                                placeholder="Ex: 1 comprimé matin et soir"
+                                data-i18n-placeholder="medecin_placeholder_poso_single"></textarea>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Durée du traitement</label>
-                            <input type="text" class="form-control" id="ordonnanceDuree" placeholder="Ex: 7 jours">
+                            <label class="form-label" data-i18n="medecin_label_duration">Durée du traitement</label>
+                            <input type="text" class="form-control" id="ordonnanceDuree" placeholder="Ex: 7 jours"
+                                data-i18n-placeholder="medecin_placeholder_duration">
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Instructions particulières</label>
-                            <textarea class="form-control" id="ordonnanceInstructions" placeholder="Observations..."></textarea>
+                            <label class="form-label" data-i18n="medecin_label_instructions">Instructions
+                                particulières</label>
+                            <textarea class="form-control" id="ordonnanceInstructions"
+                                placeholder="Observations..."></textarea>
                         </div>
 
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle"></i>
-                            L'ordonnance sera convertie en PDF et envoyée au patient
+                            <span data-i18n="medecin_info_ordo_pdf">L'ordonnance sera convertie en PDF et envoyée au
+                                patient</span>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        data-i18n="btn_cancel">Annuler</button>
                     <button type="button" class="btn btn-primary" id="submitOrdonnance">
-                        <i class="fas fa-file-pdf"></i> Générer et Envoyer
+                        <i class="fas fa-file-pdf"></i> <span data-i18n="medecin_btn_generate_send">Générer et
+                            Envoyer</span>
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    
+
     <div class="modal fade" id="ordonnanceModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                <div class="modal-header" style="background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%); color: white;">
+                <div class="modal-header"
+                    style="background: linear-gradient(135deg, #0d8abc 0%, #00bcd4 100%); color: white;">
                     <h5 class="modal-title">
-                        <i class="fas fa-prescription-bottle"></i> Nouvelle Ordonnance
+                        <i class="fas fa-prescription-bottle"></i> <span data-i18n="medecin_modal_ordo_title">Nouvelle
+                            Ordonnance</span>
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                
+
                 <div class="modal-body">
                     <form id="ordonnanceForm">
                         <!-- Sélection du Patient -->
                         <div class="form-section">
                             <h6 class="section-header">
-                                <i class="fas fa-user-circle"></i> Sélection du Patient
+                                <i class="fas fa-user-circle"></i> <span
+                                    data-i18n="medecin_label_patient_selection">Sélection du Patient</span>
                             </h6>
-                            
+
                             <div class="form-group mb-3">
                                 <label class="form-label" for="ordonnancePatientSelect">
-                                    <strong>Patient *</strong>
+                                    <strong data-i18n="medecin_label_patient_star">Patient *</strong>
                                 </label>
                                 <select class="form-control form-select-lg" id="ordonnancePatientSelect" required>
-                                    <option value="">-- Sélectionner un patient --</option>
+                                    <option value="" data-i18n="medecin_option_select_patient">-- Sélectionner un
+                                        patient --</option>
                                 </select>
-                                <small class="form-text text-muted">Sélectionnez le patient pour qui vous créez cette ordonnance</small>
+                                <small class="form-text text-muted">Sélectionnez le patient pour qui vous créez cette
+                                    ordonnance</small>
                             </div>
-                            
-                            <!-- Infos Patient affichÃ©es -->
-                            <div id="patientInfoDisplay" style="display: none; background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #0d8abc;">
+
+                            <!-- Infos Patient affichées -->
+                            <div id="patientInfoDisplay"
+                                style="display: none; background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #0d8abc;">
                                 <div class="row">
                                     <div class="col-md-6">
                                         <p><strong>Nom:</strong> <span id="displayPatientNom">-</span></p>
@@ -277,87 +309,78 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- Prescription -->
                         <div class="form-section">
                             <h6 class="section-header">
                                 <i class="fas fa-pills"></i> Prescription
                             </h6>
-                            
+
                             <div class="form-group mb-4">
                                 <label class="form-label" for="ordonnanceMedicaments">
-                                    <strong>Médicament(s) *</strong>
+                                    <strong data-i18n="medecin_label_medicaments_plural">Médicament(s) *</strong>
                                 </label>
-                                <textarea 
-                                    class="form-control" 
-                                    id="ordonnanceMedicaments" 
-                                    rows="4" 
-                                    placeholder="Ex: Amoxicilline 500mg, Ibuprofène 400mg..."
-                                    required
+                                <textarea class="form-control" id="ordonnanceMedicaments" rows="4"
+                                    placeholder="Ex: Amoxicilline 500mg, Ibuprofène 400mg..." required
                                     style="resize: vertical; min-height: 80px;">
                                 </textarea>
-                                <small class="form-text text-muted">Listez tous les médicaments prescrits (nom et dosage)</small>
+                                <small class="form-text text-muted">Listez tous les médicaments prescrits (nom et
+                                    dosage)</small>
                             </div>
-                            
+
                             <div class="form-group mb-4">
                                 <label class="form-label" for="ordonnancePosologie">
-                                    <strong>Posologie *</strong>
+                                    <strong data-i18n="medecin_label_posologie">Posologie *</strong>
                                 </label>
-                                <textarea 
-                                    class="form-control" 
-                                    id="ordonnancePosologie" 
-                                    rows="3" 
-                                    placeholder="Ex: 2 comprimés 3 fois par jour pendant les repas..."
-                                    required
-                                    style="resize: vertical;">
+                                <textarea class="form-control" id="ordonnancePosologie" rows="3"
+                                    placeholder="Ex: 2 comprimés 3 fois par jour pendant les repas..." required
+                                    style="resize: vertical;" data-i18n-placeholder="medecin_placeholder_poso">
                                 </textarea>
-                                <small class="form-text text-muted">Décrivez comment prendre les médicaments (dose, fréquence, moment)</small>
+                                <small class="form-text text-muted">Décrivez comment prendre les médicaments (dose,
+                                    fréquence, moment)</small>
                             </div>
-                            
+
                             <div class="form-group mb-3">
                                 <label class="form-label" for="ordonnanceDuree">
-                                    <strong>Durée du traitement *</strong>
+                                    <strong data-i18n="medecin_label_duration_treatment">Durée du traitement *</strong>
                                 </label>
-                                <input 
-                                    type="text" 
-                                    class="form-control" 
-                                    id="ordonnanceDuree" 
-                                    placeholder="Ex: 7 jours, 2 semaines, 1 mois..."
-                                    required>
+                                <input type="text" class="form-control" id="ordonnanceDuree"
+                                    placeholder="Ex: 7 jours, 2 semaines, 1 mois..." required
+                                    data-i18n-placeholder="medecin_placeholder_duration">
                                 <small class="form-text text-muted">Précisez la durée du traitement</small>
                             </div>
                         </div>
-                        
+
                         <!-- Notes optionnelles -->
                         <div class="form-section">
                             <h6 class="section-header">
-                                <i class="fas fa-notes-medical"></i> Notes (Optionnel)
+                                <i class="fas fa-notes-medical"></i> <span data-i18n="medecin_label_notes">Notes
+                                    (Optionnel)</span>
                             </h6>
-                            
+
                             <div class="form-group mb-3">
-                                <label class="form-label" for="ordonnanceNotes">Notes complémentaires</label>
-                                <textarea 
-                                    class="form-control" 
-                                    id="ordonnanceNotes" 
-                                    rows="2" 
+                                <label class="form-label" for="ordonnanceNotes"
+                                    data-i18n="medecin_label_complementary_notes">Notes complémentaires</label>
+                                <textarea class="form-control" id="ordonnanceNotes" rows="2"
                                     placeholder="Contre-indications, recommandations, suivi médical..."
-                                    style="resize: vertical;">
+                                    style="resize: vertical;" data-i18n-placeholder="medecin_placeholder_notes">
                                 </textarea>
                             </div>
                         </div>
-                        
+
                         <!-- Formulaire caché avec les données -->
                         <input type="hidden" id="ordonnancePatientId">
                         <input type="hidden" id="ordonnancePatientName">
                     </form>
                 </div>
-                
+
                 <div class="modal-footer" style="border-top: 2px solid #f0f0f0;">
                     <button type="button" class="btn btn-light" data-bs-dismiss="modal">
-                        <i class="fas fa-times"></i> Annuler
+                        <i class="fas fa-times"></i> <span data-i18n="btn_cancel">Annuler</span>
                     </button>
                     <button type="button" class="btn btn-primary btn-lg" id="submitOrdonnanceBtn">
-                        <i class="fas fa-check-circle"></i> Créer et Générer PDF
+                        <i class="fas fa-check-circle"></i> <span data-i18n="medecin_btn_create_pdf">Créer et Générer
+                            PDF</span>
                     </button>
                 </div>
             </div>
@@ -366,40 +389,39 @@
 
 
     <!-- Script JS -->
+    <script src="/static/js/i18n.js"></script>
     <script src="/static/js/medecin.js"></script>
     <script>
-    // PrÃ©visualisation et upload persistant de la photo de profil
-    async function previewProfilePhoto(event) {
-        const input = event.target;
-        if (input.files && input.files[0]) {
-            // Affichage immédiat (optionnel)
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                document.getElementById('profileAvatar').src = e.target.result;
-            };
-            reader.readAsDataURL(input.files[0]);
+        // Prévisualisation et upload persistant de la photo de profil
+        async function previewProfilePhoto(event) {
+            const input = event.target;
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    document.getElementById('profileAvatar').src = e.target.result;
+                };
+                reader.readAsDataURL(input.files[0]);
 
-            // Envoi au backend
-            const formData = new FormData();
-            formData.append('photo', input.files[0]);
-            try {
-                const response = await fetch('/medecin/api/upload-photo', {
-                    method: 'POST',
-                    body: formData
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.photo_url) {
-                        document.getElementById('profileAvatar').src = data.photo_url;
+                const formData = new FormData();
+                formData.append('photo', input.files[0]);
+                try {
+                    const response = await fetch('/medecin/api/upload-photo', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.photo_url) {
+                            document.getElementById('profileAvatar').src = data.photo_url;
+                        }
+                    } else {
+                        alert('Erreur lors de l\'upload de la photo');
                     }
-                } else {
-                    alert('Erreur lors de l\'upload de la photo');
+                } catch (err) {
+                    alert('Erreur réseau lors de l\'upload de la photo');
                 }
-            } catch (err) {
-                alert('Erreur réseau lors de l\'upload de la photo');
             }
         }
-    }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

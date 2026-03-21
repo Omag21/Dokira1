@@ -39,8 +39,8 @@ function getMessagerieContent() {
                 <div id="emptyState" class="empty-state">
                     <div class="empty-content">
                         <i class="fas fa-envelope-open-text"></i>
-                        <h4>SÃ©lectionnez une conversation</h4>
-                        <p>Choisissez un patient dans la liste pour commencer Ã  discuter</p>
+                        <h4>Sélectionnez une conversation</h4>
+                        <p>Choisissez un patient dans la liste pour commencer à discuter</p>
                     </div>
                 </div>
                 
@@ -82,8 +82,8 @@ function getMessagerieContent() {
                         <p class="text-center text-muted">Aucun message</p>
                     </div>
                     
-                    <!-- SUPPRIMÃ‰: Zone d'envoi de messages -->
-                    <!-- Les mÃ©decins envoient des messages via la modale "Nouveau Message" -->
+                    <!-- SUPPRIMÉ: Zone d'envoi de messages -->
+                    <!-- Les médecins envoient des messages via la modale "Nouveau Message" -->
                 </div>
             </div>
         </div>
@@ -106,7 +106,7 @@ function getMessagerieContent() {
                                     <span class="text-danger">*</span>
                                 </label>
                                 <select id="newMessagePatient" class="form-control" required>
-                                    <option value="">SÃ©lectionnez un patient...</option>
+                                    <option value="">Sélectionnez un patient...</option>
                                 </select>
                             </div>
                             <div class="form-group mb-3">
@@ -114,7 +114,7 @@ function getMessagerieContent() {
                                     <strong>Message</strong>
                                     <span class="text-danger">*</span>
                                 </label>
-                                <textarea id="newMessageContent" class="form-control" rows="6" placeholder="Ã‰crivez votre message ici..." required></textarea>
+                                <textarea id="newMessageContent" class="form-control" rows="6" placeholder="Écrivez votre message ici..." required></textarea>
                             </div>
                         </form>
                     </div>
@@ -138,7 +138,7 @@ async function loadMessagerie() {
     const mainContent = document.getElementById('mainContent');
     mainContent.innerHTML = getMessagerieContent();
     
-    // Charger les donnÃ©es
+    // Charger les données
     await Promise.all([
         loadConversations(),
         loadPatientsForMessaging()
@@ -146,7 +146,7 @@ async function loadMessagerie() {
     
     setupMessagerieListeners();
     
-    // RafraÃ®chissement auto toutes les 30 secondes
+    // Rafraîchissement auto toutes les 30 secondes
     if (messagerie.autoRefresh) clearInterval(messagerie.autoRefresh);
     messagerie.autoRefresh = setInterval(loadConversations, 30000);
 }
@@ -291,7 +291,7 @@ function displayMessages(messages) {
         const timeStr = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         const dateStr = dateObj.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
         
-        // SÃ©curiser le contenu HTML
+        // Sécuriser le contenu HTML
         const safeSubject = escapeHtml(msg.sujet || '');
         const safeContent = escapeHtml(msg.contenu || '');
         
@@ -300,7 +300,7 @@ function displayMessages(messages) {
                 <div class="message-bubble">
                     <div class="message-subject"><strong>${safeSubject}</strong></div>
                     <div class="message-content">${safeContent}</div>
-                    <div class="message-time">${dateStr} Ã  ${timeStr}</div>
+                    <div class="message-time">${dateStr} à ${timeStr}</div>
                 </div>
             </div>
         `;
@@ -366,7 +366,7 @@ async function sendMessage(event) {
 // ============= NOUVEAU MESSAGE MODAL =============
 
 function openNewMessageModal() {
-    // RÃ©initialiser le formulaire
+    // Réinitialiser le formulaire
     const form = document.getElementById('newMessageForm');
     if (form) form.reset();
     
@@ -378,7 +378,7 @@ function populatePatientsSelect() {
     const select = document.getElementById('newMessagePatient');
     if (!select) return;
     
-    select.innerHTML = '<option value="">SÃ©lectionnez un patient...</option>';
+    select.innerHTML = '<option value="">Sélectionnez un patient...</option>';
     
     if (messagerie.patients && messagerie.patients.length > 0) {
         messagerie.patients.forEach(patient => {

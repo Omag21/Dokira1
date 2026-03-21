@@ -9,7 +9,11 @@ let currentMedecin = {
     telephone: '',
     adresse_cabinet: '',
     annees_experience: 0,
-    photo: ''
+    photo: '',
+    diplome_url: '',
+    autorisation_url: '',
+    inscription_ordre_url: '',
+    carte_pro_url: ''
 };
 
 let patientSelectionne = null;
@@ -39,6 +43,28 @@ let visioState = {
     patientSelectionne: null
 };
 
+// Re-appliquer les traductions globales quand la langue change
+document.addEventListener('dokira:langchange', () => {
+    if (window.DokiraI18n) DokiraI18n.apply(document);
+});
+
+function renderDocCard(label, url) {
+    const hasFile = !!url;
+    const statusColor = hasFile ? '#16a34a' : '#dc2626';
+    return `
+        <div class="col-12 col-md-6 col-lg-3">
+            <div style="border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:${hasFile ? '#f8fafc' : '#fff7ed'}; height:100%;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                    <span style="font-weight:600;">${label}</span>
+                    <i class="fas ${hasFile ? 'fa-check-circle' : 'fa-exclamation-triangle'}" style="color:${statusColor};"></i>
+                </div>
+                <p style="font-size:13px; color:#6b7280; margin:0 0 12px 0;">${hasFile ? 'Fichier fourni' : 'Document manquant'}</p>
+                ${hasFile ? `<button type="button" class="btn btn-sm btn-outline-primary" onclick="viewDocumentMedecin('${url}')">Afficher</button>` : `<span class="badge bg-danger-subtle text-danger">Obligatoire</span>`}
+            </div>
+        </div>
+    `;
+}
+
 
 let messagerie = {
     conversations: [],
@@ -50,32 +76,120 @@ let messagerie = {
 let medecinSearchTimeout = null;
 // ============= INITIALISATION =============
 
-document.addEventListener('DOMContentLoaded', async function () {
-    // Charger les infos du médecin
-    await loadMedecinInfo();
-    
-    // Configuration de la navigation
-    setupNavigation();
-    
-    // Configuration des évènements
-    setupEventListeners();
-    
-    // Charger le dashboard
-    loadSection('dashboard');
-    
-    // Recherche globale top bar
-    initializeMedecinSearch();
+document.addEventListener('DOMContentLoaded', function () {
+    console.log("Initialisation ultra-rapide de l'interface médecin lancée...");
 
-    // Langue interface
+    // 1. Initialiser la structure immédiatement (non-bloquant)
+    setupNavigation();
+    setupEventListeners();
+    initializeMedecinSearch();
     setupMedecinLanguage();
-    loadMedecinNotifications();
-    setupMedecinNotificationsPanel();
-    setInterval(loadMedecinNotifications, 30000);
-    
-    
-    // Configuration logout
     setupLogout();
+    setupMedecinNotificationsPanel();
+
+    // 2. Charger le dashboard avec skeleton/placeholders immédiatement
+    loadSection('dashboard');
+
+    // 3. Charger toutes les données en UN SEUL appel
+    initDashboardData();
+
+    // 4. Lancer les rafraîchissements périodiques en arrière-plan
+    setInterval(loadMedecinNotifications, 60000); // 1 minute suffit
 });
+
+async function initDashboardData() {
+    try {
+        const response = await fetch('/medecin/api/dashboard/init', { credentials: 'include' });
+        if (!response.ok) return;
+        const data = await response.json();
+
+        // Mettre à jour les variables globales
+        if (data.profile) {
+            const p = data.profile;
+            currentMedecin = {
+                id: p.id,
+                nom: p.nom,
+                prenom: p.prenom,
+                specialite: p.specialite || 'Médecin',
+                email: p.email,
+                telephone: p.telephone || '',
+                adresse_cabinet: p.adresse_cabinet || '',
+                annees_experience: p.annees_experience || 0,
+                photo: p.photo_profil_url || '',
+                prix_consultation: p.prix_consultation || 0,
+                ville: p.ville || '',
+                code_postal: p.code_postal || '',
+                numero_ordre: p.numero_ordre || '',
+                langues: p.langues || '',
+                biographie: p.biographie || '',
+                diplome_url: p.diplome_url || '',
+                autorisation_url: p.autorisation_url || '',
+                inscription_ordre_url: p.inscription_ordre_url || '',
+                carte_pro_url: p.carte_pro_url || ''
+            };
+            updateNavbarProfile(p);
+            updateDashboardWelcome(p);
+        }
+
+        // Mettre à jour les stats du dashboard si on y est
+        if (data.stats) {
+            updateDashboardStatsElements(data.stats);
+        }
+
+        // Mettre à jour les badges de notifications
+        if (data.notifications) {
+            updateNotificationBadges(data.notifications);
+        }
+    } catch (err) {
+        console.error("Erreur lors de l'initialisation groupée:", err);
+    }
+}
+
+function updateNavbarProfile(profile) {
+    const nameEl = document.getElementById('medecinName');
+    const specEl = document.getElementById('medecinSpecialite');
+    const avatarEl = document.getElementById('profileAvatar');
+
+    if (nameEl) nameEl.textContent = `Dr. ${profile.prenom} ${profile.nom}`;
+    if (specEl) specEl.textContent = profile.specialite || 'Médecin';
+    if (avatarEl && profile.photo_profil_url) {
+        avatarEl.src = profile.photo_profil_url;
+    }
+}
+
+function updateDashboardWelcome(profile) {
+    const welcomeTitle = document.querySelector('.welcome-content h1');
+    if (welcomeTitle) {
+        welcomeTitle.innerHTML = `Bonjour Dr. ${profile.prenom || ''} ${profile.nom || ''} 👋`;
+    }
+}
+
+function updateDashboardStatsElements(stats) {
+    const els = {
+        'statsPatients': stats.patients_actifs,
+        'statsRDV': stats.rdv_today,
+        'statsTraitement': stats.en_traitement,
+        'statsMessages': stats.messages_non_lus
+    };
+    for (const [id, val] of Object.entries(els)) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val || 0;
+    }
+}
+
+function updateNotificationBadges(notifs) {
+    const topBadge = document.querySelector('.notification-badge');
+    if (topBadge) {
+        topBadge.textContent = notifs.total;
+        topBadge.style.display = notifs.total > 0 ? 'flex' : 'none';
+    }
+
+    const msgBadge = document.querySelector('.menu-link[data-section="messagerie"] .menu-badge');
+    if (msgBadge) {
+        msgBadge.textContent = notifs.messages_non_lus;
+        msgBadge.style.display = notifs.messages_non_lus > 0 ? 'inline-flex' : 'none';
+    }
+}
 
 function setupMedecinNotificationsPanel() {
     const btn = document.querySelector('.notification-btn');
@@ -96,7 +210,7 @@ function setupMedecinNotificationsPanel() {
         const res = await fetch('/medecin/api/notifications/list', { credentials: 'include' });
         const list = await res.json();
         if (!Array.isArray(list) || !list.length) {
-            panel.innerHTML = '<div style="padding:10px;color:#64748b;">Aucune notification.</div>';
+            panel.innerHTML = `<div style="padding:10px;color:#64748b;">${window.__ ? window.__('admin_msg_empty') : 'Aucune notification.'}</div>`;
             return;
         }
         panel.innerHTML = list.map(n => `
@@ -118,6 +232,10 @@ function setupMedecinNotificationsPanel() {
 
     btn.addEventListener('click', async (e) => {
         e.preventDefault();
+        const rect = btn.getBoundingClientRect();
+        panel.style.position = 'fixed';
+        panel.style.top = `${rect.bottom + 8}px`;
+        panel.style.left = `${Math.max(16, Math.min(rect.left, window.innerWidth - panel.offsetWidth - 16))}px`;
         const show = panel.style.display === 'none';
         panel.style.display = show ? 'block' : 'none';
         if (show) await load();
@@ -133,7 +251,7 @@ async function loadMedecinInfo() {
     try {
         const response = await fetch('/medecin/api/profil/complete');
         const data = await response.json();
-        
+
         if (data) {
             currentMedecin = {
                 id: data.id,
@@ -145,9 +263,18 @@ async function loadMedecinInfo() {
                 adresse_cabinet: data.adresse_cabinet || '',
                 annees_experience: data.annees_experience || 0,
                 photo: data.photo_profil_url || '',
-                prix_consultation: data.prix_consultation || 0
+                prix_consultation: data.prix_consultation || 0,
+                ville: data.ville || '',
+                code_postal: data.code_postal || '',
+                numero_ordre: data.numero_ordre || '',
+                langues: data.langues || '',
+                biographie: data.biographie || '',
+                diplome_url: data.diplome_url || '',
+                autorisation_url: data.autorisation_url || '',
+                inscription_ordre_url: data.inscription_ordre_url || '',
+                carte_pro_url: data.carte_pro_url || ''
             };
-            
+
             // Mettre à jour l'affichage
             const medecinName = document.getElementById('medecinName');
             const medecinSpecialite = document.getElementById('medecinSpecialite');
@@ -159,8 +286,8 @@ async function loadMedecinInfo() {
             if (medecinSpecialite) {
                 medecinSpecialite.textContent = data.specialite || 'Médecin';
             }
-            if (data.photo_profil_url && profileAvatar) {
-                profileAvatar.src = data.photo_profil_url;
+            if (profileAvatar) {
+                profileAvatar.src = data.photo_profil_url || `https://ui-avatars.com/api/?name=${data.prenom}+${data.nom}&background=0D8ABC&color=fff&size=100`;
             }
         }
     } catch (error) {
@@ -184,9 +311,7 @@ function setupNavigation() {
             const section = this.getAttribute('data-section');
             loadSection(section);
             const lang = localStorage.getItem('app_lang') || 'fr';
-            if (lang !== 'fr') {
-                setTimeout(() => translateMedecinVisibleContent(lang), 80);
-            }
+            setTimeout(() => translateMedecinVisibleContent(lang), 100);
 
             if (window.innerWidth <= 992 && sidebar) {
                 sidebar.classList.remove('open');
@@ -239,16 +364,25 @@ function loadSection(section) {
             loadHistorique();
             break;
         case 'profil':
-            mainContent.innerHTML = getProfilContent();
+            loadMedecinInfo().then(() => {
+                mainContent.innerHTML = getProfilContent();
+            });
             break;
         case 'parametres':
-            mainContent.innerHTML = getParametresContent();
-            setupParametresListeners();
+            loadMedecinInfo().then(() => {
+                mainContent.innerHTML = getParametresContent();
+                setupParametresListeners();
+            });
             break;
         case 'calendrier':
-            showCalendar(); 
+            showCalendar();
+            break;
+        case 'aide':
+            showMedecinAideInterface();
             break;
     }
+    const lang = localStorage.getItem('app_lang') || 'fr';
+    setTimeout(() => translateMedecinVisibleContent(lang), 80);
 }
 
 // ============= CONTENU DASHBOARD =============
@@ -257,8 +391,8 @@ function getDashboardContent() {
     return `
         <div class="welcome-card">
             <div class="welcome-content">
-                <h1>Bonjour Dr. ${currentMedecin.prenom} ${currentMedecin.nom} 👋</h1>
-                <p>Bienvenue dans votre espace médecin Dokira</p>
+                <h1><span data-i18n="medecin_bonjour">Bonjour</span> Dr. ${currentMedecin.prenom} ${currentMedecin.nom} 👋</h1>
+                <p data-i18n="medecin_welcome">Bienvenue dans votre espace médecin Dokira</p>
             </div>
         </div>
 
@@ -270,7 +404,7 @@ function getDashboardContent() {
                     </div>
                 </div>
                 <div class="stat-value" id="statsPatients">0</div>
-                <div class="stat-label">Patients</div>
+                <div class="stat-label" data-i18n="admin_nav_patients">Patients</div>
             </div>
             <div class="stat-card">
                 <div class="stat-header">
@@ -279,7 +413,7 @@ function getDashboardContent() {
                     </div>
                 </div>
                 <div class="stat-value" id="statsRDV">0</div>
-                <div class="stat-label">RDV Aujourd'hui</div>
+                <div class="stat-label" data-i18n="medecin_rdv_today">RDV Aujourd'hui</div>
             </div>
             <div class="stat-card">
                 <div class="stat-header">
@@ -288,7 +422,7 @@ function getDashboardContent() {
                     </div>
                 </div>
                 <div class="stat-value" id="statsTraitement">0</div>
-                <div class="stat-label">En Traitement</div>
+                <div class="stat-label" data-i18n="medecin_in_treatment">En Traitement</div>
             </div>
             <div class="stat-card">
                 <div class="stat-header">
@@ -297,25 +431,202 @@ function getDashboardContent() {
                     </div>
                 </div>
                 <div class="stat-value" id="statsMessages">0</div>
-                <div class="stat-label">Messages Non Lus</div>
+                <div class="stat-label" data-i18n="admin_nav_messages">Messages Non Lus</div>
+            </div>
+        </div>
+
+        <div class="row g-4 mt-2">
+            <!-- Carte Date et Heure -->
+            <div class="col-lg-4">
+                <div class="stat-card h-100 shadow-sm border-0" style="background: linear-gradient(135deg, #ffffff 0%, #f0f7ff 100%);">
+                    <div class="stat-header border-bottom pb-2 mb-3">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <span id="currentDate" class="fw-bold text-primary">--/--/----</span>
+                    </div>
+                    <div class="stat-value text-center py-3" id="currentTime" style="font-size: 2.5rem; letter-spacing: 2px; color: #1e40af;">00:00:00</div>
+                    <div class="stat-label text-center" data-i18n="medecin_local_time">Heure locale actuelle</div>
+                </div>
+            </div>
+
+            <!-- Carte Activités Importantes du Jour -->
+            <div class="col-lg-4">
+                <div class="stat-card h-100 shadow-sm border-0">
+                    <div class="stat-header border-bottom pb-2 mb-3">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-tasks"></i>
+                        </div>
+                        <strong class="text-dark" data-i18n="medecin_today_activities">Activités du Jour</strong>
+                    </div>
+                    <div id="todayActivitiesList" class="activity-list" style="max-height: 200px; overflow-y: auto;">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Carte Historique d'Activités -->
+            <div class="col-lg-4">
+                <div class="stat-card h-100 shadow-sm border-0">
+                    <div class="stat-header border-bottom pb-2 mb-3">
+                        <div class="stat-icon green">
+                            <i class="fas fa-history"></i>
+                        </div>
+                        <strong class="text-dark" data-i18n="medecin_activity_history">Historique d'Activités</strong>
+                    </div>
+                    <div id="activityHistoryList" class="activity-list" style="max-height: 200px; overflow-y: auto;">
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     `;
 }
 
 function setupDashboardListeners() {
-    loadStats();
+    // Les stats sont maintenant gérées par initDashboardData() pour le premier chargement
+    // Mais on peut les rafraîchir si nécessaire
+    startDashboardTimer();
+
+    // On lance les chargements asynchrones en parallèle sans bloquer
+    Promise.all([
+        loadTodayActivities(),
+        loadActivityHistory()
+    ]);
+}
+
+function startDashboardTimer() {
+    const updateTime = () => {
+        const now = new Date();
+        const dateEl = document.getElementById('currentDate');
+        const timeEl = document.getElementById('currentTime');
+
+        if (dateEl) {
+            dateEl.textContent = now.toLocaleDateString('fr-FR', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+        if (timeEl) {
+            timeEl.textContent = now.toLocaleTimeString('fr-FR');
+        }
+    };
+
+    updateTime();
+    return setInterval(updateTime, 1000);
+}
+
+async function loadTodayActivities() {
+    const listEl = document.getElementById('todayActivitiesList');
+    if (!listEl) return;
+
+    try {
+        const response = await fetch('/medecin/api/rendez-vous?filtre=aujourd_hui&limit=20');
+        const rdvs = await response.json();
+
+        if (!rdvs || rdvs.length === 0) {
+            listEl.innerHTML = '<div class="text-center py-3 text-muted">Aucune activité prévue aujourd\'hui.</div>';
+            return;
+        }
+
+        listEl.innerHTML = rdvs.map(r => `
+            <div class="d-flex align-items-center p-2 mb-2 rounded hover-bg-light" style="border-left: 3px solid #0066cc; background: #f8fafc;">
+                <div class="flex-shrink-0 me-3">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 35px; height: 35px; font-size: 0.8rem;">
+                        ${new Date(r.date_heure).getHours()}:${new Date(r.date_heure).getMinutes().toString().padStart(2, '0')}
+                    </div>
+                </div>
+                <div class="flex-grow-1 overflow-hidden">
+                    <div class="fw-bold text-truncate">${r.patient?.nom_complet || 'Patient'}</div>
+                    <div class="text-muted small text-truncate">${r.motif || 'Consultation'}</div>
+                </div>
+                <div class="ms-2">
+                    <span class="badge ${r.type === 'Vidéo' ? 'bg-info' : 'bg-primary'} font-size-xs">${r.type}</span>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Erreur chargement activités du jour:', error);
+        listEl.innerHTML = '<div class="text-danger p-2">Erreur lors du chargement.</div>';
+    }
+}
+
+async function loadActivityHistory() {
+    const listEl = document.getElementById('activityHistoryList');
+    if (!listEl) return;
+
+    try {
+        // Pour simuler l'historique, on va mixer RDV récents, Dossiers récents et Ordonnances
+        const [rdvRes, dossiersRes] = await Promise.all([
+            fetch('/medecin/api/rendez-vous?limit=10'),
+            fetch('/medecin/api/dossiers-medicaux?limit=10')
+        ]);
+
+        const rdvs = await rdvRes.json();
+        const dossiersData = await dossiersRes.json();
+        const dossiers = dossiersData.dossiers || [];
+
+        let activities = [];
+
+        // Ajouter les RDV comme activités
+        rdvs.slice(0, 5).forEach(r => {
+            activities.push({
+                date: new Date(r.date_heure),
+                type: 'rdv',
+                title: `RDV avec ${r.patient?.nom_complet}`,
+                icon: 'fa-calendar-check',
+                color: '#10b981'
+            });
+        });
+
+        // Ajouter les dossiers comme activités
+        dossiers.slice(0, 5).forEach(d => {
+            activities.push({
+                date: new Date(d.date_creation),
+                type: 'dossier',
+                title: `Dossier mis à jour: ${d.patient?.nom_complet}`,
+                icon: 'fa-folder-open',
+                color: '#f59e0b'
+            });
+        });
+
+        // Trier par date décroissante
+        activities.sort((a, b) => b.date - a.date);
+
+        if (activities.length === 0) {
+            listEl.innerHTML = '<div class="text-center py-3 text-muted">Aucun historique récent.</div>';
+            return;
+        }
+
+        listEl.innerHTML = activities.slice(0, 8).map(a => `
+            <div class="d-flex align-items-start mb-3">
+                <div class="me-3 mt-1">
+                    <i class="fas ${a.icon}" style="color: ${a.color}; width: 20px;"></i>
+                </div>
+                <div class="flex-grow-1 border-bottom pb-2">
+                    <div class="fw-medium small">${a.title}</div>
+                    <div class="text-muted" style="font-size: 11px;">${a.date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Erreur chargement historique:', error);
+        listEl.innerHTML = '<div class="text-danger p-2">Erreur lors du chargement.</div>';
+    }
 }
 
 async function loadStats() {
+    // Redondant avec initDashboardData mais conservé pour compatibilité si appelé manuellement
     try {
         const response = await fetch('/medecin/api/stats');
         const stats = await response.json();
-        
-        document.getElementById('statsPatients').textContent = stats.patients_actifs || 0;
-        document.getElementById('statsRDV').textContent = stats.rdv_today || 0;
-        document.getElementById('statsTraitement').textContent = stats.en_traitement || 0;
-        document.getElementById('statsMessages').textContent = stats.messages_non_lus || 0;
+        updateDashboardStatsElements(stats);
     } catch (error) {
         console.error('Erreur chargement stats:', error);
     }
@@ -382,9 +693,9 @@ async function loadPatientsList() {
 
 function displayPatientsList(patients) {
     const container = document.getElementById('patientsTable');
-    
+
     if (patients.length === 0) {
-        container.innerHTML = '<p class="text-center text-muted">Aucun patient trouvÃ©</p>';
+        container.innerHTML = '<p class="text-center text-muted">Aucun patient trouvé</p>';
         return;
     }
 
@@ -432,16 +743,16 @@ function displayPatientsList(patients) {
             </tbody>
         </table>
     `;
-    
+
     container.innerHTML = html;
 }
 
 function setupPatientSearch() {
     const searchInput = document.getElementById('searchPatient');
-    searchInput.addEventListener('input', function(e) {
+    searchInput.addEventListener('input', function (e) {
         const term = e.target.value.toLowerCase();
-        const filtered = medecinPatients.filter(p => 
-            p.nom_complet.toLowerCase().includes(term) || 
+        const filtered = medecinPatients.filter(p =>
+            p.nom_complet.toLowerCase().includes(term) ||
             p.email.toLowerCase().includes(term)
         );
         displayPatientsList(filtered);
@@ -453,29 +764,29 @@ function setupPatientSearch() {
 async function viewPatientDossier(patientId) {
     try {
         console.log(`📋 Chargement du dossier pour le patient ID: ${patientId}`);
-        
+
         // 1. Récupérer la liste des patients (pour les infos de base)
         const patientsResponse = await fetch('/medecin/api/patients');
         if (!patientsResponse.ok) {
             throw new Error(`Erreur HTTP ${patientsResponse.status}`);
         }
         const patients = await patientsResponse.json();
-        
+
         // Trouver le patient correspondant dans la liste
         const patient = patients.find(p => p.id === patientId);
         if (!patient) {
             throw new Error('Patient non trouvé dans la liste');
         }
         console.log("✅ Patient trouvé:", patient);
-        
+
         let patientComplet = patient;
-        
+
         try {
-            
-            const patientDetailResponse = await fetch(`/api/patient/full-info?patient_id=${patientId}`, {
+
+            const patientDetailResponse = await fetch(`/medecin/api/patients/${patientId}`, {
                 credentials: 'include'
             });
-            
+
             if (patientDetailResponse.ok) {
                 patientComplet = await patientDetailResponse.json();
                 console.log("✅ Infos complètes patient:", patientComplet);
@@ -483,45 +794,45 @@ async function viewPatientDossier(patientId) {
         } catch (e) {
             console.warn("Impossible de récupérer les infos complètes, utilisation des infos de base");
         }
-        
+
         // 3. Récupérer les dossiers médicaux du patient
         const dossiersResponse = await fetch('/medecin/api/dossiers-medicaux');
         if (!dossiersResponse.ok) {
             throw new Error(`Erreur HTTP ${dossiersResponse.status}`);
         }
         const dossiersData = await dossiersResponse.json();
-        
+
         // Filtrer les dossiers pour ce patient
         const dossiersPatient = dossiersData.dossiers ? dossiersData.dossiers.filter(d => d.patient.id === patientId) : [];
-        
+
         // Trouver le dernier dossier (le plus récent) ou créer un objet vide
         const dernierDossier = dossiersPatient.length > 0 ? dossiersPatient[0] : {};
-        
+
         console.log("✅ Dossiers trouvés:", dossiersPatient.length);
-        
+
         // 4. Construire le contenu de la modale avec TOUTES les informations
         const modalBody = document.getElementById('patientModalBody');
-        
+
         // Formater les allergies 
         const allergies = patientComplet.allergies || 'Aucune allergie renseignée';
-        
+
         // Formater les antécédents médicaux
         const antecedents = patientComplet.antecedents_medicaux || 'Aucun antécédent renseigné';
-        
+
         // Formater le groupe sanguin
         const groupeSanguin = patientComplet.groupe_sanguin || 'Non renseigné';
-        
+
         // Formater le numéro de sécurité sociale
         const numSecu = patientComplet.numero_securite_sociale || 'Non renseigné';
-        
+
         // Formater les traitements en cours
         const traitements = patientComplet.traitements_en_cours || 'Aucun traitement';
-        
+
         // Formater l'adresse complète
-        const adresse = patientComplet.adresse ? 
-            `${patientComplet.adresse}${patientComplet.ville ? ', ' + patientComplet.ville : ''}${patientComplet.code_postal ? ' ' + patientComplet.code_postal : ''}` : 
+        const adresse = patientComplet.adresse ?
+            `${patientComplet.adresse}${patientComplet.ville ? ', ' + patientComplet.ville : ''}${patientComplet.code_postal ? ' ' + patientComplet.code_postal : ''}` :
             'Non renseignée';
-        
+
         modalBody.innerHTML = `
             <div class="patient-dossier">
                 <h5>${patient.nom_complet || 'Patient'}</h5>
@@ -552,6 +863,11 @@ async function viewPatientDossier(patientId) {
                     <div class="medical-detail">
                         <strong>Antécédents médicaux:</strong>
                         <p>${antecedents}</p>
+                    </div>
+
+                    <div class="medical-detail">
+                        <strong>Antécédents familiaux:</strong>
+                        <p>${patientComplet.antecedents_familiaux || 'Aucun antécédent familial renseigné'}</p>
                     </div>
                     
                     <div class="medical-detail">
@@ -585,7 +901,7 @@ async function viewPatientDossier(patientId) {
                 </div>
             </div>
         `;
-        
+
         // Ajoute le CSS spécifique
         if (!document.getElementById('dossier-patient-css')) {
             const style = document.createElement('style');
@@ -670,14 +986,14 @@ async function viewPatientDossier(patientId) {
             `;
             document.head.appendChild(style);
         }
-        
+
         // Stocker le patient sélectionné pour un usage ultérieur
         patientSelectionne = patient;
-        
+
         // Afficher la modale
         const modal = new bootstrap.Modal(document.getElementById('patientModal'));
         modal.show();
-        
+
     } catch (error) {
         console.error('❌ Erreur chargement dossier:', error);
         alert('Erreur lors du chargement des informations du patient: ' + error.message);
@@ -707,7 +1023,7 @@ function newOrdonnance(patientId, patientName) {
     document.getElementById('ordonnancePatientId').value = patientId;
     document.getElementById('ordonnancePatientName').value = patientName;
     document.getElementById('ordonnanceForm').reset();
-    
+
     const modal = new bootstrap.Modal(document.getElementById('ordonnanceModal'));
     modal.show();
 }
@@ -812,7 +1128,7 @@ async function initVisioSection() {
             select.appendChild(option);
         });
 
-        select.addEventListener('change', function() {
+        select.addEventListener('change', function () {
             visioState.patientSelectionne = visioState.patients.find(p => String(p.id) === this.value) || null;
         });
     } catch (error) {
@@ -985,13 +1301,23 @@ function formatHistoriqueDate(value) {
     return dt.toLocaleString('fr-FR');
 }
 
+window.viewDocumentMedecin = function (url) {
+    const viewer = document.getElementById('medecinDocumentViewer');
+    const iframe = document.getElementById('medecinDocumentIframe');
+    if (viewer && iframe) {
+        iframe.src = url;
+        viewer.style.display = 'block';
+        viewer.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+};
+
 function getProfilContent() {
     const profilePhoto = currentMedecin.photo
         ? currentMedecin.photo
         : `https://ui-avatars.com/api/?name=Dr+${encodeURIComponent(currentMedecin.prenom + ' ' + currentMedecin.nom)}&background=0D8ABC&color=fff&size=180`;
 
-        // Formater le prix
-    const prixConsultation = currentMedecin.prix_consultation 
+    // Formater le prix
+    const prixConsultation = currentMedecin.prix_consultation
         ? new Intl.NumberFormat('fr-FR').format(currentMedecin.prix_consultation) + ' CFA'
         : 'Non renseigné';
     return `
@@ -1033,7 +1359,25 @@ function getProfilContent() {
                     </div>
                 </div>
 
-                <div class="alert alert-info">
+                <div class="mt-4">
+                    <h5 style="margin-bottom: 12px;">Justificatifs professionnels (obligatoires)</h5>
+                    <div class="row g-3">
+                        ${renderDocCard('Diplôme', currentMedecin.diplome_url)}
+                        ${renderDocCard("Autorisation d'exercer", currentMedecin.autorisation_url)}
+                        ${renderDocCard("Inscription à l'ordre", currentMedecin.inscription_ordre_url)}
+                        ${renderDocCard("Carte professionnelle", currentMedecin.carte_pro_url)}
+                    </div>
+                </div>
+
+                <div id="medecinDocumentViewer" style="margin-top: 20px; display: none; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: #fff;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h5 style="margin: 0;">Visionneuse de document</h5>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('medecinDocumentViewer').style.display='none'">Fermer</button>
+                    </div>
+                    <iframe id="medecinDocumentIframe" style="width: 100%; height: 500px; border: none;" src=""></iframe>
+                </div>
+
+                <div class="alert alert-info mt-4">
                     <i class="fas fa-info-circle"></i> Utilisez la section "Paramètres" pour modifier vos informations
                 </div>
             </div>
@@ -1088,20 +1432,103 @@ function getParametresContent() {
 
                    <div class="mb-3">
                         <label class="form-label">Prix de consultation (CFA)</label>
-                        <input type="number" min="0" class="form-control" id="paramPrixConsultation" value="${currentMedecin.prix_consultation || 0}">
+                        <input type="number" step="0.01" class="form-control" id="paramPrixConsultation" value="${currentMedecin.prix_consultation || 0}">
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Nombre d'années d'expérience</label>
                         <input type="number" min="0" class="form-control" id="paramAnneesExperience" value="${currentMedecin.annees_experience || 0}">
                     </div>
-                    
+
                     <div class="mb-3">
-                        <label class="form-label">Photo de profil</label>
-                        <input type="file" class="form-control" id="paramPhoto" accept="image/*">
+                        <label class="form-label">Ville</label>
+                        <input type="text" class="form-control" id="paramVille" value="${currentMedecin.ville || ''}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Code postal</label>
+                        <input type="text" class="form-control" id="paramCodePostal" value="${currentMedecin.code_postal || ''}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Numéro d'ordre professionnel</label>
+                        <input type="text" class="form-control" id="paramNumeroOrdre" value="${currentMedecin.numero_ordre || ''}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Langues parlées (séparées par des virgules)</label>
+                        <input type="text" class="form-control" id="paramLangues" value="${currentMedecin.langues || ''}" placeholder="Français, Anglais...">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Biographie professionnelle</label>
+                        <textarea class="form-control" id="paramBiographie" rows="4" placeholder="Présentez votre parcours...">${currentMedecin.biographie || ''}</textarea>
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">
+                    <div class="mb-4 text-center">
+                        <div class="position-relative d-inline-block">
+                            <img id="paramPhotoPreview" src="${currentMedecin.photo || 'https://ui-avatars.com/api/?name=' + currentMedecin.prenom + '+' + currentMedecin.nom + '&background=0D8ABC&color=fff&size=100'}" 
+                                 style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 4px solid #f1f5f9; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Photo de profil</label>
+                        <input type="file" class="form-control" id="paramPhoto" accept="image/*" onchange="previewParamPhoto(event)">
+                    </div>
+
+                    <hr class="my-4" />
+                    <h4 class="mb-3">Justificatifs professionnels</h4>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Diplôme (PDF/Image)</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="file" class="form-control" id="paramDiplome" accept=".pdf,image/*">
+                                ${currentMedecin.diplome_url ? `<button type="button" class="btn btn-sm btn-outline-primary" onclick="viewDocumentMedecin('${currentMedecin.diplome_url}')">Voir</button>` : '<span class="badge bg-danger-subtle text-danger">Manquant</span>'}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Autorisation d'exercer</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="file" class="form-control" id="paramAutorisation" accept=".pdf,image/*">
+                                ${currentMedecin.autorisation_url ? `<button type="button" class="btn btn-sm btn-outline-primary" onclick="viewDocumentMedecin('${currentMedecin.autorisation_url}')">Voir</button>` : '<span class="badge bg-danger-subtle text-danger">Manquant</span>'}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Inscription à l'ordre</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="file" class="form-control" id="paramInscriptionOrdre" accept=".pdf,image/*">
+                                ${currentMedecin.inscription_ordre_url ? `<button type="button" class="btn btn-sm btn-outline-primary" onclick="viewDocumentMedecin('${currentMedecin.inscription_ordre_url}')">Voir</button>` : '<span class="badge bg-danger-subtle text-danger">Manquant</span>'}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Carte professionnelle</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="file" class="form-control" id="paramCartePro" accept=".pdf,image/*">
+                                ${currentMedecin.carte_pro_url ? `<button type="button" class="btn btn-sm btn-outline-primary" onclick="viewDocumentMedecin('${currentMedecin.carte_pro_url}')">Voir</button>` : '<span class="badge bg-danger-subtle text-danger">Manquant</span>'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="medecinDocumentViewer" style="margin-top: 20px; display: none; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: #fff;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h5 style="margin: 0;">Visionneuse de document</h5>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('medecinDocumentViewer').style.display='none'">Fermer</button>
+                        </div>
+                        <iframe id="medecinDocumentIframe" style="width: 100%; height: 500px; border: none;" src=""></iframe>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-5 p-3" style="background: #fff5f5; border: 1px solid #feb2b2; border-radius: 10px;">
+                        <div>
+                            <h5 class="text-danger mb-1">Zone de danger</h5>
+                            <p class="text-muted small mb-0">La suppression de votre compte est irréversible. Vos données seront archivées temporairement.</p>
+                        </div>
+                        <button type="button" class="btn btn-outline-danger" onclick="confirmDeleteMedecinAccount()">
+                            <i class="fas fa-user-slash"></i> Supprimer mon compte
+                        </button>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary mt-4">
                         <i class="fas fa-save"></i> Sauvegarder
                     </button>
                 </form>
@@ -1113,9 +1540,9 @@ function getParametresContent() {
 function setupParametresListeners() {
     const form = document.getElementById('parametresForm');
     if (form) {
-        form.addEventListener('submit', async function(e) {
+        form.addEventListener('submit', async function (e) {
             e.preventDefault();
-            
+
             const formData = new FormData();
             formData.append('prenom', document.getElementById('paramPrenom').value);
             formData.append('nom', document.getElementById('paramNom').value);
@@ -1123,23 +1550,46 @@ function setupParametresListeners() {
             formData.append('telephone', document.getElementById('paramTelephone').value || '');
             formData.append('specialite', document.getElementById('paramSpecialite').value || '');
             formData.append('adresse_cabinet', document.getElementById('paramAdresseCabinet').value || '');
-            formData.append('prix_consultation', currentMedecin.prix_consultation || '0');
+            formData.append('prix_consultation', document.getElementById('paramPrixConsultation').value || '0');
             formData.append('annees_experience', document.getElementById('paramAnneesExperience').value || '0');
-            
+            formData.append('ville', document.getElementById('paramVille')?.value || '');
+            formData.append('code_postal', document.getElementById('paramCodePostal')?.value || '');
+            formData.append('numero_ordre', document.getElementById('paramNumeroOrdre')?.value || '');
+            formData.append('langues', document.getElementById('paramLangues')?.value || '');
+            formData.append('biographie', document.getElementById('paramBiographie')?.value || '');
+
             const photoInput = document.getElementById('paramPhoto');
             if (photoInput.files.length > 0) {
                 formData.append('photo', photoInput.files[0]);
             }
-            
+            const diplomeInput = document.getElementById('paramDiplome');
+            const autorisationInput = document.getElementById('paramAutorisation');
+            const inscriptionInput = document.getElementById('paramInscriptionOrdre');
+            const carteProInput = document.getElementById('paramCartePro');
+            const missingDocs = [];
+            if (!currentMedecin.diplome_url && !diplomeInput?.files?.length) missingDocs.push('Diplôme');
+            if (!currentMedecin.autorisation_url && !autorisationInput?.files?.length) missingDocs.push("Autorisation d'exercer");
+            if (!currentMedecin.inscription_ordre_url && !inscriptionInput?.files?.length) missingDocs.push("Inscription à l'ordre");
+            if (!currentMedecin.carte_pro_url && !carteProInput?.files?.length) missingDocs.push('Carte professionnelle');
+            if (missingDocs.length) {
+                alert(`Merci de téléverser les justificatifs manquants : ${missingDocs.join(', ')}.`);
+                return;
+            }
+            if (diplomeInput?.files?.length) formData.append('diplome', diplomeInput.files[0]);
+            if (autorisationInput?.files?.length) formData.append('autorisation', autorisationInput.files[0]);
+            if (inscriptionInput?.files?.length) formData.append('inscription_ordre_doc', inscriptionInput.files[0]);
+            if (carteProInput?.files?.length) formData.append('carte_pro', carteProInput.files[0]);
+
             try {
                 const response = await fetch('/medecin/api/profil/update', {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 if (response.ok) {
                     alert('Profil mis à jour avec succès!');
                     await loadMedecinInfo();
+                    loadSection('parametres');
                 } else {
                     alert('Erreur lors de la mise à jour');
                 }
@@ -1151,6 +1601,27 @@ function setupParametresListeners() {
     }
 }
 
+async function confirmDeleteMedecinAccount() {
+    if (confirm('⚠️ Attention ! Êtes-vous sûr de vouloir supprimer votre compte médecin ?\n\nCette action est irréversible. Vos données seront archivées pour une période de 5 mois avant suppression définitive.')) {
+        try {
+            const response = await fetch('/medecin/api/delete-account', {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                alert('Votre compte a été supprimé avec succès.');
+                window.location.href = '/medecin/connexionMedecin';
+            } else {
+                const data = await response.json();
+                alert('Erreur: ' + (data.detail || 'Impossible de supprimer le compte'));
+            }
+        } catch (error) {
+            console.error('Erreur:', error);
+            alert('Une erreur est survenue lors de la suppression.');
+        }
+    }
+}
+
 // ============= HELPER FUNCTIONS =============
 
 function sendMessageToPatient(patientId) {
@@ -1158,16 +1629,16 @@ function sendMessageToPatient(patientId) {
         alert('Impossible d\'identifier le patient');
         return;
     }
-    
+
     // Fermer la modale
     const modal = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
     if (modal) modal.hide();
-    
+
     // Aller à la section messagerie
     const messagerieLink = document.querySelector('[data-section="messagerie"]');
     if (messagerieLink) {
         messagerieLink.click();
-        
+
         // Attendre que la messagerie soit chargée puis ouvrir la conversation
         setTimeout(() => {
             // Chercher la conversation avec ce patient
@@ -1180,7 +1651,7 @@ function sendMessageToPatient(patientId) {
                     // Stocker l'ID pour pré-sélectionner
                     sessionStorage.setItem('preselectPatientId', patientId);
                     openNewMessageModal();
-                    
+
                     // Après ouverture de la modale, sélectionner le patient
                     setTimeout(() => {
                         const select = document.getElementById('newMessagePatient');
@@ -1229,12 +1700,12 @@ async function submitOrdonnance() {
     const posologie = document.getElementById('ordonnancePosologie').value;
     const duree = document.getElementById('ordonnanceDuree').value;
     const instructions = document.getElementById('ordonnanceInstructions').value;
-    
+
     if (!medicament || !posologie) {
         alert('Veuillez remplir tous les champs obligatoires');
         return;
     }
-    
+
     try {
         const response = await fetch('/medecin/api/ordonnances/creer', {
             method: 'POST',
@@ -1249,11 +1720,11 @@ async function submitOrdonnance() {
                 instructions: instructions
             })
         });
-        
+
         if (response.ok) {
             const result = await response.json();
             alert('Ordonnance créée et envoyée au patient!');
-            
+
             // Fermer modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('ordonnanceModal'));
             modal.hide();
@@ -1273,7 +1744,7 @@ async function loadRDV() {
 
     try {
         console.log("📅 Chargement des rendez-vous et consultations...");
-        
+
         // Récupérer les rendez-vous
         const rdvResponse = await fetch("/medecin/api/rendez-vous", {
             credentials: "include"
@@ -1315,11 +1786,11 @@ async function loadRDV() {
             // Déterminer le type et le statut
             let type = item.type || "Consultation";
             let statut = item.statut || "Demandée";
-            
+
             // Formater la date
             const date = new Date(item.date_heure);
-            const dateFormatee = date.toLocaleDateString('fr-FR') + ' ' + 
-                                 date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            const dateFormatee = date.toLocaleDateString('fr-FR') + ' ' +
+                date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
             // Déterminer la couleur du badge selon le statut
             let badgeClass = 'badge-secondary';
@@ -1386,59 +1857,59 @@ function viewRdvDetail(id, source) {
         fetch(`/medecin/api/consultations/${id}`, {
             credentials: 'include'
         })
-        .then(response => {
-            if (!response.ok) throw new Error('Erreur chargement');
-            return response.json();
-        })
-        .then(data => {
-            // Formater la date
-            const date = new Date(data.date_heure);
-            const dateFormatee = date.toLocaleDateString('fr-FR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
+            .then(response => {
+                if (!response.ok) throw new Error('Erreur chargement');
+                return response.json();
+            })
+            .then(data => {
+                // Formater la date
+                const date = new Date(data.date_heure);
+                const dateFormatee = date.toLocaleDateString('fr-FR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+                const heureFormatee = date.toLocaleTimeString('fr-FR', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                // Créer la modale dynamique
+                showConsultationModal(data, dateFormatee, heureFormatee);
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                alert('Impossible de charger les détails de la consultation');
             });
-            const heureFormatee = date.toLocaleTimeString('fr-FR', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            });
-            
-            // Créer la modale dynamique
-            showConsultationModal(data, dateFormatee, heureFormatee);
-        })
-        .catch(error => {
-            console.error('Erreur:', error);
-            alert('Impossible de charger les détails de la consultation');
-        });
     } else {
         // Pour les rendez-vous
         fetch(`/medecin/api/rendez-vous/${id}`, {
             credentials: 'include'
         })
-        .then(response => {
-            if (!response.ok) throw new Error('Erreur chargement');
-            return response.json();
-        })
-        .then(data => {
-            // Formater la date
-            const date = new Date(data.date_heure);
-            const dateFormatee = date.toLocaleDateString('fr-FR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
+            .then(response => {
+                if (!response.ok) throw new Error('Erreur chargement');
+                return response.json();
+            })
+            .then(data => {
+                // Formater la date
+                const date = new Date(data.date_heure);
+                const dateFormatee = date.toLocaleDateString('fr-FR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+                const heureFormatee = date.toLocaleTimeString('fr-FR', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                // Créer la modale pour rendez-vous
+                showRendezVousModal(data, dateFormatee, heureFormatee);
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                alert('Impossible de charger les détails du rendez-vous');
             });
-            const heureFormatee = date.toLocaleTimeString('fr-FR', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            });
-            
-            // Créer la modale pour rendez-vous
-            showRendezVousModal(data, dateFormatee, heureFormatee);
-        })
-        .catch(error => {
-            console.error('Erreur:', error);
-            alert('Impossible de charger les détails du rendez-vous');
-        });
     }
 }
 
@@ -1447,7 +1918,7 @@ function showConsultationModal(data, dateFormatee, heureFormatee) {
     // Déterminer la couleur du badge selon le statut
     let badgeClass = 'badge-secondary';
     let badgeText = data.statut || 'Demandée';
-    
+
     if (badgeText.toLowerCase().includes('confirmé') || badgeText.toLowerCase().includes('confirme')) {
         badgeClass = 'badge-success';
     } else if (badgeText.toLowerCase().includes('planifié') || badgeText.toLowerCase().includes('planifie')) {
@@ -1459,7 +1930,7 @@ function showConsultationModal(data, dateFormatee, heureFormatee) {
     } else if (badgeText.toLowerCase().includes('demandé') || badgeText.toLowerCase().includes('demande')) {
         badgeClass = 'badge-warning';
     }
-    
+
     const modalHTML = `
         <div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
@@ -1557,7 +2028,7 @@ function showConsultationModal(data, dateFormatee, heureFormatee) {
             </div>
         </div>
     `;
-    
+
     // Ajoute les styles pour les badges 
     if (!document.getElementById('badge-styles')) {
         const style = document.createElement('style');
@@ -1572,20 +2043,20 @@ function showConsultationModal(data, dateFormatee, heureFormatee) {
         `;
         document.head.appendChild(style);
     }
-    
+
     // Supprimer l'ancienne modale si elle existe
     const oldModal = document.getElementById('detailModal');
     if (oldModal) oldModal.remove();
-    
+
     // Ajouter la nouvelle modale au body
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
+
     // Afficher la modale
     const modal = new bootstrap.Modal(document.getElementById('detailModal'));
     modal.show();
-    
+
     // Nettoyer après fermeture
-    document.getElementById('detailModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('detailModal').addEventListener('hidden.bs.modal', function () {
         this.remove();
     });
 }
@@ -1595,7 +2066,7 @@ function showRendezVousModal(data, dateFormatee, heureFormatee) {
     // Déterminer la couleur du badge selon le statut
     let badgeClass = 'badge-secondary';
     let badgeText = data.statut || 'Planifié';
-    
+
     if (badgeText.toLowerCase().includes('confirmé') || badgeText.toLowerCase().includes('confirme')) {
         badgeClass = 'badge-success';
     } else if (badgeText.toLowerCase().includes('planifié') || badgeText.toLowerCase().includes('planifie')) {
@@ -1605,13 +2076,13 @@ function showRendezVousModal(data, dateFormatee, heureFormatee) {
     } else if (badgeText.toLowerCase().includes('annulé') || badgeText.toLowerCase().includes('annule')) {
         badgeClass = 'badge-danger';
     }
-    
+
     // Icône selon le type
     let typeIcon = 'fa-calendar';
     if (data.type?.toLowerCase().includes('cabinet')) typeIcon = 'fa-hospital';
     else if (data.type?.toLowerCase().includes('vidéo')) typeIcon = 'fa-video';
     else if (data.type?.toLowerCase().includes('domicile')) typeIcon = 'fa-home';
-    
+
     const modalHTML = `
         <div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
@@ -1709,20 +2180,20 @@ function showRendezVousModal(data, dateFormatee, heureFormatee) {
             </div>
         </div>
     `;
-    
+
     // Supprimer l'ancienne modale si elle existe
     const oldModal = document.getElementById('detailModal');
     if (oldModal) oldModal.remove();
-    
+
     // Ajouter la nouvelle modale au body
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
+
     // Afficher la modale
     const modal = new bootstrap.Modal(document.getElementById('detailModal'));
     modal.show();
-    
+
     // Nettoyer après fermeture
-    document.getElementById('detailModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('detailModal').addEventListener('hidden.bs.modal', function () {
         this.remove();
     });
 }
@@ -1866,13 +2337,13 @@ if (!document.getElementById('rdv-styles')) {
 
 function setupLogout() {
     const logoutLink = document.querySelector('a[href="/medecin/deconnexionMedecin"]');
-    
+
     if (logoutLink) {
-        logoutLink.addEventListener('click', function(e) {
+        logoutLink.addEventListener('click', function (e) {
             e.preventDefault();
-            
+
             const confirmed = confirm('êtes-vous sûr de vouloir vous déconnecter ?');
-            
+
             if (confirmed) {
                 window.location.href = '/medecin/deconnexionMedecin';
             }
@@ -2010,15 +2481,15 @@ function getMessagerieContent() {
 async function loadMessagerie() {
     const mainContent = document.getElementById('mainContent');
     mainContent.innerHTML = getMessagerieContent();
-    
+
     // Charger les données
     await Promise.all([
         loadConversations(),
         loadPatientsForMessaging()
     ]);
-    
+
     setupMessagerieListeners();
-    
+
     // Rafraîchissement auto toutes les 30 secondes
     if (messagerie.autoRefresh) clearInterval(messagerie.autoRefresh);
     messagerie.autoRefresh = setInterval(loadConversations, 30000);
@@ -2031,7 +2502,7 @@ async function loadConversations() {
 
         const response = await fetch('/medecin/api/messagerie/conversations');
         if (!response.ok) throw new Error('Erreur chargement conversations');
-        
+
         messagerie.conversations = await response.json();
         displayConversations(messagerie.conversations);
         updateUnreadBadge();
@@ -2109,17 +2580,54 @@ async function viewPatientAnalyses(patientId) {
         const data = await response.json();
         const analyses = (data.analyses || []).map(a => `<li><strong>${escapeHtml(a.titre)}</strong> - ${a.date_analyse ? new Date(a.date_analyse).toLocaleString('fr-FR') : ''}</li>`).join('') || '<li>Aucune analyse</li>';
         const injections = (data.injections || []).map(i => `<li><strong>${escapeHtml(i.nom_injection)}</strong> - ${i.date_injection ? new Date(i.date_injection).toLocaleString('fr-FR') : ''}</li>`).join('') || '<li>Aucune injection</li>';
-        alert(`Analyses:\n${(data.analyses || []).length}\nInjections:\n${(data.injections || []).length}`);
         const container = document.getElementById('analysesPatientsList');
-        if (container) {
-            container.insertAdjacentHTML('afterbegin', `
-                <div class="content-card" style="margin-bottom:12px;border-left:4px solid #0d8abc;">
-                    <h4>Détail patient #${patientId}</h4>
-                    <p><strong>Analyses:</strong></p><ul>${analyses}</ul>
-                    <p><strong>Injections:</strong></p><ul>${injections}</ul>
+        if (!container) return;
+
+        // On affiche sous forme de section de cartes dynamiques
+        let html = `
+            <div class="patient-details-wrapper animate-in" style="background: #f8fafc; border-radius: 15px; padding: 20px; margin-bottom: 30px; border: 1px solid #e2e8f0;">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 style="margin: 0; color: #1e293b;"><i class="fas fa-user-circle me-2"></i> Résultats du patient #${patientId}</h3>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadAnalysesPatients()">
+                        <i class="fas fa-times me-1"></i> Fermer
+                    </button>
                 </div>
-            `);
-        }
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5 class="mb-3"><i class="fas fa-vial me-2" style="color: #0d8abc;"></i> Analyses (${(data.analyses || []).length})</h5>
+                        <div class="results-cards">
+                            ${(data.analyses || []).length > 0 ? (data.analyses || []).map(a => `
+                                <div class="result-card-dynamic" style="background: white; padding: 15px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 4px solid #0d8abc;">
+                                    <div class="fw-bold" style="font-size: 16px;">${escapeHtml(a.titre)}</div>
+                                    <div class="text-muted small mb-2">${a.date_analyse ? new Date(a.date_analyse).toLocaleString('fr-FR') : 'Date inconnue'}</div>
+                                    <div style="font-size: 14px; color: #475569;">${escapeHtml(a.resultat || '')}</div>
+                                    ${a.notes ? `<div class="mt-2 p-2 bg-light rounded small">Note: ${escapeHtml(a.notes)}</div>` : ''}
+                                </div>
+                            `).join('') : '<p class="text-muted small">Aucune analyse enregistrée.</p>'}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h5 class="mb-3"><i class="fas fa-syringe me-2" style="color: #dc2626;"></i> Injections (${(data.injections || []).length})</h5>
+                        <div class="results-cards">
+                            ${(data.injections || []).length > 0 ? (data.injections || []).map(i => `
+                                <div class="result-card-dynamic" style="background: white; padding: 15px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 4px solid #dc2626;">
+                                    <div class="fw-bold" style="font-size: 16px;">${escapeHtml(i.nom_injection)}</div>
+                                    <div class="text-muted small mb-2">${i.date_injection ? new Date(i.date_injection).toLocaleString('fr-FR') : 'Date inconnue'}</div>
+                                    <div style="font-size: 14px;">Dosage: <strong>${escapeHtml(i.dosage || 'N/A')}</strong></div>
+                                    <div style="font-size: 14px;">Fréquence: <strong>${escapeHtml(i.frequence || 'N/A')}</strong></div>
+                                </div>
+                            `).join('') : '<p class="text-muted small">Aucune injection prescrite.</p>'}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // On remplace le chargement par les cartes
+        container.innerHTML = html;
+
     } catch (e) {
         console.error('Erreur visualisation analyses/injections:', e);
     }
@@ -2242,7 +2750,7 @@ function openRescheduleForm(id, source = 'rdv', initialDate = '') {
         });
     }
 
-    document.getElementById('rescheduleModal')?.addEventListener('hidden.bs.modal', function() {
+    document.getElementById('rescheduleModal')?.addEventListener('hidden.bs.modal', function () {
         this.remove();
     });
     rescheduleModal.show();
@@ -2289,7 +2797,7 @@ async function loadPatientsForMessaging() {
     try {
         const response = await fetch('/medecin/api/messagerie/patients-list');
         if (!response.ok) throw new Error('Erreur chargement patients');
-        
+
         messagerie.patients = await response.json();
         populatePatientsSelect();
     } catch (error) {
@@ -2302,17 +2810,17 @@ async function loadPatientsForMessaging() {
 function displayConversations(conversations) {
     const container = document.getElementById('conversationsList');
     if (!container) return;
-    
+
     if (!conversations || conversations.length === 0) {
         container.innerHTML = '<p class="text-center text-muted p-3">Aucune conversation</p>';
         return;
     }
-    
+
     const html = conversations.map(conv => {
         const nonLus = conv.non_lus > 0 ? `<span class="badge">${conv.non_lus}</span>` : '';
         const classe = messagerie.patientActuel?.id === conv.patient_id ? 'active' : '';
         const dernierMsg = conv.derniere_date ? new Date(conv.derniere_date).toLocaleDateString('fr-FR') : '';
-        
+
         return `
             <div class="conversation-item ${classe}" data-patient-id="${conv.patient_id}" onclick="openConversation(${conv.patient_id})">
                 <div class="conversation-avatar">
@@ -2329,14 +2837,14 @@ function displayConversations(conversations) {
             </div>
         `;
     }).join('');
-    
+
     container.innerHTML = html;
 }
 
 function updateUnreadBadge() {
     const totalNonLus = messagerie.conversations.reduce((sum, conv) => sum + (conv.non_lus || 0), 0);
     const messagerieBadge = document.querySelector('[data-section="messagerie"] .menu-badge');
-    
+
     if (messagerieBadge) {
         if (totalNonLus > 0) {
             messagerieBadge.textContent = totalNonLus;
@@ -2360,7 +2868,7 @@ async function openConversation(patientId) {
         // Fetch messages
         const response = await fetch(`/medecin/api/messagerie/conversation/${patientId}`);
         if (!response.ok) throw new Error('Erreur chargement conversation');
-        
+
         const data = await response.json();
         messagerie.messagesActuels = data.messages || [];
         messagerie.patientActuel = {
@@ -2369,26 +2877,26 @@ async function openConversation(patientId) {
             email: data.patient?.email || '',
             telephone: data.patient?.telephone || ''
         };
-        
+
         // Afficher le chat
         document.getElementById('emptyState').style.display = 'none';
         document.getElementById('chatContent').style.display = 'flex';
-        
+
         // Remplir les infos du patient
         document.getElementById('chatPatientName').textContent = messagerie.patientActuel.nom_complet;
         document.getElementById('chatPatientEmail').textContent = messagerie.patientActuel.email;
-        document.getElementById('chatPatientAvatar').textContent = 
-            messagerie.patientActuel.nom_complet.charAt(0).toUpperCase() + 
+        document.getElementById('chatPatientAvatar').textContent =
+            messagerie.patientActuel.nom_complet.charAt(0).toUpperCase() +
             (messagerie.patientActuel.nom_complet.split(' ')[1]?.charAt(0).toUpperCase() || '');
-        
+
         // Afficher les messages
         displayMessages(data.messages);
-        
-        // Mise Ã  jour visuelle
+
+        // Mise à jour visuelle
         document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
         const activeItem = document.querySelector(`[data-patient-id="${patientId}"]`);
         if (activeItem) activeItem.classList.add('active');
-        
+
         // Reset form
         document.getElementById('messageForm').reset();
     } catch (error) {
@@ -2404,30 +2912,30 @@ async function openConversation(patientId) {
 
 function displayMessages(messages) {
     const container = document.getElementById('messagesContainer');
-    
+
     if (!messages || messages.length === 0) {
         container.innerHTML = '<p class="text-center text-muted p-3">Aucun message dans cette conversation</p>';
         return;
     }
-    
+
     const html = messages.map(msg => {
         const fromClass = msg.de_medecin ? 'from-medecin' : 'from-patient';
         const dateObj = new Date(msg.date_envoi);
         const timeStr = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         const dateStr = dateObj.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
-        
+
         return `
             <div class="message-group ${fromClass}">
                 <div class="message-bubble">
                     <div class="message-content">${msg.contenu}</div>
-                    <div class="message-time">${dateStr} Ã  ${timeStr}</div>
+                    <div class="message-time">${dateStr} à ${timeStr}</div>
                 </div>
             </div>
         `;
     }).join('');
-    
+
     container.innerHTML = html;
-    
+
     // Scroll au dernier message
     setTimeout(() => {
         container.scrollTop = container.scrollHeight;
@@ -2438,35 +2946,35 @@ function displayMessages(messages) {
 
 async function sendMessage(event) {
     event.preventDefault();
-    
+
     const sujet = 'Message';
     const contenu = document.getElementById('messageContent').value;
-    
+
     if (!contenu.trim()) {
         alert('Veuillez écrire un message');
         return;
     }
-    
+
     const formData = new FormData();
-    
+
     // Vérifier si c'est une conversation avec l'admin
     if (messagerie.patientActuel && messagerie.patientActuel.id === 0) {
         // C'est l'admin
         formData.append('contenu', contenu);
-        
+
         try {
             const response = await fetch('/medecin/api/messagerie/reply-to-admin', {
                 method: 'POST',
                 body: formData
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Erreur envoi message');
             }
-            
+
             const result = await response.json();
-            
+
             // Ajouter le message à la liste
             messagerie.messagesActuels.push({
                 id: result.message.id,
@@ -2476,13 +2984,13 @@ async function sendMessage(event) {
                 date_envoi: result.message.date_envoi,
                 statut: 'Envoyé'
             });
-            
+
             displayMessages(messagerie.messagesActuels);
             document.getElementById('messageForm').reset();
-            
+
             // Recharger les conversations
             await loadConversations();
-            
+
         } catch (error) {
             console.error('Erreur envoi message:', error);
             alert('Erreur lors de l\'envoi: ' + error.message);
@@ -2492,20 +3000,20 @@ async function sendMessage(event) {
         formData.append('patient_id', messagerie.patientActuel.id);
         formData.append('sujet', sujet);
         formData.append('contenu', contenu);
-        
+
         try {
             const response = await fetch('/medecin/api/messagerie/send', {
                 method: 'POST',
                 body: formData
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Erreur envoi message');
             }
-            
+
             const result = await response.json();
-            
+
             // Ajouter le message à la liste
             messagerie.messagesActuels.push({
                 id: result.message_id,
@@ -2515,13 +3023,13 @@ async function sendMessage(event) {
                 date_envoi: result.date_envoi,
                 statut: 'Envoyé'
             });
-            
+
             displayMessages(messagerie.messagesActuels);
             document.getElementById('messageForm').reset();
-            
+
             // Recharger les conversations
             await loadConversations();
-            
+
         } catch (error) {
             console.error('Erreur envoi message:', error);
             alert('Erreur lors de l\'envoi: ' + error.message);
@@ -2540,7 +3048,7 @@ function openNewMessageModal() {
 function populatePatientsSelect() {
     const select = document.getElementById('newMessagePatient');
     select.innerHTML = '<option value="">Sélectionnez un patient...</option>';
-    
+
     messagerie.patients.forEach(patient => {
         const option = document.createElement('option');
         option.value = patient.id;
@@ -2553,36 +3061,36 @@ async function submitNewMessage() {
     const patientId = document.getElementById('newMessagePatient').value;
     const sujet = 'Message';
     const contenu = document.getElementById('newMessageContent').value;
-    
+
     if (!patientId || !contenu.trim()) {
         alert('Veuillez remplir tous les champs');
         return;
     }
-    
+
     const formData = new FormData();
     formData.append('patient_id', patientId);
     formData.append('sujet', sujet);
     formData.append('contenu', contenu);
-    
+
     try {
         const response = await fetch('/medecin/api/messagerie/send', {
             method: 'POST',
             body: formData
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Erreur envoi message');
         }
-        
+
         // Fermer modal et recharger
         bootstrap.Modal.getInstance(document.getElementById('newMessageModal')).hide();
         document.getElementById('newMessageForm').reset();
-        
+
         // Ouvrir la conversation du patient
         const patient = messagerie.patients.find(p => p.id == patientId);
         await loadConversations();
-        
+
         // Afficher la conversation
         setTimeout(() => {
             const conv = messagerie.conversations.find(c => c.patient_id == patientId);
@@ -2686,7 +3194,7 @@ function setupMessagerieListeners() {
     // Recherche conversation
     const searchInput = document.getElementById('searchConversation');
     if (searchInput) {
-        searchInput.addEventListener('input', function(e) {
+        searchInput.addEventListener('input', function (e) {
             const term = e.target.value.toLowerCase();
             const filtered = messagerie.conversations.filter(c =>
                 c.nom_complet.toLowerCase().includes(term) ||
@@ -2695,7 +3203,7 @@ function setupMessagerieListeners() {
             displayConversations(filtered);
         });
     }
-}   
+}
 
 
 
@@ -2707,7 +3215,7 @@ function getDossiersContent() {
         <div class="content-section">
             <div class="section-header">
                 <h2 class="section-title">
-                    <i class="fas fa-folder-medical"></i> Dossiers MÃ©dicaux
+                    <i class="fas fa-folder-medical"></i> Dossiers Médicaux
                 </h2>
                 <div class="section-actions">
                     <input type="text" 
@@ -2750,22 +3258,22 @@ async function loadDossiers() {
         const response = await fetch('/medecin/api/dossiers-medicaux', {
             credentials: 'include'
         });
-        
+
         if (!response.ok) {
             throw new Error("Erreur serveur: " + response.status);
         }
-        
+
         const data = await response.json();
-        
+
         if (!data.success) {
             throw new Error("Réponse invalide de l'API");
         }
-        
+
         dossiersMedecin.list = data.dossiers || [];
         dossiersMedecin.filtered = dossiersMedecin.list;
-        
+
         displayDossiers(dossiersMedecin.list);
-        
+
     } catch (error) {
         console.error('Erreur chargement dossiers:', error);
         document.getElementById('dossiersTable').innerHTML = `
@@ -2781,7 +3289,7 @@ async function loadDossiers() {
 
 function displayDossiers(dossiers) {
     const container = document.getElementById('dossiersTable');
-    
+
     if (!dossiers || dossiers.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
@@ -2791,7 +3299,7 @@ function displayDossiers(dossiers) {
         `;
         return;
     }
-    
+
     const html = `
         <table class="table-dossiers">
             <thead>
@@ -2848,7 +3356,7 @@ function displayDossiers(dossiers) {
             </tbody>
         </table>
     `;
-    
+
     container.innerHTML = html;
     setupDossierListeners();
 }
@@ -2860,31 +3368,31 @@ async function viewDossierDetail(dossierId) {
         const response = await fetch(`/medecin/api/dossiers-medicaux/${dossierId}`, {
             credentials: 'include'
         });
-        
+
         if (!response.ok) {
             throw new Error("Dossier non trouvé");
         }
-        
+
         const data = await response.json();
         const d = data.dossier;
-        
+
         dossiersMedecin.selectionne = d;
-        
+
         // Créer la modale détail
         const modalHTML = createDossierModal(d);
-        
+
         // Ajouter au DOM
         let existingModal = document.getElementById('dossierDetailModal');
         if (existingModal) existingModal.remove();
-        
+
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = modalHTML;
         document.body.appendChild(tempDiv.firstElementChild);
-        
+
         // Afficher la modale
         const modal = new bootstrap.Modal(document.getElementById('dossierDetailModal'));
         modal.show();
-        
+
     } catch (error) {
         console.error('Erreur:', error);
         alert('Erreur: ' + error.message);
@@ -3091,7 +3599,7 @@ function filterDossiersByStatut(statut) {
     if (statut === 'tous') {
         dossiersMedecin.filtered = dossiersMedecin.list;
     } else {
-        dossiersMedecin.filtered = dossiersMedecin.list.filter(d => 
+        dossiersMedecin.filtered = dossiersMedecin.list.filter(d =>
             d.statut_traitement === statut
         );
     }
@@ -3136,7 +3644,7 @@ function truncateText(text, length) {
 function setupDossierListeners() {
     // Double-clic pour ouvrir
     document.querySelectorAll('.dossier-row').forEach(row => {
-        row.addEventListener('dblclick', function() {
+        row.addEventListener('dblclick', function () {
             const dossierId = this.getAttribute('data-dossier-id');
             viewDossierDetail(parseInt(dossierId));
         });
@@ -3150,7 +3658,7 @@ function setupDossierListeners() {
 async function initOrdonnanceModal() {
     // Charger la liste des patients
     await chargerPatientsOrdonnance();
-    
+
     // Setup event listeners
     setupOrdonnanceListeners();
 }
@@ -3172,10 +3680,10 @@ async function chargerPatientsOrdonnance() {
         console.log("Chargement des patients pour ordonnance...");
         const response = await fetch('/medecin/api/patients');
         if (!response.ok) throw new Error('Erreur chargement patients');
-        
+
         ordonnancesData.patients = await response.json();
         console.log("Patients reçus:", ordonnancesData.patients);
-        
+
         // Vérifier que le select existe
         const select = getOrdonnanceElementById('ordonnancePatientSelect');
         if (!select) {
@@ -3183,14 +3691,14 @@ async function chargerPatientsOrdonnance() {
             console.log("Le HTML de la modale est-il bien chargé?");
             return;
         }
-        
+
         select.innerHTML = '<option value="">-- Sélectionner un patient --</option>';
-        
+
         if (ordonnancesData.patients.length === 0) {
             select.innerHTML += '<option value="" disabled>Aucun patient disponible</option>';
             return;
         }
-        
+
         ordonnancesData.patients.forEach(patient => {
             const option = document.createElement('option');
             option.value = patient.id;
@@ -3198,9 +3706,9 @@ async function chargerPatientsOrdonnance() {
             option.dataset.patient = JSON.stringify(patient);
             select.appendChild(option);
         });
-        
+
         console.log(`${ordonnancesData.patients.length} patients chargés dans le select`);
-        
+
     } catch (error) {
         console.error('Erreur chargement patients:', error);
     }
@@ -3210,20 +3718,20 @@ function setupOrdonnanceListeners() {
     // Sélection du patient
     const patientSelect = getOrdonnanceElementById('ordonnancePatientSelect');
     if (patientSelect) {
-        patientSelect.addEventListener('change', function() {
+        patientSelect.addEventListener('change', function () {
             if (this.value) {
                 const option = this.options[this.selectedIndex];
                 const patient = JSON.parse(option.dataset.patient);
-                
+
                 ordonnancesData.patientSelectionne = patient;
-                
+
                 // Afficher les infos du patient
                 getOrdonnanceElementById('patientInfoDisplay').style.display = 'block';
                 getOrdonnanceElementById('displayPatientNom').textContent = patient.nom_complet;
                 getOrdonnanceElementById('displayPatientAge').textContent = patient.age + ' ans';
                 getOrdonnanceElementById('displayPatientEmail').textContent = patient.email;
                 getOrdonnanceElementById('displayPatientTel').textContent = patient.telephone || 'N/A';
-                
+
                 // Mettre à jour les champs cachés
                 getOrdonnanceElementById('ordonnancePatientId').value = patient.id;
                 const patientNameInput = getOrdonnanceElementById('ordonnancePatientName');
@@ -3233,7 +3741,7 @@ function setupOrdonnanceListeners() {
             }
         });
     }
-    
+
     // Soumettre ordonnance
     const submitBtn = document.getElementById('submitOrdonnanceBtn');
     if (submitBtn) {
@@ -3250,15 +3758,15 @@ function openNouvelleOrdonnance() {
         console.error("Element 'ordonnanceModal' non trouvé!");
         return;
     }
-    
+
     // Réinitialiser le formulaire
     const form = modalElement.querySelector('#ordonnanceForm') || document.getElementById('ordonnanceForm');
     if (form) form.reset();
-    
+
     // Cacher le panneau d'info patient
     const infoDisplay = modalElement.querySelector('#patientInfoDisplay') || getOrdonnanceElementById('patientInfoDisplay');
     if (infoDisplay) infoDisplay.style.display = 'none';
-    
+
     // Charger les patients et ouvrir la modale
     chargerPatientsOrdonnance().then(() => {
         const modal = new bootstrap.Modal(modalElement);
@@ -3277,67 +3785,67 @@ async function submitOrdonnance() {
     const medicaments = getOrdonnanceElementById('ordonnanceMedicaments').value.trim();
     const posologie = getOrdonnanceElementById('ordonnancePosologie').value.trim();
     const duree = getOrdonnanceElementById('ordonnanceDuree').value.trim();
-    
+
     if (!patientId) {
         alert('⚠️ Veuillez sélectionner un patient');
         return;
     }
-    
+
     if (!medicaments) {
         alert('⚠️ Veuillez renseigner les médicaments');
         return;
     }
-    
+
     if (!posologie) {
         alert('⚠️ Veuillez renseigner la posologie');
         return;
     }
-    
+
     if (!duree) {
         alert('⚠️ Veuillez renseigner la durée du traitement');
         return;
     }
-    
+
     // Afficher un loading
     const submitBtn = document.getElementById('submitOrdonnanceBtn');
     const originalText = submitBtn.innerHTML;
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Crétion en cours...';
-    
+
     try {
         const formData = new FormData();
         formData.append('patient_id', patientId);
         formData.append('medicaments', medicaments);
         formData.append('posologie', posologie);
         formData.append('duree_traitement', duree);
-        
+
         const response = await fetch('/medecin/api/ordonnances/creer', {
             method: 'POST',
             body: formData
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.detail || 'Erreur création ordonnance');
         }
-        
+
         const result = await response.json();
-        
+
         // Succès
         alert(' Ordonnance créée et PDF généré avec succès!');
-        
+
         // Fermer la modale
         const modal = bootstrap.Modal.getInstance(getOrdonnanceModalElement());
         modal.hide();
-        
+
         // Recharger la liste des ordonnances
         if (typeof loadOrdonnances === 'function') {
             loadOrdonnances();
         }
-        
+
         // Télécharger le PDF automatiquement (optionnel)
         downloadOrdonnancePDF(result.ordonnance_id);
-        
+
     } catch (error) {
         console.error('Erreur:', error);
         alert('âŒ Erreur: ' + error.message);
@@ -3351,16 +3859,16 @@ async function submitOrdonnance() {
 
 async function loadOrdonnances() {
     const mainContent = document.getElementById('mainContent');
-    
+
     try {
         const response = await fetch('/medecin/api/ordonnances');
         if (!response.ok) throw new Error("Erreur serveur");
-        
+
         const data = await response.json();
         ordonnancesData.list = data.ordonnances || [];
-        
+
         displayOrdonnances(ordonnancesData.list);
-        
+
     } catch (error) {
         console.error('Erreur chargement ordonnances:', error);
         mainContent.innerHTML = `
@@ -3376,7 +3884,7 @@ async function loadOrdonnances() {
 
 function displayOrdonnances(ordonnances) {
     const container = document.getElementById('ordonnancesTable');
-    
+
     if (!ordonnances || ordonnances.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
@@ -3389,7 +3897,7 @@ function displayOrdonnances(ordonnances) {
         `;
         return;
     }
-    
+
     const html = `
         <table class="table-ordonnances">
             <thead>
@@ -3443,7 +3951,7 @@ function displayOrdonnances(ordonnances) {
             </tbody>
         </table>
     `;
-    
+
     container.innerHTML = html;
 }
 
@@ -3452,7 +3960,7 @@ function displayOrdonnances(ordonnances) {
 function viewOrdonnanceDetail(ordonnanceId) {
     const ordonnance = ordonnancesData.list.find(o => o.id === ordonnanceId);
     if (!ordonnance) return;
-    
+
     const modalHTML = `
         <div class="modal fade" id="detailOrdonnanceModal" tabindex="-1">
             <div class="modal-dialog modal-lg">
@@ -3501,15 +4009,15 @@ function viewOrdonnanceDetail(ordonnanceId) {
             </div>
         </div>
     `;
-    
+
     // Ajouter et afficher la modale
     let existingModal = document.getElementById('detailOrdonnanceModal');
     if (existingModal) existingModal.remove();
-    
+
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = modalHTML;
     document.body.appendChild(tempDiv.firstElementChild);
-    
+
     const modal = new bootstrap.Modal(document.getElementById('detailOrdonnanceModal'));
     modal.show();
 }
@@ -3530,7 +4038,7 @@ function downloadOrdonnancePDF(ordonnanceId) {
 function deleteOrdonnance(ordonnanceId) {
     const confirmed = confirm('Êtes-vous sûr de vouloir supprimer cette ordonnance?');
     if (!confirmed) return;
-    
+
     alert('Fonction suppression en développement');
     // À implémenter: route DELETE /api/ordonnances/{id}
 }
@@ -3804,12 +4312,12 @@ if (profileAvatarEl && photoInputEl) {
 function initializeMedecinSearch() {
     const searchInput = document.querySelector('.navbar-search input');
     const searchContainer = document.querySelector('.navbar-search');
-    
+
     if (!searchInput) {
         console.warn("⚠️ Recherche non disponible");
         return;
     }
-    
+
     // Créer le conteneur de résultats
     let searchResults = document.getElementById('medecinSearchResults');
     if (!searchResults) {
@@ -3819,19 +4327,19 @@ function initializeMedecinSearch() {
         searchContainer.style.position = 'relative';
         searchContainer.appendChild(searchResults);
     }
-    
+
     function performSearch() {
         const searchTerm = searchInput.value.trim().toLowerCase();
-        
+
         if (searchTerm.length < 2) {
             searchResults.classList.remove('show');
             return;
         }
-        
+
         const mainContent = document.getElementById('mainContent');
         const results = [];
         const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-        
+
         // Recherche dans les titres et éléments importants (plus rapide)
         if (mainContent) {
             const titles = mainContent.querySelectorAll('h1, h2, h3, h4, .patient-name, .card-title');
@@ -3855,14 +4363,14 @@ function initializeMedecinSearch() {
                 }
             });
         }
-        
+
         // Affichage des résultats
         if (results.length === 0) {
             searchResults.innerHTML = `<div class="search-no-results">Aucun résultat</div>`;
         } else {
             let html = '<div class="search-results-container">';
             html += `<div class="search-header">${results.length} résultat(s)</div>`;
-            
+
             results.slice(0, 5).forEach(r => {
                 html += `
                     <div class="search-item" onclick="scrollToElement('${escapeHtml(r.title)}')">
@@ -3874,16 +4382,16 @@ function initializeMedecinSearch() {
             html += '</div>';
             searchResults.innerHTML = html;
         }
-        
+
         searchResults.classList.add('show');
     }
-    
+
     // Écouteurs d'événements
     searchInput.addEventListener('input', () => {
         clearTimeout(medecinSearchTimeout);
         medecinSearchTimeout = setTimeout(performSearch, 300);
     });
-    
+
     document.addEventListener('click', (e) => {
         if (!searchContainer.contains(e.target)) {
             searchResults.classList.remove('show');
@@ -3892,7 +4400,7 @@ function initializeMedecinSearch() {
 }
 
 // Fonction de défilement
-window.scrollToElement = function(title) {
+window.scrollToElement = function (title) {
     const elements = document.querySelectorAll('h1, h2, h3, h4, .patient-name, .card-title');
     for (let el of elements) {
         if (el.textContent.includes(title)) {
@@ -3905,7 +4413,7 @@ window.scrollToElement = function(title) {
     closeMedecinSearch();
 };
 
-window.closeMedecinSearch = function() {
+window.closeMedecinSearch = function () {
     const results = document.getElementById('medecinSearchResults');
     if (results) results.classList.remove('show');
 };
@@ -3985,7 +4493,7 @@ const FIXED_HOLIDAYS = [
 function showCalendar(year = null) {
     console.log("✅ showCalendar() est appelée", new Date().toLocaleTimeString());
     if (year) currentYear = year;
-    
+
     const mainContent = document.getElementById('mainContent');
     if (!mainContent) return;
 
@@ -4074,7 +4582,7 @@ function showCalendar(year = null) {
             </div>
         </div>
     `;
-    
+
     // Charger les jours fériés et mettre à jour les statistiques
     loadHolidays(currentYear).then(() => {
         // Attendre que le DOM soit complètement mis à jour
@@ -4092,17 +4600,17 @@ function generateCalendarHTML(year) {
         'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
         'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
     ];
-    
+
     const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-    
+
     let html = '';
-    
+
     for (let month = 0; month < 12; month++) {
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
         const startOffset = (firstDay.getDay() + 6) % 7; // Lundi = 0
         const daysInMonth = lastDay.getDate();
-        
+
         html += `
             <div class="calendar-month" style="background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
                 <h3 class="month-title" style="margin: 0 0 15px 0; color: #0D8ABC; font-size: 18px; text-align: center;">${months[month]}</h3>
@@ -4112,19 +4620,19 @@ function generateCalendarHTML(year) {
                     </div>
                     <div class="days-grid" id="month-${year}-${month}" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;">
         `;
-        
+
         // Cellules vides avant le premier jour
         for (let i = 0; i < startOffset; i++) {
             html += `<div class="day-cell empty" style="aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 4px; border-radius: 6px; background: transparent; cursor: default; position: relative; min-height: 45px;"></div>`;
         }
-        
+
         // Jours du mois
         for (let day = 1; day <= daysInMonth; day++) {
             const date = new Date(year, month, day);
             const dayOfWeek = date.getDay();
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             const isToday = isSameDay(date, new Date());
-            
+
             html += `
                 <div class="day-cell ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}" 
                      data-date="${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}"
@@ -4136,14 +4644,14 @@ function generateCalendarHTML(year) {
                 </div>
             `;
         }
-        
+
         html += `
                     </div>
                 </div>
             </div>
         `;
     }
-    
+
     return html;
 }
 
@@ -4159,7 +4667,7 @@ async function loadHolidays(year) {
     } catch (error) {
         console.log('API jours fériés non disponible, utilisation des données locales');
     }
-    
+
     // Fallback: générer les jours fériés localement
     holidaysCache = generateLocalHolidays(year);
 }
@@ -4167,7 +4675,7 @@ async function loadHolidays(year) {
 // Générer les jours fériés localement
 function generateLocalHolidays(year) {
     const holidays = [];
-    
+
     // Ajouter les jours fériés fixes
     FIXED_HOLIDAYS.forEach(holiday => {
         holidays.push({
@@ -4176,23 +4684,23 @@ function generateLocalHolidays(year) {
             type: 'fixed'
         });
     });
-    
+
     // Calculer Pâques
     const easter = calculateEaster(year);
     if (easter) {
         const easterMonday = new Date(easter);
         easterMonday.setDate(easterMonday.getDate() + 1);
         holidays.push({ date: easterMonday, name: "Lundi de Pâques", type: 'movable' });
-        
+
         const ascension = new Date(easter);
         ascension.setDate(ascension.getDate() + 39);
         holidays.push({ date: ascension, name: "Ascension", type: 'movable' });
-        
+
         const pentecost = new Date(easter);
         pentecost.setDate(pentecost.getDate() + 50);
         holidays.push({ date: pentecost, name: "Pentecôte", type: 'movable' });
     }
-    
+
     return holidays;
 }
 
@@ -4212,27 +4720,27 @@ function calculateEaster(year) {
     const m = Math.floor((a + 11 * h + 22 * l) / 451);
     const month = Math.floor((h + l - 7 * m + 114) / 31);
     const day = ((h + l - 7 * m + 114) % 31) + 1;
-    
+
     return new Date(year, month - 1, day);
 }
 
 // Marquer les jours fériés sur le calendrier
 function markHolidaysOnCalendar(year, holidays) {
     if (!holidays || holidays.length === 0) return;
-    
+
     holidays.forEach(holiday => {
         const date = holiday.date;
         if (date.getFullYear() !== year) return;
-        
+
         const month = date.getMonth();
         const day = date.getDate();
-        
+
         setTimeout(() => {
             const dayCell = document.querySelector(`.day-cell[data-month="${month}"][data-day="${day}"]`);
             if (dayCell) {
                 dayCell.classList.add('holiday');
                 dayCell.style.background = '#fee2e2';
-                
+
                 const eventsDiv = document.getElementById(`events-${year}-${month}-${day}`);
                 if (eventsDiv) {
                     eventsDiv.innerHTML = `
@@ -4250,24 +4758,24 @@ function markHolidaysOnCalendar(year, holidays) {
 function updateCalendarStats(year) {
     const holidays = holidaysCache || [];
     const holidaysInYear = holidays.filter(h => h.date.getFullYear() === year).length;
-    
+
     let weekendsCount = 0;
     let workdaysCount = 0;
-    
+
     const startDate = new Date(year, 0, 1);
     const endDate = new Date(year, 11, 31);
-    
+
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
         const dayOfWeek = d.getDay();
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        
+
         if (isWeekend) {
             weekendsCount++;
         } else {
             workdaysCount++;
         }
     }
-    
+
     // Soustraire les jours fériés qui tombent en semaine
     holidays.forEach(holiday => {
         if (holiday.date.getFullYear() !== year) return;
@@ -4276,11 +4784,11 @@ function updateCalendarStats(year) {
             workdaysCount--;
         }
     });
-    
+
     const holidaysElement = document.getElementById('holidaysCount');
     const weekendsElement = document.getElementById('weekendsCount');
     const workdaysElement = document.getElementById('workdaysCount');
-    
+
     if (holidaysElement) holidaysElement.textContent = holidaysInYear;
     if (weekendsElement) weekendsElement.textContent = weekendsCount;
     if (workdaysElement) workdaysElement.textContent = workdaysCount;
@@ -4290,21 +4798,21 @@ function updateCalendarStats(year) {
 function displayHolidaysList(year) {
     const holidays = holidaysCache?.filter(h => h.date.getFullYear() === year) || [];
     holidays.sort((a, b) => a.date - b.date);
-    
+
     const grid = document.getElementById('holidaysGrid');
     if (!grid) return;
-    
+
     if (holidays.length === 0) {
         grid.innerHTML = '<p class="empty-state" style="color: #6b7280; text-align: center;">Aucun jour férié trouvé</p>';
         return;
     }
-    
+
     let html = '';
     holidays.forEach(holiday => {
         const date = holiday.date;
         const dayOfWeek = date.toLocaleDateString('fr-FR', { weekday: 'long' });
         const formattedDate = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
-        
+
         html += `
             <div class="holiday-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444;">
                 <div class="holiday-date" style="display: flex; flex-direction: column;">
@@ -4320,7 +4828,7 @@ function displayHolidaysList(year) {
             </div>
         `;
     });
-    
+
     grid.innerHTML = html;
 }
 
@@ -4336,14 +4844,14 @@ function filterCalendar(filter) {
     event.target.style.background = '#0D8ABC';
     event.target.style.color = 'white';
     event.target.style.borderColor = '#0D8ABC';
-    
+
     const dayCells = document.querySelectorAll('.day-cell:not(.empty)');
-    
+
     dayCells.forEach(cell => {
         const isHoliday = cell.classList.contains('holiday');
         const isWeekend = cell.classList.contains('weekend');
-        
-        switch(filter) {
+
+        switch (filter) {
             case 'all':
                 cell.style.display = '';
                 break;
@@ -4369,149 +4877,37 @@ function changeYear(delta) {
 // Vérifier si deux dates sont le même jour
 function isSameDay(date1, date2) {
     return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
+        date1.getMonth() === date2.getMonth() &&
+        date1.getDate() === date2.getDate();
 }
 
 function setupMedecinLanguage() {
     const selector = document.querySelector('.language-selector');
     if (!selector) return;
 
-    const dict = {
-        fr: {
-            search: 'Rechercher un patient, un dossier...',
-            dashboard: 'Tableau de Bord',
-            patients: 'Mes Patients',
-            rdv: 'Mes Rendez-vous',
-            dossiers: 'Dossiers Médicaux',
-            ordonnances: 'Ordonnances',
-            messagerie: 'Messagerie',
-            visio: 'Visioconférences',
-            historique: 'Historique',
-            profil: 'Mon Profil',
-            calendrier: 'Calendrier',
-            parametres: 'Paramètres',
-            chatia: 'Chat IA'
-        },
-        en: {
-            search: 'Search patient, file...',
-            dashboard: 'Dashboard',
-            patients: 'My Patients',
-            rdv: 'Appointments',
-            dossiers: 'Medical Records',
-            ordonnances: 'Prescriptions',
-            messagerie: 'Messaging',
-            visio: 'Video Calls',
-            historique: 'History',
-            profil: 'My Profile',
-            calendrier: 'Calendar',
-            parametres: 'Settings',
-            chatia: 'AI Chat'
-        },
-        es: {
-            search: 'Buscar paciente, expediente...',
-            dashboard: 'Panel',
-            patients: 'Mis Pacientes',
-            rdv: 'Citas',
-            dossiers: 'Historiales',
-            ordonnances: 'Recetas',
-            messagerie: 'Mensajeria',
-            visio: 'Videollamadas',
-            historique: 'Historial',
-            profil: 'Mi Perfil',
-            calendrier: 'Calendario',
-            parametres: 'Configuracion',
-            chatia: 'Chat IA'
-        }
-    };
-
-    const apply = (lang) => {
-        const t = dict[lang] || dict.fr;
-        localStorage.setItem('app_lang', lang);
-
-        const searchInput = document.querySelector('.navbar-search input');
-        if (searchInput) searchInput.placeholder = t.search;
-
-        const map = {
-            dashboard: t.dashboard,
-            patients: t.patients,
-            rdv: t.rdv,
-            dossiers: t.dossiers,
-            ordonnances: t.ordonnances,
-            messagerie: t.messagerie,
-            visio: t.visio,
-            historique: t.historique,
-            profil: t.profil,
-            calendrier: t.calendrier,
-            parametres: t.parametres,
-            'chat-ia': t.chatia
-        };
-
-        Object.entries(map).forEach(([section, text]) => {
-            const el = document.querySelector(`.menu-link[data-section="${section}"] span`);
-            if (el) el.textContent = text;
-        });
-
-        translateMedecinVisibleContent(lang);
-    };
-
     const saved = localStorage.getItem('app_lang') || 'fr';
-    selector.value = saved === 'es' ? 'fr' : saved;
-    apply(selector.value);
-    selector.addEventListener('change', (e) => apply(e.target.value));
+    selector.value = saved;
+
+    if (window.DokiraI18n) {
+        DokiraI18n.syncSelectors();
+        DokiraI18n.apply();
+    }
+
+    selector.addEventListener('change', (e) => {
+        const lang = e.target.value;
+        if (window.DokiraI18n) {
+            DokiraI18n.setLang(lang);
+        } else {
+            localStorage.setItem('app_lang', lang);
+            location.reload();
+        }
+    });
 }
 
 function translateMedecinVisibleContent(lang) {
-    const content = document.getElementById('mainContent');
-    if (!content) return;
-    if (lang === 'fr') return;
-
-    const replaceMap = {
-        en: [
-            ['Bonjour', 'Hello'],
-            ['Bienvenue dans votre espace médecin Dokira', 'Welcome to your Dokira doctor area'],
-            ['Patients', 'Patients'],
-            ['RDV Aujourd\'hui', 'Appointments Today'],
-            ['En Traitement', 'In Treatment'],
-            ['Ordonnances', 'Prescriptions'],
-            ['Calendrier Annuel', 'Annual Calendar'],
-            ['Jours fériés', 'Public Holidays'],
-            ['Week-ends', 'Weekends'],
-            ['Jours ouvrés', 'Working Days'],
-            ['Aujourd\'hui', 'Today'],
-            ['Messagerie', 'Messaging'],
-            ['Aucune conversation', 'No conversation']
-        ],
-        es: [
-            ['Bonjour', 'Hola'],
-            ['Bienvenue dans votre espace médecin Dokira', 'Bienvenido a su espacio medico Dokira'],
-            ['Patients', 'Pacientes'],
-            ['RDV Aujourd\'hui', 'Citas de hoy'],
-            ['En Traitement', 'En tratamiento'],
-            ['Ordonnances', 'Recetas'],
-            ['Calendrier Annuel', 'Calendario anual'],
-            ['Jours fériés', 'Dias festivos'],
-            ['Week-ends', 'Fines de semana'],
-            ['Jours ouvrés', 'Dias laborables'],
-            ['Aujourd\'hui', 'Hoy'],
-            ['Messagerie', 'Mensajeria'],
-            ['Aucune conversation', 'Sin conversacion']
-        ]
-    };
-
-    const pairs = replaceMap[lang] || [];
-    pairs.forEach(([fr, translated]) => {
-        const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
-        const targets = [];
-        while (walker.nextNode()) {
-            if (walker.currentNode.nodeValue && walker.currentNode.nodeValue.includes(fr)) {
-                targets.push(walker.currentNode);
-            }
-        }
-        targets.forEach(node => {
-            node.nodeValue = node.nodeValue.replaceAll(fr, translated);
-        });
-    });
+    if (window.DokiraI18n) {
+        DokiraI18n.apply();
+    }
 }
 
 // ============= CHAT IA MÉDECIN =============
@@ -4577,4 +4973,200 @@ function showMedecinChatIAInterface() {
             console.error('Erreur chat IA médecin:', error);
         }
     });
+}
+
+// ============= AIDE & SUPPORT =============
+
+function showMedecinAideInterface() {
+    const mainContent = document.getElementById('mainContent');
+    if (!mainContent) return;
+
+    mainContent.innerHTML = `
+        <div class="aide-v2-container animate-in">
+            <div class="section-header">
+                <h2 class="section-title"><i class="fas fa-question-circle"></i> Aide & Support</h2>
+                <p class="text-muted">Consultez nos guides ou contactez l'assistance technique Dokira Pro.</p>
+            </div>
+
+            <div class="aide-search-wrapper mt-4">
+                <div class="search-box-aide" style="max-width: 600px;">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="aideSearchInput" placeholder="Rechercher une aide (ex: rdv, ordonnance, profil...)" oninput="filterMedecinAideCards(this.value)">
+                </div>
+            </div>
+
+            <div class="aide-sections-nav" id="medecinAideNav">
+                <div class="aide-nav-item active" onclick="switchMedecinAideTab('all', this)">Toutes les sections</div>
+                <div class="aide-nav-item" onclick="switchMedecinAideTab('profil', this)">Mon Profil</div>
+                <div class="aide-nav-item" onclick="switchMedecinAideTab('patients', this)">Mes Patients</div>
+                <div class="aide-nav-item" onclick="switchMedecinAideTab('rdv', this)">Rendez-vous</div>
+                <div class="aide-nav-item" onclick="switchMedecinAideTab('dossiers', this)">Dossiers & Ordonnances</div>
+            </div>
+
+            <div class="aide-cards-container" id="medecinAideCards">
+                <!-- Les cartes seront injectées ici -->
+            </div>
+
+            <div class="admin-contacts">
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <i class="fas fa-headset fa-2x" style="color: #0D8ABC;"></i>
+                    <div>
+                        <h4 class="mb-0">Support Dokira Pro</h4>
+                        <p class="text-muted mb-0">Besoin d'aide personnalisée ou signalement de bug ?</p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="admin-card">
+                            <div class="admin-avatar">AD</div>
+                            <div class="admin-info">
+                                <h5 class="mb-0">Administration</h5>
+                                <p class="text-muted small mb-0">Gestion des comptes et validation</p>
+                            </div>
+                            <button class="btn btn-primary btn-sm ms-auto" onclick="showContactAdminForm('admin')">Contacter</button>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="admin-card">
+                            <div class="admin-avatar">ST</div>
+                            <div class="admin-info">
+                                <h5 class="mb-0">Support Technique</h5>
+                                <p class="text-muted small mb-0">Problèmes techniques et bugs</p>
+                            </div>
+                            <button class="btn btn-primary btn-sm ms-auto" onclick="showContactAdminForm('tech')">Signaler un bug</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Charger par défaut toutes les sections
+    switchMedecinAideTab('all', document.querySelector('.aide-nav-item.active'));
+}
+
+window.switchMedecinAideTab = function (category, element) {
+    const container = document.getElementById('medecinAideCards');
+    if (!container) return;
+
+    document.querySelectorAll('.aide-nav-item').forEach(item => item.classList.remove('active'));
+    element.classList.add('active');
+
+    const aideData = {
+        'profil': [
+            { icon: 'fa-id-card', title: 'Informations Personnelles', text: 'Modifiez votre nom, spécialité et coordonnées depuis les paramètres.' },
+            { icon: 'fa-image', title: 'Photo de Profil', text: 'Importez une photo professionnelle pour rassurer vos patients.' },
+            { icon: 'fa-money-bill-wave', title: 'Tarifs & Honoraires', text: 'Ajustez vos prix de consultation affichés sur la plateforme.' }
+        ],
+        'patients': [
+            { icon: 'fa-users', title: 'Liste des Patients', text: 'Accédez à la liste complète de vos patients et filtrez par nom.' },
+            { icon: 'fa-user-plus', title: 'Nouveau Patient', text: 'Les patients apparaissent automatiquement après leur premier RDV avec vous.' }
+        ],
+        'rdv': [
+            { icon: 'fa-calendar-alt', title: 'Agenda', text: 'Visualisez vos rendez-vous par jour, semaine ou mois dans le calendrier.' },
+            { icon: 'fa-check-circle', title: 'Confirmation', text: 'Confirmez ou reportez les demandes de rendez-vous reçues.' },
+            { icon: 'fa-video', title: 'Vidéoconférence', text: 'Lancez vos téléconsultations sécurisées directement depuis le RDV.' }
+        ],
+        'dossiers': [
+            { icon: 'fa-folder-open', title: 'Historique Médical', text: 'Consultez les anciennes consultations et documents du patient.' },
+            { icon: 'fa-prescription', title: 'Ordonnances Numériques', text: 'Générez des ordonnances PDF sécurisées et envoyez-les par email.' },
+            { icon: 'fa-vials', title: 'Analyses & Résultats', text: 'Enregistrez les résultats d\'analyses et suivez l\'évolution du patient.' }
+        ]
+    };
+
+    let html = '';
+    const categories = category === 'all' ? Object.keys(aideData) : [category];
+
+    categories.forEach(cat => {
+        aideData[cat].forEach(item => {
+            html += `
+                <div class="aide-card-simple">
+                    <i class="fas ${item.icon}"></i>
+                    <h3>${item.title}</h3>
+                    <p>${item.text}</p>
+                </div>
+            `;
+        });
+    });
+
+    container.innerHTML = html;
+};
+
+window.filterMedecinAideCards = function (query) {
+    const term = query.toLowerCase();
+    const cards = document.querySelectorAll('.aide-card-simple');
+    cards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        card.style.display = text.includes(term) ? 'block' : 'none';
+    });
+};
+
+window.showContactAdminForm = function (target) {
+    const mainContent = document.getElementById('mainContent');
+    const title = target === 'tech' ? "Signaler un bug technique" : "Contacter l'administration";
+
+    mainContent.innerHTML = `
+        <div class="content-section animate-in">
+            <button class="btn btn-outline-secondary mb-4" onclick="showMedecinAideInterface()">
+                <i class="fas fa-arrow-left me-2"></i> Retour à l'aide
+            </button>
+            <div class="stat-card p-4" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 15px;">
+                <h3 class="mb-4"><i class="fas fa-paper-plane me-2 text-primary"></i> ${title}</h3>
+                <form id="contactAdminForm">
+                    <div class="mb-3">
+                        <label class="form-label">Sujet</label>
+                        <input type="text" id="adminSubject" class="form-control" placeholder="Ex: Problème d'affichage, Erreur de tarif..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Message détaillé</label>
+                        <textarea id="adminMessage" class="form-control" rows="6" placeholder="Décrivez votre demande avec précision..." required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2">
+                        <i class="fas fa-paper-plane me-2"></i> Envoyer le message
+                    </button>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('contactAdminForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const subject = document.getElementById('adminSubject').value;
+        const message = document.getElementById('adminMessage').value;
+        const fullMessage = `[SUJET: ${subject}]\n\n${message}`;
+
+        try {
+            const res = await fetch("/medecin/api/messagerie/reply-to-admin", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({ contenu: fullMessage })
+            });
+
+            if (res.ok) {
+                alert("Votre message a été transmis à l'administration. Vous recevrez une réponse dans votre messagerie.");
+                showMedecinAideInterface();
+            } else {
+                alert("Erreur lors de l'envoi du message.");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Erreur réseau.");
+        }
+    };
+};
+
+
+function previewParamPhoto(event) {
+    const input = event.target;
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const img = document.getElementById('paramPhotoPreview');
+            if (img) img.src = e.target.result;
+
+            const navImg = document.getElementById('profileAvatar');
+            if (navImg) navImg.src = e.target.result;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
 }

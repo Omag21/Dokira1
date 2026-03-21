@@ -3,7 +3,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     console.log("🚀 Initialisation des statistiques...");
-    
+
     // Tester d'abord l'API
     testStatsAPI().then(success => {
         if (success) {
@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setupStatsCounter();
         }
     });
-    
+
     setupHeroRdvButton();
     setupFadeInAnimation();
     setupStatsCounter();
@@ -30,66 +30,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupPublicLanguage() {
-    const select = document.getElementById('languageSelect');
-    if (!select) return;
-
-    const dict = {
-        fr: {
-            home: 'Accueil',
-            features: 'Fonctionnalités',
-            stats: 'Statistiques',
-            testimonials: 'Témoignages',
-            login: 'Connexion',
-            signup: 'Inscription',
-            download: "Télécharger l'application",
-            search: 'Taper ici pour rechercher...'
-        },
-        en: {
-            home: 'Home',
-            features: 'Features',
-            stats: 'Statistics',
-            testimonials: 'Testimonials',
-            login: 'Login',
-            signup: 'Sign up',
-            download: 'Download app',
-            search: 'Type here to search...'
-        },
-        es: {
-            home: 'Inicio',
-            features: 'Funciones',
-            stats: 'Estadísticas',
-            testimonials: 'Testimonios',
-            login: 'Conexión',
-            signup: 'Registro',
-            download: 'Descargar aplicación',
-            search: 'Escribe aquí para buscar...'
-        }
-    };
-
-    window.changelanguage = function(lang) {
-        const t = dict[lang] || dict.fr;
-        localStorage.setItem('app_lang', lang);
-
-        const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
-        if (navLinks[0]) navLinks[0].textContent = t.home;
-        if (navLinks[1]) navLinks[1].textContent = t.features;
-        if (navLinks[2]) navLinks[2].textContent = t.stats;
-        if (navLinks[3]) navLinks[3].textContent = t.testimonials;
-        if (navLinks[4]) navLinks[4].textContent = t.login;
-        if (navLinks[5]) navLinks[5].textContent = t.signup;
-        if (navLinks[7]) {
-            const span = navLinks[7].querySelector('span');
-            if (span) span.textContent = t.download;
-        }
-
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) searchInput.placeholder = t.search;
-    };
-
-    const saved = localStorage.getItem('app_lang') || 'fr';
-    select.value = saved;
-    window.changelanguage(saved);
-    select.addEventListener('change', (e) => window.changelanguage(e.target.value));
+    // Le système i18n.js gère automatiquement le sélecteur #languageSelect
+    // via la classe .language-selector et localStorage 'dokira_lang'.
+    // Cette fonction n'est gardée que pour compatibilité.
+    if (typeof DokiraI18n !== 'undefined') {
+        DokiraI18n.init();
+    }
 }
 
 function setupHeroRdvButton() {
@@ -120,26 +66,26 @@ function setupFadeInAnimation() {
 
 function setupStatsCounter() {
     const stats = document.querySelectorAll('.stat-number');
-    
+
     stats.forEach((el) => {
         const targetRaw = el.getAttribute('data-count') || '0';
-        
+
         // Gérer les nombres avec virgule (comme 99.9)
         const target = parseFloat(targetRaw);
-        
+
         if (isNaN(target)) return;
-        
+
         // Déterminer si c'est un nombre entier ou décimal
         const isInteger = Number.isInteger(target);
-        
+
         let current = 0;
         const steps = 60;
         const increment = target / steps;
-        
+
         // Fonction d'animation
         const tick = () => {
             current += increment;
-            
+
             if (current < target) {
                 if (isInteger) {
                     el.textContent = Math.floor(current).toLocaleString('fr-FR');
@@ -156,7 +102,7 @@ function setupStatsCounter() {
                 }
             }
         };
-        
+
         tick();
     });
 }
@@ -186,9 +132,12 @@ async function loadSpecialistes() {
         grid.innerHTML = specialistes.map((m) => {
             const fullName = `Dr. ${m.prenom} ${m.nom}`;
             const photo = m.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=0066cc&color=fff&size=320`;
+            const prixLabel = (m.prix_consultation && m.prix_consultation > 0)
+                ? new Intl.NumberFormat('fr-FR').format(m.prix_consultation) + ' FCFA'
+                : 'Non renseigné';
             return `
-                <div class="col-md-6 col-lg-4">
-                    <div class="specialist-card text-center h-100 d-flex flex-column">
+                <div class="col-md-6 col-lg-3">
+                    <div class="specialist-card text-center h-100 d-flex flex-column" style="padding: 10px;">
                         <div class="specialist-photo">
                             <img src="${photo}" alt="${fullName}">
                         </div>
@@ -197,7 +146,7 @@ async function loadSpecialistes() {
                         <p class="mb-1"><strong>Expérience:</strong> ${m.annees_experience} ans</p>
                         <p class="mb-1"><strong>Cabinet:</strong> ${m.adresse_cabinet}</p>
                         <p class="mb-1"><strong>Téléphone:</strong> ${m.telephone}</p>
-                        <p class="mb-3"><strong>Consultation:</strong> ${m.prix_consultation} FCFA</p>
+                        <p class="mb-3"><strong>Consultation:</strong> ${prixLabel}</p>
                         <button class="btn btn-primary mt-auto js-rdv-btn" data-medecin-id="${m.id}">Prendre un rendez-vous</button>
                     </div>
                 </div>
@@ -339,7 +288,7 @@ async function loadAnnoncesPageAccueil() {
             const imageUrl = annonce.image_url || 'https://via.placeholder.com/400x200?text=Annonce';
             const description = annonce.description_courte || annonce.contenu.substring(0, 150) + '...';
             const categorie = annonce.categorie ? `<span class="badge bg-primary me-2">${escapeHtml(annonce.categorie)}</span>` : '';
-            
+
             announcementHTML += `
                 <div class="col-md-6 col-lg-4">
                     <div class="announcement-card h-100 d-flex flex-column">
@@ -375,7 +324,7 @@ async function loadAnnoncesPageAccueil() {
         `;
 
         announcementsContainer.innerHTML = announcementHTML;
-        
+
         // Ajouter le modal si nécessaire
         if (!document.getElementById('announcementModal')) {
             addAnnouncementModal();
@@ -412,7 +361,7 @@ function addAnnouncementModal() {
 }
 
 // Voir les détails d'une annonce
-window.viewAnnouncementDetail = async function(announcementId) {
+window.viewAnnouncementDetail = async function (announcementId) {
     try {
         const response = await fetch('/admin/api/public/annonces');
         const annonces = await response.json();
@@ -422,7 +371,7 @@ window.viewAnnouncementDetail = async function(announcementId) {
 
         document.getElementById('announcementTitle').textContent = escapeHtml(annonce.titre);
         document.getElementById('announcementImage').src = escapeHtml(annonce.image_url || 'https://via.placeholder.com/400x200');
-        
+
         let contentHTML = `
             <p><strong>Catégorie:</strong> ${escapeHtml(annonce.categorie || '-')}</p>
             <p><strong>Date:</strong> ${formatDate(annonce.date_creation)}</p>
@@ -478,27 +427,27 @@ function initializeSearch() {
     const searchInput = document.getElementById('searchInput');
     const searchButton = document.getElementById('searchButton');
     const searchResults = document.getElementById('searchResults');
-    
+
     if (!searchInput || !searchButton || !searchResults) return;
-    
+
     // Fonction principale de recherche
     function performSearch() {
         const searchTerm = searchInput.value.trim().toLowerCase();
-        
+
         if (searchTerm === '') {
             searchResults.innerHTML = '';
             searchResults.classList.remove('show');
             return;
         }
-        
+
         // Récupérer tout le contenu texte de la page
         const pageContent = document.body.innerText || document.body.textContent;
         const lines = pageContent.split('\n');
-        
+
         // Chercher les lignes contenant le terme de recherche
         const matches = [];
         const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-        
+
         lines.forEach((line, index) => {
             line = line.trim();
             if (line && regex.test(line)) {
@@ -506,14 +455,14 @@ function initializeSearch() {
                 const matchIndex = line.toLowerCase().indexOf(searchTerm.toLowerCase());
                 const start = Math.max(0, matchIndex - 30);
                 const end = Math.min(line.length, matchIndex + searchTerm.length + 30);
-                
+
                 let context = line.substring(start, end);
                 if (start > 0) context = '...' + context;
                 if (end < line.length) context = context + '...';
-                
+
                 // Mettre en évidence le terme recherché
                 const highlightedContext = context.replace(regex, match => `<mark>${match}</mark>`);
-                
+
                 matches.push({
                     text: line,
                     context: highlightedContext,
@@ -521,11 +470,11 @@ function initializeSearch() {
                 });
             }
         });
-        
+
         // Afficher les résultats
         displaySearchResults(matches, searchTerm);
     }
-    
+
     function displaySearchResults(matches, searchTerm) {
         if (matches.length === 0) {
             searchResults.innerHTML = `
@@ -540,7 +489,7 @@ function initializeSearch() {
                     <div class="mt-1">${match.context}</div>
                 </div>
             `).join('');
-            
+
             searchResults.innerHTML = `
                 <div class="card">
                     <div class="card-header bg-primary text-white">
@@ -552,19 +501,19 @@ function initializeSearch() {
                 </div>
             `;
         }
-        
+
         searchResults.classList.add('show');
     }
-    
+
     // Recherche en temps réel avec délai
     searchInput.addEventListener('input', () => {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(performSearch, 300);
     });
-    
+
     // Recherche au clic sur le bouton
     searchButton.addEventListener('click', performSearch);
-    
+
     // Recherche avec la touche Entrée
     searchInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
@@ -572,7 +521,7 @@ function initializeSearch() {
             performSearch();
         }
     });
-    
+
     // Fermer les résultats en cliquant ailleurs
     document.addEventListener('click', (e) => {
         if (!searchInput.contains(e.target) && !searchResults.contains(e.target) && !searchButton.contains(e.target)) {
@@ -582,17 +531,17 @@ function initializeSearch() {
 }
 
 // Fonction pour faire défiler jusqu'au texte trouvé
-window.scrollToText = function(text) {
+window.scrollToText = function (text) {
     // Nettoyer le texte pour la recherche
     const cleanText = text.replace(/<[^>]*>/g, '').trim();
-    
+
     // Parcourir tous les éléments pour trouver celui qui contient le texte
     const walker = document.createTreeWalker(
         document.body,
         NodeFilter.SHOW_TEXT,
         {
-            acceptNode: function(node) {
-                if (node.parentElement.tagName === 'SCRIPT' || 
+            acceptNode: function (node) {
+                if (node.parentElement.tagName === 'SCRIPT' ||
                     node.parentElement.tagName === 'STYLE' ||
                     node.parentElement.classList.contains('search-result-item')) {
                     return NodeFilter.FILTER_REJECT;
@@ -601,35 +550,35 @@ window.scrollToText = function(text) {
             }
         }
     );
-    
+
     const textNodes = [];
     while (walker.nextNode()) {
         textNodes.push(walker.currentNode);
     }
-    
+
     // Chercher le noeud contenant le texte
     for (let node of textNodes) {
         if (node.nodeValue.includes(cleanText)) {
             // Mettre en évidence temporairement
             const range = document.createRange();
             range.selectNode(node);
-            
+
             // Faire défiler jusqu'à l'élément
             node.parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
+
             // Ajouter un effet de surbrillance
             const originalBg = node.parentElement.style.backgroundColor;
             node.parentElement.style.backgroundColor = '#fff3cd';
             node.parentElement.style.transition = 'background-color 1s';
-            
+
             setTimeout(() => {
                 node.parentElement.style.backgroundColor = originalBg;
             }, 2000);
-            
+
             break;
         }
     }
-    
+
     // Fermer les résultats
     document.getElementById('searchResults').classList.remove('show');
 };
@@ -646,20 +595,20 @@ function escapeHtml(text) {
 async function loadRealStats() {
     try {
         console.log("📊 Chargement des statistiques depuis la base de données...");
-        
+
         const response = await fetch('/api/public/stats');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         const data = await response.json();
         console.log("✅ Statistiques reçues:", data);
-        
+
         if (data.success && data.stats) {
             // Mettre à jour les éléments avec les vraies données
             updateStatElement('patients_geres', data.stats.patients_geres);
             updateStatElement('professionnels_sante', data.stats.professionnels_sante);
             updateStatElement('consultations_realisees', data.stats.consultations_realisees);
             updateStatElement('taux_satisfaction', data.stats.taux_satisfaction);
-            
+
             // Déclencher l'animation des compteurs
             setupStatsCounter();
         } else {
@@ -667,7 +616,7 @@ async function loadRealStats() {
             // Utiliser les valeurs par défaut du HTML
             setupStatsCounter();
         }
-        
+
     } catch (error) {
         console.error('❌ Erreur chargement statistiques:', error);
         // En cas d'erreur, utiliser les valeurs par défaut du HTML
@@ -678,8 +627,8 @@ async function loadRealStats() {
 function updateStatElement(statName, value) {
     // Trouver l'élément correspondant à la statistique
     let element = null;
-    
-    switch(statName) {
+
+    switch (statName) {
         case 'patients_geres':
             element = document.querySelector('.stat-number[data-count="50000"]');
             break;
@@ -693,7 +642,7 @@ function updateStatElement(statName, value) {
             element = document.querySelector('.stat-number[data-count="99.9"]');
             break;
     }
-    
+
     if (element) {
         // Formater le nombre
         let formattedValue = value;
@@ -702,7 +651,7 @@ function updateStatElement(statName, value) {
         } else {
             formattedValue = Math.round(value).toLocaleString('fr-FR');
         }
-        
+
         // Mettre à jour l'attribut data-count
         element.setAttribute('data-count', formattedValue);
         console.log(`✅ Statistique ${statName} mise à jour: ${formattedValue}`);
@@ -718,7 +667,7 @@ async function testStatsAPI() {
         const response = await fetch('/api/public/stats');
         const data = await response.json();
         console.log("📊 Résultat du test:", data);
-        
+
         if (data.success) {
             console.log("✅ API stats fonctionne correctement");
             return true;
@@ -737,16 +686,16 @@ async function testStatsAPI() {
 // ============================================
 // CORRECTION SIMPLE DU MENU HAMBURGER
 // ============================================
-document.addEventListener('DOMContentLoaded', function() {
-   
+document.addEventListener('DOMContentLoaded', function () {
+
     const navbarToggler = document.querySelector('.navbar-toggler');
     const navbarNav = document.getElementById('navbarNav');
     const navLinks = document.querySelectorAll('.nav-link');
-    
+
     if (navbarToggler && navbarNav) {
         // Fermer le menu quand on clique sur un lien
         navLinks.forEach(link => {
-            link.addEventListener('click', function() {
+            link.addEventListener('click', function () {
                 if (window.innerWidth < 992) {
                     // Utiliser Bootstrap pour fermer le menu
                     const bsCollapse = bootstrap.Collapse.getInstance(navbarNav);
@@ -756,12 +705,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
-        
+
         // Fermer le menu en cliquant à l'extérieur
-        document.addEventListener('click', function(event) {
+        document.addEventListener('click', function (event) {
             if (window.innerWidth < 992) {
                 const isClickInside = navbarToggler.contains(event.target) || navbarNav.contains(event.target);
-                
+
                 if (!isClickInside && navbarNav.classList.contains('show')) {
                     const bsCollapse = bootstrap.Collapse.getInstance(navbarNav);
                     if (bsCollapse) {

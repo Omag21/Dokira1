@@ -9,17 +9,17 @@ async function showParametresInterface() {
     try {
         // Charger les données en parallèle
         const [basicInfoResponse, medicalInfoResponse] = await Promise.all([
-        fetch('/api/patient/info').then(r => r.ok ? r.json() : null),
-        fetch('/api/patient/medical-info').then(r => r.ok ? r.json() : null)  
+            fetch('/api/patient/info').then(r => r.ok ? r.json() : null),
+            fetch('/api/patient/medical-info').then(r => r.ok ? r.json() : null)
         ]);
-        
+
         if (!basicInfoResponse) {
             throw new Error('Impossible de charger les informations de base');
         }
-        
+
         currentPatientData = basicInfoResponse;
         currentMedicalData = medicalInfoResponse || {};
-        
+
         let html = `
             <div class="parametres-interface">
                 <div class="section-header">
@@ -52,16 +52,16 @@ async function showParametresInterface() {
                 </div>
             </div>
         `;
-        
+
         document.getElementById('mainContent').innerHTML = html;
-        
+
         // Initialiser les tabs
         initParametresTabs();
-        
+
         // Initialiser les formulaires
         initDossierMedicalForm();
         initCompteParametresForm();
-        
+
     } catch (error) {
         console.error('Erreur chargement paramètres:', error);
         showError('Impossible de charger les paramètres', error.message);
@@ -72,7 +72,7 @@ async function showParametresInterface() {
 
 function renderDossierMedicalForm(medicalData) {
     const groupeSanguinOptions = ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-    
+
     return `
         <form id="dossierMedicalForm" class="parametres-form">
             <div class="form-section">
@@ -81,9 +81,9 @@ function renderDossierMedicalForm(medicalData) {
                 <div class="form-group">
                     <label for="groupeSanguin">Groupe sanguin</label>
                     <select id="groupeSanguin" class="form-control">
-                        ${groupeSanguinOptions.map(opt => 
-                            `<option value="${opt}" ${medicalData.groupe_sanguin === opt ? 'selected' : ''}>${opt || 'Sélectionner'}</option>`
-                        ).join('')}
+                        ${groupeSanguinOptions.map(opt =>
+        `<option value="${opt}" ${medicalData.groupe_sanguin === opt ? 'selected' : ''}>${opt || 'Sélectionner'}</option>`
+    ).join('')}
                     </select>
                 </div>
                 
@@ -280,10 +280,10 @@ function renderCompteParametresForm(patientData) {
                 
                 <div class="form-group">
                     <label for="paramLangue">Langue d'affichage</label>
-                    <select id="paramLangue" class="form-control">
-                        <option value="fr" selected>Français</option>
-                        <option value="en">English</option>
-                        <option value="es">Español</option>
+                    <select id="paramLangue" class="form-control language-selector" data-lang-selector="1">
+                        <option value="fr" ${DokiraI18n.currentLang === 'fr' ? 'selected' : ''}>🇫🇷 Français</option>
+                        <option value="en" ${DokiraI18n.currentLang === 'en' ? 'selected' : ''}>🇬🇧 English</option>
+                        <option value="es" ${DokiraI18n.currentLang === 'es' ? 'selected' : ''}>🇪🇸 Español</option>
                     </select>
                 </div>
             </div>
@@ -309,13 +309,13 @@ function renderCompteParametresForm(patientData) {
 
 function initParametresTabs() {
     document.querySelectorAll('.param-tab-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function () {
             const tabName = this.getAttribute('data-tab');
-            
+
             // Mettre à jour les tabs
             document.querySelectorAll('.param-tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.param-tab-content').forEach(t => t.classList.remove('active'));
-            
+
             this.classList.add('active');
             document.getElementById(tabName).classList.add('active');
         });
@@ -325,7 +325,7 @@ function initParametresTabs() {
 function initDossierMedicalForm() {
     const form = document.getElementById('dossierMedicalForm');
     if (form) {
-        form.addEventListener('submit', async function(e) {
+        form.addEventListener('submit', async function (e) {
             e.preventDefault();
             await saveDossierMedical();
         });
@@ -335,9 +335,19 @@ function initDossierMedicalForm() {
 function initCompteParametresForm() {
     const form = document.getElementById('compteParametresForm');
     if (form) {
-        form.addEventListener('submit', async function(e) {
+        form.addEventListener('submit', async function (e) {
             e.preventDefault();
             await saveCompteParametres();
+        });
+    }
+
+    // Gestion du changement de langue
+    const langSelect = document.getElementById('paramLangue');
+    if (langSelect) {
+        langSelect.addEventListener('change', function () {
+            if (window.DokiraI18n) {
+                DokiraI18n.setLang(this.value);
+            }
         });
     }
 }
@@ -358,8 +368,8 @@ async function saveDossierMedical() {
             medecin_traitant_nom: document.getElementById('medecinTraitantNom').value,
             medecin_traitant_telephone: document.getElementById('medecinTraitantTelephone').value
         };
-        
-        const response = await fetch('/api/patient/update-medical', { 
+
+        const response = await fetch('/api/patient/update-medical', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData)
@@ -369,16 +379,16 @@ async function saveDossierMedical() {
             const error = await response.json();
             throw new Error(error.detail || 'Erreur lors de la mise à jour');
         }
-        
+
         const result = await response.json();
         showSuccess(result.message || 'Dossier médical mis à jour avec succès');
-        
+
         // Actualiser les données
         const medicalInfoResponse = await fetch('/api/patient/medical-info');
         if (medicalInfoResponse.ok) {
             currentMedicalData = await medicalInfoResponse.json();
         }
-        
+
     } catch (error) {
         console.error('Erreur sauvegarde dossier médical:', error);
         showError('Erreur lors de la sauvegarde', error.message);
@@ -397,10 +407,10 @@ async function saveCompteParametres() {
             ville: document.getElementById('paramVille').value.trim(),
             code_postal: document.getElementById('paramCodePostal').value.trim()
         };
-        
+
         const motDePasse = document.getElementById('paramMotDePasse').value;
         const confirmation = document.getElementById('paramConfirmationMotDePasse').value;
-        
+
         if (motDePasse) {
             if (motDePasse !== confirmation) {
                 throw new Error('Les mots de passe ne correspondent pas');
@@ -410,7 +420,7 @@ async function saveCompteParametres() {
             }
             formData.mot_de_passe = motDePasse;
         }
-        
+
         const response = await fetch('/api/patient/update', {
             method: 'POST',
             headers: {
@@ -418,22 +428,22 @@ async function saveCompteParametres() {
             },
             body: JSON.stringify(formData)
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.detail || 'Erreur lors de la mise à jour');
         }
-        
+
         const result = await response.json();
         showSuccess(result.message || 'Paramètres mis à jour avec succès');
-        
+
         // Actualiser les données et l'affichage
         const basicInfoResponse = await fetch('/api/patient/info');
         if (basicInfoResponse.ok) {
             currentPatientData = await basicInfoResponse.json();
             await loadPatientData(); // Mettre à jour la barre de navigation
         }
-        
+
     } catch (error) {
         console.error('Erreur sauvegarde paramètres:', error);
         showError('Erreur lors de la sauvegarde', error.message);
@@ -453,7 +463,7 @@ async function deleteAccount() {
         const response = await fetch('/api/patient/delete-account', {
             method: 'DELETE'
         });
-        
+
         if (response.ok) {
             alert('Compte supprimé avec succès. Redirection vers la page d\'accueil...');
             window.location.href = '/deconnexion';
@@ -476,12 +486,12 @@ function showSuccess(message) {
         <span>${message}</span>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
-    
+
     // Ajouter au début du contenu
     const content = document.querySelector('.parametres-content');
     if (content) {
         content.insertBefore(alertDiv, content.firstChild);
-        
+
         // Auto-dismiss après 5 secondes
         setTimeout(() => {
             alertDiv.remove();
@@ -499,7 +509,7 @@ function showError(title, message) {
 if (typeof displaySection === 'function') {
     // Rediriger l'appel vers showParametresInterface
     const originalDisplaySection = displaySection;
-    window.displaySection = function(sectionName) {
+    window.displaySection = function (sectionName) {
         if (sectionName === 'parametres') {
             showParametresInterface();
         } else {
@@ -515,10 +525,10 @@ async function loadMedicalInfo() {
         const response = await fetch('/api/patient/medical-info');
         if (response.ok) {
             const data = await response.json();
-            
+
             if (data.success && data.data) {
                 const medicalData = data.data;
-                
+
                 // 1. Afficher les Allergies
                 if (medicalData.allergies && medicalData.allergies.trim() !== '') {
                     document.getElementById('allergies-section').innerHTML = `
@@ -529,21 +539,21 @@ async function loadMedicalInfo() {
                         </div>
                     `;
                 }
-                
+
                 // 2. Afficher les Antécédents
-                if ((medicalData.antecedents_medicaux && medicalData.antecedents_medicaux.trim() !== '') || 
+                if ((medicalData.antecedents_medicaux && medicalData.antecedents_medicaux.trim() !== '') ||
                     (medicalData.antecedents_familiaux && medicalData.antecedents_familiaux.trim() !== '')) {
-                    
+
                     let antecedentsHTML = '';
-                    
+
                     if (medicalData.antecedents_medicaux && medicalData.antecedents_medicaux.trim() !== '') {
                         antecedentsHTML += `<p><strong>Antécédents personnels :</strong><br>${medicalData.antecedents_medicaux.replace(/\n/g, '<br>')}</p>`;
                     }
-                    
+
                     if (medicalData.antecedents_familiaux && medicalData.antecedents_familiaux.trim() !== '') {
                         antecedentsHTML += `<p><strong>Antécédents familiaux :</strong><br>${medicalData.antecedents_familiaux.replace(/\n/g, '<br>')}</p>`;
                     }
-                    
+
                     document.getElementById('antecedents-section').innerHTML = `
                         <div class="medical-info-card">
                             <h4>Antécédents</h4>
@@ -552,7 +562,7 @@ async function loadMedicalInfo() {
                         </div>
                     `;
                 }
-                
+
                 // 3. Afficher les Traitements en cours
                 if (medicalData.traitements_en_cours && medicalData.traitements_en_cours.trim() !== '') {
                     document.getElementById('traitements-section').innerHTML = `
@@ -562,7 +572,7 @@ async function loadMedicalInfo() {
                         </div>
                     `;
                 }
-                
+
                 // 4. Afficher le Groupe Sanguin
                 if (medicalData.groupe_sanguin && medicalData.groupe_sanguin.trim() !== '') {
                     document.getElementById('groupe-sanguin-section').innerHTML = `
@@ -573,14 +583,14 @@ async function loadMedicalInfo() {
                         </div>
                     `;
                 }
-                
+
                 // 5. Afficher la Mutuelle
                 if (medicalData.mutuelle_nom && medicalData.mutuelle_nom.trim() !== '') {
                     let mutuelleHTML = `<p><strong>${medicalData.mutuelle_nom}</strong></p>`;
                     if (medicalData.mutuelle_numero && medicalData.mutuelle_numero.trim() !== '') {
                         mutuelleHTML += `<p>N° adhérent : ${medicalData.mutuelle_numero}</p>`;
                     }
-                    
+
                     document.getElementById('mutuelle-section').innerHTML = `
                         <div class="medical-info-card">
                             <h4>Couverture Santé</h4>
@@ -588,14 +598,14 @@ async function loadMedicalInfo() {
                         </div>
                     `;
                 }
-                
+
                 // 6. Afficher le Médecin Traitant
                 if (medicalData.medecin_traitant_nom && medicalData.medecin_traitant_nom.trim() !== '') {
                     let medecinHTML = `<p><strong>Dr ${medicalData.medecin_traitant_nom}</strong></p>`;
                     if (medicalData.medecin_traitant_telephone && medicalData.medecin_traitant_telephone.trim() !== '') {
                         medecinHTML += `<p>Tél : ${medicalData.medecin_traitant_telephone}</p>`;
                     }
-                    
+
                     document.getElementById('medecin-section').innerHTML = `
                         <div class="medical-info-card">
                             <h4>Médecin Traitant</h4>
@@ -603,12 +613,12 @@ async function loadMedicalInfo() {
                         </div>
                     `;
                 }
-                
+
                 // 7. Afficher le Numéro de Sécurité Sociale (optionnel - masqué partiellement)
                 if (medicalData.numero_securite_sociale && medicalData.numero_securite_sociale.trim() !== '') {
                     const nss = medicalData.numero_securite_sociale;
                     const maskedNSS = nss.substring(0, 5) + '********' + nss.substring(nss.length - 4);
-                    
+
                     document.getElementById('nss-section').innerHTML = `
                         <div class="medical-info-card">
                             <h4>Numéro de Sécurité Sociale</h4>

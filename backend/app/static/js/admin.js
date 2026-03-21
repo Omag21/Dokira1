@@ -3,6 +3,11 @@ let inscriptionSelectionnee = null;
 let tousLesMedecins = [];
 let adminCurrentLang = localStorage.getItem('app_lang') || 'fr';
 
+// Re-appliquer les traductions globalement lors d'un changement de langue
+document.addEventListener('dokira:langchange', () => {
+    if (window.DokiraI18n) DokiraI18n.apply(document);
+});
+
 function normalizeStaticUrl(url) {
     if (!url) return '';
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
@@ -18,25 +23,36 @@ function normalizeStaticUrl(url) {
 document.addEventListener('DOMContentLoaded', () => {
     setupNavigation();
     setupEventListeners();
-    loadAdminProfile();
-    refreshInscriptionsData();
-    loadTousLesMedecinsParSpecialite();
-    loadMedecinsActifsDuJour();
-    loadPatientsList();
-    loadNominationData();
-    loadRevenueStats();
-    initAnnoncesSection();
-    loadDashboardData();
+
+    // 1. Charger l'essentiel en parallèle
+    Promise.all([
+        loadAdminProfile(),
+        loadDashboardData(),
+        loadAdminNotificationSummary()
+    ]);
+
+    // 2. Initialiser les modules (léger)
     initSearch();
     initAdminLanguage();
     initAdminIAChat();
     initAdminSettings();
     initAdminBroadcastNotifications();
     setupAdminNotificationsPanel();
-    loadAdminNotificationSummary();
-    setInterval(loadAdminNotificationSummary, 30000);
+    initPartenaires();
 
-     // Initialiser la messagerie quand on clique sur la section
+    // 3. Différer le chargement des listes lourdes (Non-bloquant)
+    setTimeout(() => {
+        refreshInscriptionsData();
+        loadTousLesMedecinsParSpecialite();
+        loadMedecinsActifsDuJour();
+        loadPatientsList();
+        loadNominationData();
+        initAnnoncesSection();
+    }, 1000);
+
+    setInterval(loadAdminNotificationSummary, 60000);
+
+    // Initialiser la messagerie quand on clique sur la section
     const messagerieLink = document.querySelector('[data-section="messagerie"]');
     if (messagerieLink) {
         messagerieLink.addEventListener('click', () => {
@@ -50,107 +66,31 @@ function initAdminLanguage() {
     const select = document.getElementById('adminLanguageSelect');
     if (!select) return;
 
-    const dict = {
-        fr: {
-            search: 'Rechercher...',
-            dashboard: 'Tableau de Bord',
-            activeDoctors: 'Médecins Actifs',
-            patients: 'Patients',
-            messages: 'Messagerie',
-            settings: 'Paramètres'
-        },
-        en: {
-            search: 'Search...',
-            dashboard: 'Dashboard',
-            activeDoctors: 'Active Doctors',
-            patients: 'Patients',
-            messages: 'Messaging',
-            settings: 'Settings'
-        },
-        es: {
-            search: 'Buscar...',
-            dashboard: 'Panel',
-            activeDoctors: 'Médicos activos',
-            patients: 'Pacientes',
-            messages: 'Mensajería',
-            settings: 'Configuración'
-        }
-    };
-
-    const apply = (lang) => {
-        const t = dict[lang] || dict.fr;
-        adminCurrentLang = lang;
-        localStorage.setItem('app_lang', lang);
-
-        const search = document.querySelector('.search-bar input');
-        if (search) search.placeholder = t.search;
-
-        const map = {
-            'tableau-bord': t.dashboard,
-            'medecins-actifs': t.activeDoctors,
-            patients: t.patients,
-            messagerie: t.messages,
-            parametres: t.settings
-        };
-        Object.entries(map).forEach(([section, text]) => {
-            const el = document.querySelector(`.nav-link[data-section="${section}"] span`);
-            if (el) el.textContent = text;
-        });
-
-        const activeTitle = document.querySelector('.section.active h2');
-        if (activeTitle) {
-            if (activeTitle.textContent.toLowerCase().includes('param')) {
-                activeTitle.textContent = t.settings;
-            } else if (activeTitle.textContent.toLowerCase().includes('messag')) {
-                activeTitle.textContent = t.messages;
-            }
-        }
-        translateAdminVisibleContent(lang);
-    };
-
     const saved = localStorage.getItem('app_lang') || 'fr';
     select.value = saved;
-    apply(saved);
-    select.addEventListener('change', (e) => apply(e.target.value));
+    adminCurrentLang = saved;
+
+    if (window.DokiraI18n) {
+        DokiraI18n.syncSelectors();
+        DokiraI18n.apply();
+    }
+
+    select.addEventListener('change', (e) => {
+        const lang = e.target.value;
+        adminCurrentLang = lang;
+        if (window.DokiraI18n) {
+            DokiraI18n.setLang(lang);
+        } else {
+            localStorage.setItem('app_lang', lang);
+            location.reload();
+        }
+    });
 }
 
 function translateAdminVisibleContent(lang) {
-    if (lang === 'fr') return;
-    const content = document.querySelector('.section.active') || document.querySelector('.content-area');
-    if (!content) return;
-
-    const map = {
-        en: [
-            ['Paramètres', 'Settings'],
-            ['Profil Administrateur', 'Administrator Profile'],
-            ['Changer la Photo', 'Change Photo'],
-            ['Nom Complet', 'Full Name'],
-            ['Téléphone', 'Phone'],
-            ['Messagerie', 'Messaging'],
-            ['Assistant IA', 'AI Assistant']
-        ],
-        es: [
-            ['Paramètres', 'Configuracion'],
-            ['Profil Administrateur', 'Perfil Administrador'],
-            ['Changer la Photo', 'Cambiar Foto'],
-            ['Nom Complet', 'Nombre completo'],
-            ['Téléphone', 'Telefono'],
-            ['Messagerie', 'Mensajeria'],
-            ['Assistant IA', 'Asistente IA']
-        ]
-    };
-
-    const pairs = map[lang] || [];
-    pairs.forEach(([from, to]) => {
-        const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
-        const nodes = [];
-        while (walker.nextNode()) {
-            if ((walker.currentNode.nodeValue || '').includes(from)) {
-                nodes.push(walker.currentNode);
-            }
-        }
-        nodes.forEach(n => n.nodeValue = n.nodeValue.replaceAll(from, to));
-    });
+    if (window.DokiraI18n) {
+        DokiraI18n.apply();
+    }
 }
 
 async function apiFetch(url, options = {}) {
@@ -215,6 +155,9 @@ function showSection(sectionId) {
     if (sectionId === 'partenaires') {
         loadPartenaires();
     }
+    if (sectionId === 'laboratoires') {
+        loadLaboratoires();
+    }
     if (sectionId === 'messagerie') {
         setTimeout(initMessagerie, 50);
     }
@@ -227,8 +170,8 @@ function showSection(sectionId) {
     if (sectionId === 'parametres') {
         setTimeout(initAdminSettings, 50);
     }
-    if (adminCurrentLang && adminCurrentLang !== 'fr') {
-        setTimeout(() => translateAdminVisibleContent(adminCurrentLang), 80);
+    if (adminCurrentLang) {
+        setTimeout(() => translateAdminVisibleContent(adminCurrentLang), 100);
     }
 }
 
@@ -302,10 +245,10 @@ async function loadRevenueStatsWithPeriod(period) {
     try {
         // Afficher un indicateur de chargement
         showStatsLoading(true);
-        
-        
+
+
         await loadRevenueStats();
-        
+
         // Mettre à jour le texte du filtre pour indiquer la période sélectionnée
         const periodText = {
             'today': "aujourd'hui",
@@ -313,9 +256,9 @@ async function loadRevenueStatsWithPeriod(period) {
             'month': 'ce mois',
             'year': 'cette année'
         }[period] || '';
-        
+
         console.log(`Données actualisées pour ${periodText}`);
-        
+
     } catch (error) {
         console.error('Erreur chargement période:', error);
     } finally {
@@ -326,7 +269,7 @@ async function loadRevenueStatsWithPeriod(period) {
 // Fonction pour mettre à jour la période du graphique
 function updateChartPeriod(period) {
     console.log(`Mise à jour du graphique pour les ${period} derniers jours`);
-    
+
     loadRevenueStats();
 }
 
@@ -356,7 +299,7 @@ function refreshStats() {
             icon.classList.add('fa-spin');
         }
     }
-    
+
     // Recharger les stats
     loadRevenueStats().finally(() => {
         // Enlever l'animation après 1 seconde
@@ -373,9 +316,11 @@ function refreshStats() {
 async function loadAdminProfile() {
     try {
         const profile = await apiFetch('/admin/api/profil');
-        
+        window.currentAdminProfile = profile;
+        window.currentAdminId = profile?.id;
+
         // Si le profil est null ou undefined, utiliser des valeurs par défaut
-        const fullName = profile?.nom_complet || 'Administrateur';
+        const fullName = profile?.nom_complet || (window.__ ? __('login_role_admin') : 'Administrateur');
         const photo = normalizeStaticUrl(profile?.photo_profil_url) || 'https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff&size=40';
 
         const adminName = document.getElementById('adminName');
@@ -405,10 +350,29 @@ async function loadAdminProfile() {
         if (adminVille) adminVille.value = profile?.ville || '';
         if (adminCodePostal) adminCodePostal.value = profile?.code_postal || '';
         if (adminBiographie) adminBiographie.value = profile?.biographie || '';
-        
+        const setDocStatus = (statusElId, linkElId, url) => {
+            const statusEl = document.getElementById(statusElId);
+            const linkEl = document.getElementById(linkElId);
+            if (statusEl) {
+                statusEl.textContent = url ? 'Fourni' : 'Manquant';
+                statusEl.className = `badge ${url ? 'bg-success' : 'bg-danger-subtle text-danger'}`;
+            }
+            if (linkEl) {
+                if (url) {
+                    linkEl.style.display = 'inline-block';
+                    linkEl.href = normalizeStaticUrl(url);
+                } else {
+                    linkEl.style.display = 'none';
+                }
+            }
+        };
+        setDocStatus('adminDiplomeStatus', 'adminDiplomeLink', profile?.diplome_url);
+        setDocStatus('adminAutorisationStatus', 'adminAutorisationLink', profile?.autorisation_url);
+        setDocStatus('adminInscriptionStatus', 'adminInscriptionLink', profile?.inscription_ordre_url);
+        setDocStatus('adminCarteProStatus', 'adminCarteProLink', profile?.carte_pro_url);
+
     } catch (error) {
         console.error('Erreur chargement profil admin:', error);
-       
     }
 }
 
@@ -430,8 +394,21 @@ function initAdminSettings() {
             const ville = document.getElementById('adminVille')?.value?.trim() || '';
             const codePostal = document.getElementById('adminCodePostal')?.value?.trim() || '';
             const biographie = document.getElementById('adminBiographie')?.value?.trim() || '';
+            const docDiplome = document.getElementById('adminDiplome');
+            const docAutorisation = document.getElementById('adminAutorisation');
+            const docInscription = document.getElementById('adminInscriptionOrdre');
+            const docCartePro = document.getElementById('adminCartePro');
             if (!fullName || !email) {
                 alert('Veuillez renseigner le nom complet et l\'email.');
+                return;
+            }
+            const missingDocs = [];
+            if (!window.currentAdminProfile?.diplome_url && !docDiplome?.files?.length) missingDocs.push('Diplôme');
+            if (!window.currentAdminProfile?.autorisation_url && !docAutorisation?.files?.length) missingDocs.push("Autorisation d'exercer");
+            if (!window.currentAdminProfile?.inscription_ordre_url && !docInscription?.files?.length) missingDocs.push("Inscription à l'ordre");
+            if (!window.currentAdminProfile?.carte_pro_url && !docCartePro?.files?.length) missingDocs.push('Carte professionnelle');
+            if (missingDocs.length) {
+                alert(`Merci d'ajouter les justificatifs manquants : ${missingDocs.join(', ')}`);
                 return;
             }
 
@@ -449,6 +426,10 @@ function initAdminSettings() {
             if (photoInput && photoInput.files && photoInput.files[0]) {
                 formData.append('photo', photoInput.files[0]);
             }
+            if (docDiplome?.files?.length) formData.append('diplome', docDiplome.files[0]);
+            if (docAutorisation?.files?.length) formData.append('autorisation', docAutorisation.files[0]);
+            if (docInscription?.files?.length) formData.append('inscription_ordre_doc', docInscription.files[0]);
+            if (docCartePro?.files?.length) formData.append('carte_pro', docCartePro.files[0]);
 
             try {
                 const result = await apiFetch('/admin/api/profil/update', {
@@ -487,6 +468,27 @@ function initAdminSettings() {
             }
         });
         photoInput.dataset.boundPhotoUpload = '1';
+    }
+}
+
+async function confirmDeleteAdminAccount() {
+    if (confirm('⚠️ Attention ! Êtes-vous sûr de vouloir supprimer votre compte administrateur ?\n\nCette action est irréversible. Vos données seront archivées pour une période de 5 mois avant suppression définitive.')) {
+        try {
+            const response = await fetch('/admin/api/delete-account', {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                alert('Votre compte administrateur a été supprimé avec succès.');
+                window.location.href = '/admin/connexionAdmin';
+            } else {
+                const data = await response.json();
+                alert('Erreur: ' + (data.detail || 'Impossible de supprimer le compte'));
+            }
+        } catch (error) {
+            console.error('Erreur:', error);
+            alert('Une erreur est survenue lors de la suppression.');
+        }
     }
 }
 
@@ -556,7 +558,9 @@ function buildCategoryFilter() {
     const filter = document.getElementById('filterCategory');
     if (!filter) return;
     const categories = [...new Set(tousLesMedecins.map(m => m.specialite || 'Non définie'))].sort((a, b) => a.localeCompare(b));
-    filter.innerHTML = '<option value="">Toutes les catégories</option>' + categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    filter.innerHTML = `<option value="" data-i18n="admin_filter_all_categories">${window.__ ? __('admin_filter_all_categories') : 'Toutes les catégories'}</option>` +
+        categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    if (window.DokiraI18n) DokiraI18n.apply(filter);
 }
 
 function renderTousMedecinsBySpecialite(selectedCategory = '') {
@@ -569,7 +573,7 @@ function renderTousMedecinsBySpecialite(selectedCategory = '') {
     }
 
     if (!list.length) {
-        container.innerHTML = '<p class="empty-state">Aucun médecin trouvé</p>';
+        container.innerHTML = `<p class="empty-state" data-i18n="admin_empty_doctors">${window.__ ? __('admin_empty_doctors') : 'Aucun médecin trouvé'}</p>`;
         return;
     }
 
@@ -590,11 +594,11 @@ function renderTousMedecinsBySpecialite(selectedCategory = '') {
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Nom</th>
-                                <th>Email</th>
-                                <th>Téléphone</th>
-                                <th>Statut</th>
-                                <th>Action</th>
+                                <th data-i18n="admin_table_name">${window.__ ? __('admin_table_name') : 'Nom'}</th>
+                                <th data-i18n="admin_table_email">${window.__ ? __('admin_table_email') : 'Email'}</th>
+                                <th data-i18n="admin_table_phone">${window.__ ? __('admin_table_phone') : 'Téléphone'}</th>
+                                <th data-i18n="admin_table_status">${window.__ ? __('admin_table_status') : 'Statut'}</th>
+                                <th data-i18n="admin_table_action">${window.__ ? __('admin_table_action') : 'Action'}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -606,7 +610,7 @@ function renderTousMedecinsBySpecialite(selectedCategory = '') {
                                     <td>${escapeHtml(m.statut_inscription || '-')}</td>
                                     <td>
                                         <button class="btn btn-small btn-primary" onclick="viewMedecinProfessionnel(${m.id})">
-                                            <i class="fas fa-eye"></i> Voir
+                                            <i class="fas fa-eye"></i> <span data-i18n="label_action">${window.__ ? __('label_action') : 'Voir'}</span>
                                         </button>
                                     </td>
                                 </tr>
@@ -617,6 +621,7 @@ function renderTousMedecinsBySpecialite(selectedCategory = '') {
             </div>
         `;
     }).join('');
+    if (window.DokiraI18n) DokiraI18n.apply(container);
 }
 
 window.viewMedecinProfessionnel = async function (medecinId) {
@@ -624,22 +629,22 @@ window.viewMedecinProfessionnel = async function (medecinId) {
         const profile = await apiFetch(`/admin/api/medecins/${medecinId}/profil-professionnel`);
         const detailsContainer = document.getElementById('medecinDetails');
         const modalTitle = document.getElementById('modalTitle');
-        if (modalTitle) modalTitle.textContent = 'Informations professionnelles du médecin';
+        if (modalTitle) modalTitle.textContent = window.__ ? __('admin_modal_medecin_info') : 'Informations professionnelles du médecin';
 
         const rows = [
-            ['Nom complet', profile.nom_complet || '-'],
-            ['Spécialité', profile.specialite || '-'],
-            ['Email', profile.email || '-'],
-            ['Téléphone', profile.telephone || '-'],
-            ['Numéro ordre', profile.numero_ordre || '-'],
-            ['Adresse', profile.adresse || '-'],
-            ['Ville', profile.ville || '-'],
-            ['Code postal', profile.code_postal || '-'],
-            ['Langues', profile.langues || '-'],
-            ['Biographie', profile.biographie || '-'],
-            ['Années d\'expérience', profile.annees_experience ?? '-'],
-            ['Prix consultation', profile.prix_consultation ?? '-'],
-            ['Statut', profile.statut_inscription || '-']
+            [window.__ ? __('label_fullname') : 'Nom complet', profile.nom_complet || '-'],
+            [window.__ ? __('label_specialty') : 'Spécialité', profile.specialite || '-'],
+            [window.__ ? __('label_email') : 'Email', profile.email || '-'],
+            [window.__ ? __('label_phone') : 'Téléphone', profile.telephone || '-'],
+            [window.__ ? __('label_license') : 'Numéro ordre', profile.numero_ordre || '-'],
+            [window.__ ? __('label_address') : 'Adresse', profile.adresse || '-'],
+            [window.__ ? __('label_city') : 'Ville', profile.ville || '-'],
+            [window.__ ? __('label_postal') : 'Code postal', profile.code_postal || '-'],
+            [window.__ ? __('label_languages') : 'Langues', profile.langues || '-'],
+            [window.__ ? __('label_bio') : 'Biographie', profile.biographie || '-'],
+            [window.__ ? __('label_experience') : 'Années d\'expérience', profile.annees_experience ?? '-'],
+            [window.__ ? __('label_price') : 'Prix consultation', profile.prix_consultation ?? '-'],
+            [window.__ ? __('label_status') : 'Statut', profile.statut_inscription || '-']
         ];
 
         if (detailsContainer) {
@@ -655,7 +660,7 @@ window.viewMedecinProfessionnel = async function (medecinId) {
         document.getElementById('medecinModal')?.classList.add('show');
     } catch (error) {
         console.error(error);
-        alert('Impossible de charger le profil professionnel du médecin.');
+        alert(window.__ ? __('admin_error_medecin_profile') : 'Impossible de charger le profil professionnel du médecin.');
     }
 };
 
@@ -674,7 +679,7 @@ async function loadMedecinsActifsDuJour() {
         const payload = await apiFetch('/admin/api/medecins-actifs-jour');
         const cards = payload.cards || [];
         if (!cards.length) {
-            container.innerHTML = '<p class="empty-state">Aucun médecin actif avec consultation/rendez-vous prévu aujourd\'hui.</p>';
+            container.innerHTML = `<p class="empty-state" data-i18n="admin_empty_active_doctors">${window.__ ? __('admin_empty_active_doctors') : 'Aucun médecin actif avec consultation/rendez-vous prévu aujourd\'hui.'}</p>`;
             return;
         }
 
@@ -684,22 +689,22 @@ async function loadMedecinsActifsDuJour() {
             return `
                 <div class="card" style="margin-bottom:14px;">
                     <div class="card-content" style="padding:14px;">
-                        <p style="margin:0 0 8px 0;font-weight:700;">${c.event_type === 'consultation' ? 'Consultation' : 'Rendez-vous'} - ${formatDateTime(c.date_heure)}</p>
+                        <p style="margin:0 0 8px 0;font-weight:700;">${c.event_type === 'consultation' ? (window.__ ? __('admin_event_consultation') : 'Consultation') : (window.__ ? __('admin_event_appointment') : 'Rendez-vous')} - ${formatDateTime(c.date_heure)}</p>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
                             <div style="background:#f8fafc;padding:10px;border-radius:8px;">
-                                <h4 style="margin:0 0 8px 0;">Médecin</h4>
+                                <h4 style="margin:0 0 8px 0;" data-i18n="login_role_doctor">${window.__ ? __('login_role_doctor') : 'Médecin'}</h4>
                                 <p style="margin:0;">${escapeHtml(medecin.nom_complet || '-')}</p>
-                                <p style="margin:0;">Spécialité: ${escapeHtml(medecin.specialite || '-')}</p>
-                                <p style="margin:0;">Email: ${escapeHtml(medecin.email || '-')}</p>
-                                <p style="margin:0;">Tél: ${escapeHtml(medecin.telephone || '-')}</p>
-                                <p style="margin:0;">Adresse: ${escapeHtml([medecin.adresse, medecin.ville].filter(Boolean).join(', ') || '-')}</p>
+                                <p style="margin:0;"><span data-i18n="label_specialty">${window.__ ? __('label_specialty') : 'Spécialité'}</span>: ${escapeHtml(medecin.specialite || '-')}</p>
+                                <p style="margin:0;"><span data-i18n="label_email">${window.__ ? __('label_email') : 'Email'}</span>: ${escapeHtml(medecin.email || '-')}</p>
+                                <p style="margin:0;"><span data-i18n="label_phone">${window.__ ? __('label_phone') : 'Tél'}</span>: ${escapeHtml(medecin.telephone || '-')}</p>
+                                <p style="margin:0;"><span data-i18n="label_address">${window.__ ? __('label_address') : 'Adresse'}</span>: ${escapeHtml([medecin.adresse, medecin.ville].filter(Boolean).join(', ') || '-')}</p>
                             </div>
                             <div style="background:#f8fafc;padding:10px;border-radius:8px;">
-                                <h4 style="margin:0 0 8px 0;">Patient</h4>
+                                <h4 style="margin:0 0 8px 0;" data-i18n="login_role_patient">${window.__ ? __('login_role_patient') : 'Patient'}</h4>
                                 <p style="margin:0;">${escapeHtml(patient.nom_complet || '-')}</p>
-                                <p style="margin:0;">Email: ${escapeHtml(patient.email || '-')}</p>
-                                <p style="margin:0;">Tél: ${escapeHtml(patient.telephone || '-')}</p>
-                                <p style="margin:0;">Adresse: ${escapeHtml([patient.adresse, patient.ville].filter(Boolean).join(', ') || '-')}</p>
+                                <p style="margin:0;"><span data-i18n="label_email">${window.__ ? __('label_email') : 'Email'}</span>: ${escapeHtml(patient.email || '-')}</p>
+                                <p style="margin:0;"><span data-i18n="label_phone">${window.__ ? __('label_phone') : 'Tél'}</span>: ${escapeHtml(patient.telephone || '-')}</p>
+                                <p style="margin:0;"><span data-i18n="label_address">${window.__ ? __('label_address') : 'Adresse'}</span>: ${escapeHtml([patient.adresse, patient.ville].filter(Boolean).join(', ') || '-')}</p>
                             </div>
                         </div>
                     </div>
@@ -718,7 +723,7 @@ async function loadPatientsList() {
     try {
         const patients = await apiFetch('/admin/api/patients');
         if (!patients.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Aucun patient</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="7" class="empty-state" data-i18n="admin_empty_patients">${window.__ ? __('admin_empty_patients') : 'Aucun patient'}</td></tr>`;
             return;
         }
 
@@ -732,14 +737,15 @@ async function loadPatientsList() {
                 <td>${escapeHtml(String(p.consultations_count ?? 0))}</td>
                 <td>
                     <button class="btn btn-small btn-primary" onclick="viewPatientProfil(${p.id})">
-                        <i class="fas fa-eye"></i> Voir
+                        <i class="fas fa-eye"></i> <span data-i18n="label_action">${window.__ ? __('label_action') : 'Voir'}</span>
                     </button>
                 </td>
             </tr>
         `).join('');
+        if (window.DokiraI18n) DokiraI18n.apply(tbody);
     } catch (error) {
         console.error(error);
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Erreur de chargement des patients</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state" data-i18n="admin_error_load_patients">${window.__ ? __('admin_error_load_patients') : 'Erreur de chargement des patients'}</td></tr>`;
     }
 }
 
@@ -748,25 +754,25 @@ window.viewPatientProfil = async function (patientId) {
         const profile = await apiFetch(`/admin/api/patients/${patientId}/profil`);
         const detailsContainer = document.getElementById('medecinDetails');
         const modalTitle = document.getElementById('modalTitle');
-        if (modalTitle) modalTitle.textContent = 'Informations du patient';
+        if (modalTitle) modalTitle.textContent = window.__ ? __('admin_modal_patient_info') : 'Informations du patient';
 
         const rows = [
-            ['Nom complet', profile.nom_complet || '-'],
-            ['Email', profile.email || '-'],
-            ['Téléphone', profile.telephone || '-'],
-            ['Téléphone urgence', profile.telephone_urgence || '-'],
-            ['Date de naissance', profile.date_naissance ? formatDate(profile.date_naissance) : '-'],
-            ['Genre', profile.genre || '-'],
-            ['Adresse', [profile.adresse, profile.adresse_ligne2, profile.ville, profile.code_postal, profile.pays].filter(Boolean).join(', ') || '-'],
-            ['NSS', profile.numero_securite_sociale || '-'],
-            ['Groupe sanguin', profile.groupe_sanguin || '-'],
-            ['Allergies', profile.allergies || '-'],
-            ['Antécédents médicaux', profile.antecedents_medicaux || '-'],
-            ['Antécédents familiaux', profile.antecedents_familiaux || '-'],
-            ['Traitements en cours', profile.traitements_en_cours || '-'],
-            ['Mutuelle', [profile.mutuelle_nom, profile.mutuelle_numero].filter(Boolean).join(' - ') || '-'],
-            ['Médecin traitant', [profile.medecin_traitant_nom, profile.medecin_traitant_telephone].filter(Boolean).join(' - ') || '-'],
-            ['Date inscription', formatDate(profile.date_creation)]
+            [window.__ ? __('label_fullname') : 'Nom complet', profile.nom_complet || '-'],
+            [window.__ ? __('label_email') : 'Email', profile.email || '-'],
+            [window.__ ? __('label_phone') : 'Téléphone', profile.telephone || '-'],
+            [window.__ ? __('label_phone_emergency') : 'Téléphone urgence', profile.telephone_urgence || '-'],
+            [window.__ ? __('label_birthdate') : 'Date de naissance', profile.date_naissance ? formatDate(profile.date_naissance) : '-'],
+            [window.__ ? __('label_gender') : 'Genre', profile.genre || '-'],
+            [window.__ ? __('label_address') : 'Adresse', [profile.adresse, profile.adresse_ligne2, profile.ville, profile.code_postal, profile.pays].filter(Boolean).join(', ') || '-'],
+            [window.__ ? __('label_nss') : 'NSS', profile.numero_securite_sociale || '-'],
+            [window.__ ? __('label_blood') : 'Groupe sanguin', profile.groupe_sanguin || '-'],
+            [window.__ ? __('label_allergies') : 'Allergies', profile.allergies || '-'],
+            [window.__ ? __('label_medical_history') : 'Antécédents médicaux', profile.antecedents_medicaux || '-'],
+            [window.__ ? __('label_family_history') : 'Antécédents familiaux', profile.antecedents_familiaux || '-'],
+            [window.__ ? __('label_treatments') : 'Traitements en cours', profile.traitements_en_cours || '-'],
+            [window.__ ? __('label_mutuelle') : 'Mutuelle', [profile.mutuelle_nom, profile.mutuelle_numero].filter(Boolean).join(' - ') || '-'],
+            [window.__ ? __('label_treating_doctor') : 'Médecin traitant', [profile.medecin_traitant_nom, profile.medecin_traitant_telephone].filter(Boolean).join(' - ') || '-'],
+            [window.__ ? __('label_registration_date') : 'Date inscription', formatDate(profile.date_creation)]
         ];
 
         if (detailsContainer) {
@@ -782,7 +788,7 @@ window.viewPatientProfil = async function (patientId) {
         document.getElementById('medecinModal')?.classList.add('show');
     } catch (error) {
         console.error(error);
-        alert('Impossible de charger le profil patient.');
+        alert(window.__ ? __('admin_error_patient_profile') : 'Impossible de charger le profil patient.');
     }
 };
 
@@ -795,34 +801,47 @@ async function renderNominationSection() {
     if (!section) return;
 
     section.innerHTML = `
-        <h2>Nommer un médecin comme administrateur</h2>
-        <form class="form-container" id="addMedecinForm">
-            <div class="form-group">
-                <label>Sélectionner un médecin</label>
-                <select id="selectMedecinToAdmin" required>
-                    <option value="">Choisir un médecin</option>
-                </select>
+        <div class="glass-card mb-4">
+            <div class="card-header-premium">
+                <i class="fas fa-user-plus"></i>
+                <h2 data-i18n="admin_nominate_title">Nommer un médecin comme administrateur</h2>
             </div>
-            <button type="submit" class="btn btn-primary">Nommer Admin</button>
-        </form>
-        <div style="margin-top:24px;">
-            <h3>Administrateurs actuels</h3>
-            <div class="table-container">
+            <form class="premium-form" id="addMedecinForm">
+                <div class="form-group">
+                    <label><i class="fas fa-user-md"></i> <span data-i18n="admin_nominate_select_label">Sélectionner un médecin</span></label>
+                    <select id="selectMedecinToAdmin" class="premium-select" required>
+                        <option value="" data-i18n="admin_nominate_select_default">Choisir un médecin</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary premium-btn">
+                    <i class="fas fa-shield-alt"></i> <span data-i18n="admin_nominate_btn">Nommer Admin</span>
+                </button>
+            </form>
+        </div>
+
+        <div class="glass-card">
+            <div class="card-header-premium">
+                <i class="fas fa-users-cog"></i>
+                <h2 data-i18n="admin_admins_list_title">Administrateurs actuels</h2>
+            </div>
+            <div class="table-container-premium">
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Nom</th>
-                            <th>Email</th>
-                            <th>Téléphone</th>
+                            <th data-i18n="admin_table_name">Nom</th>
+                            <th data-i18n="admin_table_email">Email</th>
+                            <th data-i18n="admin_table_phone">Téléphone</th>
+                            <th data-i18n="admin_table_actions">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="adminsCurrentTable">
-                        <tr><td colspan="3" class="empty-state">Chargement...</td></tr>
+                        <tr><td colspan="4" class="empty-state" data-i18n="msg_loading">Chargement...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     `;
+    if (window.DokiraI18n) DokiraI18n.apply(section);
 
     const [admins, medecins] = await Promise.all([
         apiFetch('/admin/api/administrateurs').catch(() => []),
@@ -848,12 +867,26 @@ async function renderNominationSection() {
         adminsTable.innerHTML = admins.length
             ? admins.map(a => `
                 <tr>
-                    <td>${escapeHtml(a.nom_complet || `${a.prenom || ''} ${a.nom || ''}`.trim())}</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="admin-avatar-small" style="background: linear-gradient(135deg, #0d8abc, #00bcd4); width: 32px; height: 32px; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px;">
+                                ${a.prenom ? a.prenom[0] : ''}${a.nom ? a.nom[0] : ''}
+                            </div>
+                            <span>${escapeHtml(a.nom_complet || `${a.prenom || ''} ${a.nom || ''}`.trim())}</span>
+                        </div>
+                    </td>
                     <td>${escapeHtml(a.email || '-')}</td>
                     <td>${escapeHtml(a.telephone || '-')}</td>
+                    <td>
+                        ${a.id !== window.currentAdminId ? `
+                            <button class="btn btn-danger btn-small" onclick="revoquerAdmin(${a.id})">
+                                <i class="fas fa-user-minus"></i> Révoquer
+                            </button>
+                        ` : '<span class="badge bg-secondary">Vous</span>'}
+                    </td>
                 </tr>
               `).join('')
-            : '<tr><td colspan="3" class="empty-state">Aucun administrateur</td></tr>';
+            : '<tr><td colspan="4" class="empty-state">Aucun administrateur</td></tr>';
     }
 
     const form = document.getElementById('addMedecinForm');
@@ -878,8 +911,23 @@ async function onNommerAdminSubmit(e) {
         alert(info);
         await renderNominationSection();
     } catch (error) {
-        console.error(error);
-        alert('Erreur lors de la nomination.');
+        alert('Erreur: ' + error.message);
+    }
+}
+
+async function revoquerAdmin(adminId) {
+    if (!confirm('Êtes-vous sûr de vouloir révoquer les droits d\'administrateur de cet utilisateur ?')) {
+        return;
+    }
+
+    try {
+        const result = await apiFetch(`/admin/api/administrateurs/${adminId}`, {
+            method: 'DELETE'
+        });
+        alert(result.message || 'Droits révoqués.');
+        await renderNominationSection();
+    } catch (error) {
+        alert('Erreur: ' + error.message);
     }
 }
 
@@ -919,12 +967,13 @@ function renderInscriptionsTable() {
                 <td>${escapeHtml(dateInscription)}</td>
                 <td>
                     <button class="btn btn-small btn-primary" onclick="viewInscriptionDetails('${item.profil_type}', ${item.id})">
-                        <i class="fas fa-eye"></i> Voir
+                        <i class="fas fa-eye"></i> <span data-i18n="admin_btn_view">${window.__ ? __('admin_btn_view') : 'Voir'}</span>
                     </button>
                 </td>
             </tr>
         `;
     }).join('');
+    if (window.DokiraI18n) DokiraI18n.apply(tbody);
 }
 
 async function loadPendingWidget() {
@@ -1033,12 +1082,41 @@ window.viewInscriptionDetails = function (profilType, id) {
     ];
 
     if (detailsContainer) {
-        detailsContainer.innerHTML = rows.map(([label, value]) => `
+        const rowsHtml = rows.map(([label, value]) => `
             <div class="detail-item">
                 <span class="detail-label">${escapeHtml(label)}:</span>
                 <span class="detail-value">${escapeHtml(value || '-')}</span>
             </div>
         `).join('');
+        const docs = [
+            { label: 'Diplôme', url: item.diplome_url },
+            { label: "Autorisation d'exercer", url: item.autorisation_url },
+            { label: "Inscription à l'ordre", url: item.inscription_ordre_url },
+            { label: 'Carte professionnelle', url: item.carte_pro_url }
+        ];
+        const docsHtml = `
+            <div style="grid-column:1/-1; margin-top:12px;">
+                <h4 style="margin:0 0 8px 0;">Justificatifs</h4>
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+                    ${docs.map(doc => `
+                        <div style="border:1px solid #e5e7eb; border-radius:8px; padding:10px; background:${doc.url ? '#f8fafc' : '#fff7ed'};">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                                <span style="font-weight:600;">${escapeHtml(doc.label)}</span>
+                                <i class="fas ${doc.url ? 'fa-check-circle' : 'fa-exclamation-triangle'}" style="color:${doc.url ? '#16a34a' : '#dc2626'};"></i>
+                            </div>
+                            ${doc.url ? `<button class="btn btn-sm btn-outline-primary" onclick="viewDocumentAdmin('${normalizeStaticUrl(doc.url)}')">Voir le document</button>` : '<span class="badge bg-danger-subtle text-danger">Manquant</span>'}
+                        </div>
+                    `).join('')}
+                </div>
+                <div id="adminDocumentViewer" style="margin-top: 20px; display: none; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: #fff;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h5 style="margin: 0;">Visionneuse de document</h5>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('adminDocumentViewer').style.display='none'">Fermer</button>
+                    </div>
+                    <iframe id="adminDocumentIframe" style="width: 100%; height: 500px; border: none;" src=""></iframe>
+                </div>
+            </div>`;
+        detailsContainer.innerHTML = rowsHtml + docsHtml;
     }
 
     const rejectInput = document.getElementById('rejectReasonInput');
@@ -1046,6 +1124,16 @@ window.viewInscriptionDetails = function (profilType, id) {
     toggleApprovalControls(true);
     const modal = document.getElementById('medecinModal');
     modal?.classList.add('show');
+};
+
+window.viewDocumentAdmin = function(url) {
+    const viewer = document.getElementById('adminDocumentViewer');
+    const iframe = document.getElementById('adminDocumentIframe');
+    if (viewer && iframe) {
+        iframe.src = url;
+        viewer.style.display = 'block';
+        viewer.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
 };
 
 async function approveInscription() {
@@ -1134,7 +1222,7 @@ async function loadRevenueStats(period = 'month') {
     try {
         // Ajouter le paramètre period à l'URL si votre backend le supporte
         const url = `/admin/api/statistiques/tableau-bord${period ? `?period=${period}` : ''}`;
-        
+
         const [medecins, categories, dashboard] = await Promise.all([
             apiFetch('/admin/api/statistiques/revenus-medecins'),
             apiFetch('/admin/api/statistiques/revenus-categories'),
@@ -1155,7 +1243,7 @@ function updateStatsCards(stats) {
     document.getElementById('totalConsultations').textContent = stats.total_consultations || 0;
     document.getElementById('totalRevenue').textContent = formatCurrency(stats.total_revenu || 0);
     document.getElementById('monthRevenue').textContent = formatCurrency(stats.revenu_mois || 0);
-    
+
     // Calculer la moyenne par jour
     const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const avgDaily = (stats.revenu_mois || 0) / daysInMonth;
@@ -1174,7 +1262,7 @@ function displayRevenueByDoctorsTable(medecins) {
     tbody.innerHTML = medecins.map(m => {
         const performance = calculatePerformance(m.total_consultations);
         const initials = m.nom_complet.split(' ').map(n => n[0]).join('').toUpperCase();
-        
+
         return `
             <tr>
                 <td>
@@ -1206,12 +1294,12 @@ function displayRevenueByCategoryCards(categories) {
     }
 
     const maxRevenue = Math.max(...categories.map(c => c.revenu_total));
-    
+
     container.innerHTML = `
         <div class="category-cards">
             ${categories.map(c => {
-                const percentage = (c.revenu_total / maxRevenue) * 100;
-                return `
+        const percentage = (c.revenu_total / maxRevenue) * 100;
+        return `
                     <div class="category-item">
                         <div class="category-name">
                             <i class="fas fa-stethoscope"></i>
@@ -1236,7 +1324,7 @@ function displayRevenueByCategoryCards(categories) {
                         </div>
                     </div>
                 `;
-            }).join('')}
+    }).join('')}
         </div>
     `;
 }
@@ -1345,16 +1433,80 @@ function ensureRevenueCards(stats) {
 
 // Initialiser la section annonces
 function initAnnoncesSection() {
-    const form = document.getElementById('addAnnonceForm');
-    if (form) {
-        // Remplacer le comportement par défaut du formulaire
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault(); // EMPÊCHE LA REDIRECTION
-            await addAnnonce(e);
-        });
+    const annoncesSection = document.getElementById('annonces');
+    if (annoncesSection) {
+        annoncesSection.innerHTML = `
+            <div class="glass-card mb-4">
+                <div class="card-header-premium">
+                    <i class="fas fa-bullhorn"></i>
+                    <h2>Ajouter une nouvelle annonce</h2>
+                </div>
+                <form id="addAnnonceForm" class="premium-form" enctype="multipart/form-data">
+                    <div class="form-grid-premium">
+                        <div class="form-left">
+                            <div class="form-group mb-3">
+                                <label for="titre"><i class="fas fa-heading"></i> Titre *</label>
+                                <input type="text" id="titre" name="titre" class="premium-input" required placeholder="Titre de l'annonce">
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="contenu"><i class="fas fa-align-left"></i> Contenu *</label>
+                                <textarea id="contenu" name="contenu" class="premium-textarea" rows="4" required placeholder="Contenu détaillé"></textarea>
+                            </div>
+                        </div>
+                        <div class="form-right">
+                            <div class="form-group mb-3">
+                                <label for="categorie"><i class="fas fa-tag"></i> Catégorie</label>
+                                <select id="categorie" name="categorie" class="premium-select">
+                                    <option value="info">💡 Information</option>
+                                    <option value="promotion">🔥 Promotion</option>
+                                    <option value="urgence">🚨 Urgence</option>
+                                    <option value="evenement">📅 Événement</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="image"><i class="fas fa-image"></i> Image</label>
+                                <input type="file" id="image" name="image" class="premium-input" accept="image/*">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                         <div class="form-group">
+                            <label for="lien_cible"><i class="fas fa-link"></i> Lien (optionnel)</label>
+                            <input type="url" id="lien_cible" name="lien_cible" class="premium-input" placeholder="https://...">
+                        </div>
+                        <div class="form-group">
+                            <label for="date_expiration"><i class="fas fa-clock"></i> Expiration</label>
+                            <input type="date" id="date_expiration" name="date_expiration" class="premium-input">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary premium-btn">
+                        <i class="fas fa-paper-plane"></i> Publier l'annonce
+                    </button>
+                </form>
+            </div>
+            <div class="glass-card">
+                <div class="card-header-premium">
+                    <i class="fas fa-list"></i>
+                    <h2>Annonces actives</h2>
+                </div>
+                <div id="annoncesList" class="table-container-premium">
+                    <div class="text-center p-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2">Chargement...</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const form = document.getElementById('addAnnonceForm');
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await addAnnonce(e);
+            });
+        }
     }
-    
-    // Charger les annonces quand la section est affichée
+
     const annoncesLink = document.querySelector('[data-section="annonces"]');
     if (annoncesLink) {
         annoncesLink.addEventListener('click', () => {
@@ -1370,7 +1522,7 @@ async function loadAnnonces() {
 
     try {
         const annonces = await apiFetch('/admin/api/annonces');
-        
+
         if (!annonces || annonces.length === 0) {
             container.innerHTML = '<p class="empty-state text-center p-4">Aucune annonce active</p>';
             return;
@@ -1394,18 +1546,18 @@ async function loadAnnonces() {
 
         annonces.forEach(annonce => {
             const annonceImageUrl = normalizeStaticUrl(annonce.image_url);
-            const imageHtml = annonceImageUrl 
+            const imageHtml = annonceImageUrl
                 ? `<img src="${escapeHtml(annonceImageUrl)}" alt="${escapeHtml(annonce.titre)}" style="width:56px; height:56px; object-fit:cover; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.12);">`
                 : '<span class="text-muted">-</span>';
-            
-            const categorieHtml = annonce.categorie 
+
+            const categorieHtml = annonce.categorie
                 ? `<span class="badge bg-${getCategoryColor(annonce.categorie)}">${escapeHtml(annonce.categorie)}</span>`
                 : '-';
-            
-            const contenuCourt = annonce.contenu.length > 50 
-                ? annonce.contenu.substring(0, 50) + '...' 
+
+            const contenuCourt = annonce.contenu.length > 50
+                ? annonce.contenu.substring(0, 50) + '...'
                 : annonce.contenu;
-            
+
             html += `
                 <tr>
                     <td>${imageHtml}</td>
@@ -1448,11 +1600,11 @@ function getCategoryColor(categorie) {
 
 // Ajouter une annonce
 async function addAnnonce(event) {
-    event.preventDefault(); 
-    
+    event.preventDefault();
+
     const form = document.getElementById('addAnnonceForm');
     const formData = new FormData(form);
-    
+
     // Ajouter les champs optionnels s'ils sont vides
     if (!formData.get('description_courte')) {
         formData.delete('description_courte');
@@ -1466,7 +1618,7 @@ async function addAnnonce(event) {
     if (!formData.get('date_expiration')) {
         formData.delete('date_expiration');
     }
-    
+
     try {
         // Afficher un indicateur de chargement
         const submitBtn = form.querySelector('button[type="submit"]');
@@ -1485,23 +1637,23 @@ async function addAnnonce(event) {
         }
 
         const result = await response.json();
-        
+
         // Réinitialiser le formulaire
         form.reset();
-        
+
         // Recharger la liste
         await loadAnnonces();
-        
+
         // Afficher un message de succès
         alert('✅ Annonce ajoutée avec succès !');
-        
+
     } catch (error) {
         console.error('Erreur:', error);
         alert('❌ Erreur lors de l\'ajout de l\'annonce: ' + error.message);
     } finally {
         // Restaurer le bouton
         const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Ajouter l\'annonce';
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier l\'annonce';
         submitBtn.disabled = false;
     }
 }
@@ -1511,7 +1663,7 @@ async function deleteAnnonce(annonceId) {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette annonce ?')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/admin/api/annonces/${annonceId}`, {
             method: 'DELETE'
@@ -1524,7 +1676,7 @@ async function deleteAnnonce(annonceId) {
 
         await loadAnnonces(); // Recharger la liste
         alert('✅ Annonce supprimée avec succès');
-        
+
     } catch (error) {
         console.error('Erreur:', error);
         alert('❌ Erreur lors de la suppression: ' + error.message);
@@ -1539,23 +1691,45 @@ async function deleteAnnonce(annonceId) {
 // Fonction pour charger toutes les données du tableau de bord
 async function loadDashboardData() {
     try {
-        // Charger le nombre de médecins actifs
-        await loadActiveDoctorsCount();
-        
-        // Charger le nombre total de patients
-        await loadTotalPatientsCount();
-        
-        // Charger le nombre d'inscriptions en attente
-        await loadPendingCount();
-        
-        // Charger les revenus du mois
-        await loadMonthlyRevenue();
-        
-        // Charger les activités récentes
-        await loadRecentActivities();
-        
+        console.log("🚀 Chargement optimisé du dashboard admin...");
+        const response = await fetch('/admin/api/dashboard/summary');
+        if (!response.ok) throw new Error('Erreur API Summary');
+        const data = await response.json();
+
+        if (data.success) {
+            // Mettre à jour toutes les cartes d'un coup
+            const cards = document.querySelectorAll('.card');
+            cards.forEach(card => {
+                const text = card.textContent;
+                const numberElement = card.querySelector('.card-number');
+                if (!numberElement) return;
+
+                if (text.includes('Médecins Actifs')) {
+                    numberElement.textContent = data.medecins_actifs;
+                } else if (text.includes('Patients')) {
+                    numberElement.textContent = data.patients_total;
+                } else if (text.includes('Inscriptions en attente') || text.includes('En attente')) {
+                    numberElement.textContent = data.inscriptions_en_attente;
+                } else if (text.includes('Revenus')) {
+                    numberElement.textContent = formatCurrency(data.revenu_mois);
+                }
+            });
+
+            // Mettre à jour aussi le badge global si présent
+            const badge = document.getElementById('badge-attente');
+            if (badge) badge.textContent = data.inscriptions_en_attente;
+        }
+
+        // Charger les activités en arrière-plan
+        loadRecentActivities();
+
     } catch (error) {
-        console.error('Erreur chargement tableau de bord:', error);
+        console.error('Erreur chargement tableau de bord optimisé:', error);
+        // Fallback progressif si l'endpoint échoue
+        loadActiveDoctorsCount();
+        loadTotalPatientsCount();
+        loadPendingCount();
+        loadMonthlyRevenue();
     }
 }
 
@@ -1564,13 +1738,13 @@ async function loadActiveDoctorsCount() {
     try {
         const medecins = await apiFetch('/admin/api/tous-medecins');
         const activeDoctors = medecins.filter(m => m.est_actif === true).length;
-        
+
         // Mettre à jour l'affichage dans la carte
         const activeDoctorsCard = document.querySelector('.dashboard-cards .card:nth-child(1) .card-number');
         if (activeDoctorsCard) {
             activeDoctorsCard.textContent = activeDoctors;
         }
-        
+
         // Alternative: chercher par le texte "Médecins Actifs"
         const cards = document.querySelectorAll('.card');
         cards.forEach(card => {
@@ -1579,7 +1753,7 @@ async function loadActiveDoctorsCount() {
                 if (numberElement) numberElement.textContent = activeDoctors;
             }
         });
-        
+
     } catch (error) {
         console.error('Erreur chargement médecins actifs:', error);
     }
@@ -1590,7 +1764,7 @@ async function loadTotalPatientsCount() {
     try {
         const patients = await apiFetch('/admin/api/patients');
         const totalPatients = patients.length;
-        
+
         // Mettre à jour l'affichage dans la carte
         const cards = document.querySelectorAll('.card');
         cards.forEach(card => {
@@ -1599,7 +1773,7 @@ async function loadTotalPatientsCount() {
                 if (numberElement) numberElement.textContent = totalPatients;
             }
         });
-        
+
     } catch (error) {
         console.error('Erreur chargement patients:', error);
     }
@@ -1611,10 +1785,10 @@ async function loadMonthlyRevenue() {
     try {
         const dashboard = await apiFetch('/admin/api/statistiques/tableau-bord');
         const monthlyRevenue = dashboard.revenu_mois || 0;
-        
+
         // Formater le montant
         const formattedRevenue = formatCurrency(monthlyRevenue);
-        
+
         // Mettre à jour l'affichage dans la carte
         const cards = document.querySelectorAll('.card');
         cards.forEach(card => {
@@ -1623,7 +1797,7 @@ async function loadMonthlyRevenue() {
                 if (numberElement) numberElement.textContent = formattedRevenue;
             }
         });
-        
+
     } catch (error) {
         console.error('Erreur chargement revenus du mois:', error);
     }
@@ -1635,20 +1809,20 @@ async function loadRecentActivities() {
         // Récupérer les activités depuis différentes sources
         const activities = [];
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000); // 1 heure
-        
+
         // Récupérer les inscriptions approuvées/récentes
         const inscriptions = await apiFetch('/admin/api/inscriptions/statistiques');
-        
+
         // Récupérer les dernières annonces ajoutées
         const annonces = await apiFetch('/admin/api/annonces');
-        
+
         // Construire la liste des activités
         if (annonces && annonces.length > 0) {
             const recentAnnonces = annonces.filter(a => {
                 const dateCreation = new Date(a.dateCreation);
                 return dateCreation > oneHourAgo;
             });
-            
+
             recentAnnonces.forEach(annonce => {
                 activities.push({
                     type: 'annonce',
@@ -1659,7 +1833,7 @@ async function loadRecentActivities() {
                 });
             });
         }
-        
+
         // Ajouter quelques activités simulées si nécessaire
         if (activities.length === 0) {
             activities.push({
@@ -1670,16 +1844,16 @@ async function loadRecentActivities() {
                 color: '#95a5a6'
             });
         }
-        
+
         // Trier par date (plus récent d'abord)
         activities.sort((a, b) => b.time - a.time);
-        
+
         // Afficher les activités
         displayRecentActivities(activities);
-        
+
     } catch (error) {
         console.error('Erreur chargement activités récentes:', error);
-        
+
         // En cas d'erreur, afficher un message
         const activityContainer = document.querySelector('.dashboard-grid .widget:first-child');
         if (activityContainer) {
@@ -1703,7 +1877,7 @@ async function loadRecentActivities() {
 function displayRecentActivities(activities) {
     const activityContainer = document.querySelector('.dashboard-grid .widget:first-child');
     if (!activityContainer) return;
-    
+
     const activityHtml = `
         <h3>Activité Récente</h3>
         <div class="activity-list">
@@ -1718,7 +1892,7 @@ function displayRecentActivities(activities) {
             `).join('')}
         </div>
     `;
-    
+
     activityContainer.innerHTML = activityHtml;
 }
 
@@ -1728,11 +1902,11 @@ function formatTimeAgo(date) {
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMins / 60);
-    
+
     if (diffMins < 1) return "À l'instant";
     if (diffMins < 60) return `Il y a ${diffMins} minute${diffMins > 1 ? 's' : ''}`;
     if (diffHours < 24) return `Il y a ${diffHours} heure${diffHours > 1 ? 's' : ''}`;
-    
+
     return formatDate(date);
 }
 
@@ -1752,7 +1926,7 @@ let allSearchData = {
 function initSearch() {
     const searchInput = document.querySelector('.search-bar input');
     if (!searchInput) return;
-    
+
     // Créer le conteneur de résultats s'il n'existe pas
     if (!document.getElementById('searchResults')) {
         const resultsDiv = document.createElement('div');
@@ -1760,23 +1934,23 @@ function initSearch() {
         resultsDiv.className = 'search-results';
         searchInput.parentElement.appendChild(resultsDiv);
     }
-    
+
     // Ajouter l'écouteur d'événement
     searchInput.addEventListener('input', (e) => {
         const query = e.target.value.trim();
-        
+
         // Clear previous timeout
         if (searchTimeout) clearTimeout(searchTimeout);
-        
+
         if (query.length < 2) {
             hideSearchResults();
             return;
         }
-        
+
         // Debounce pour éviter trop de requêtes
         searchTimeout = setTimeout(() => performSearch(query), 300);
     });
-    
+
     // Cacher les résultats quand on clique ailleurs
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.search-bar')) {
@@ -1789,35 +1963,35 @@ function initSearch() {
 async function performSearch(query) {
     try {
         showSearchLoading();
-        
+
         // Charger toutes les données si pas déjà fait
         await loadSearchData();
-        
+
         // Rechercher dans les médecins
-        const medecinResults = allSearchData.medecins.filter(m => 
+        const medecinResults = allSearchData.medecins.filter(m =>
             (m.nom_complet && m.nom_complet.toLowerCase().includes(query.toLowerCase())) ||
             (m.email && m.email.toLowerCase().includes(query.toLowerCase())) ||
             (m.specialite && m.specialite.toLowerCase().includes(query.toLowerCase()))
         );
-        
+
         // Rechercher dans les patients
-        const patientResults = allSearchData.patients.filter(p => 
+        const patientResults = allSearchData.patients.filter(p =>
             (p.nom_complet && p.nom_complet.toLowerCase().includes(query.toLowerCase())) ||
             (p.email && p.email.toLowerCase().includes(query.toLowerCase()))
         );
-        
+
         // Rechercher dans les annonces
-        const annonceResults = allSearchData.annonces.filter(a => 
+        const annonceResults = allSearchData.annonces.filter(a =>
             (a.titre && a.titre.toLowerCase().includes(query.toLowerCase())) ||
             (a.contenu && a.contenu.toLowerCase().includes(query.toLowerCase()))
         );
-        
+
         // Rechercher dans les inscriptions en attente
-        const inscriptionResults = allSearchData.inscriptions.filter(i => 
+        const inscriptionResults = allSearchData.inscriptions.filter(i =>
             (i.nom_complet && i.nom_complet.toLowerCase().includes(query.toLowerCase())) ||
             (i.email && i.email.toLowerCase().includes(query.toLowerCase()))
         );
-        
+
         const sectionResults = searchInSections(query);
 
         displaySearchResults({
@@ -1827,7 +2001,7 @@ async function performSearch(query) {
             inscriptions: inscriptionResults.slice(0, 5),
             sections: sectionResults.slice(0, 8)
         }, query);
-        
+
     } catch (error) {
         console.error('Erreur recherche:', error);
     }
@@ -1859,7 +2033,7 @@ async function loadSearchData() {
             apiFetch('/admin/api/annonces').catch(() => []),
             apiFetch('/admin/api/inscriptions-en-attente').catch(() => [])
         ]);
-        
+
         allSearchData = {
             medecins: medecins || [],
             patients: patients || [],
@@ -1875,10 +2049,10 @@ async function loadSearchData() {
 function displaySearchResults(results, query) {
     const resultsDiv = document.getElementById('searchResults');
     if (!resultsDiv) return;
-    
+
     const totalResults = results.medecins.length + results.patients.length +
-                        results.annonces.length + results.inscriptions.length + (results.sections?.length || 0);
-    
+        results.annonces.length + results.inscriptions.length + (results.sections?.length || 0);
+
     if (totalResults === 0) {
         resultsDiv.innerHTML = `
             <div class="search-result-section">
@@ -1888,9 +2062,9 @@ function displaySearchResults(results, query) {
         resultsDiv.classList.add('show');
         return;
     }
-    
+
     let html = '';
-    
+
     // Résultats médecins
     if (results.medecins.length > 0) {
         html += `
@@ -1910,7 +2084,7 @@ function displaySearchResults(results, query) {
             </div>
         `;
     }
-    
+
     // Résultats patients
     if (results.patients.length > 0) {
         html += `
@@ -1930,7 +2104,7 @@ function displaySearchResults(results, query) {
             </div>
         `;
     }
-    
+
     // Résultats annonces
     if (results.annonces.length > 0) {
         html += `
@@ -1950,7 +2124,7 @@ function displaySearchResults(results, query) {
             </div>
         `;
     }
-    
+
     // Résultats inscriptions
     if (results.inscriptions.length > 0) {
         html += `
@@ -1989,7 +2163,7 @@ function displaySearchResults(results, query) {
             </div>
         `;
     }
-    
+
     resultsDiv.innerHTML = html;
     resultsDiv.classList.add('show');
 }
@@ -1998,7 +2172,7 @@ function displaySearchResults(results, query) {
 function showSearchLoading() {
     const resultsDiv = document.getElementById('searchResults');
     if (!resultsDiv) return;
-    
+
     resultsDiv.innerHTML = `
         <div class="search-loading">
             <i class="fas fa-spinner fa-spin"></i> Recherche en cours...
@@ -2017,30 +2191,30 @@ function hideSearchResults() {
 }
 
 // Fonctions de navigation
-window.goToMedecin = function(medecinId) {
+window.goToMedecin = function (medecinId) {
     showSection('tous-medecins');
     setTimeout(() => viewMedecinProfessionnel(medecinId), 300);
     hideSearchResults();
 };
 
-window.goToPatient = function(patientId) {
+window.goToPatient = function (patientId) {
     showSection('patients');
     setTimeout(() => viewPatientProfil(patientId), 300);
     hideSearchResults();
 };
 
-window.goToAnnonce = function(annonceId) {
+window.goToAnnonce = function (annonceId) {
     showSection('annonces');
     hideSearchResults();
 };
 
-window.goToInscription = function(profilType, id) {
+window.goToInscription = function (profilType, id) {
     showSection('tableau-bord');
     setTimeout(() => viewInscriptionDetails(profilType, id), 300);
     hideSearchResults();
 };
 
-window.goToSectionById = function(sectionId) {
+window.goToSectionById = function (sectionId) {
     if (!sectionId) return;
     const link = document.querySelector(`.nav-link[data-section="${sectionId}"]`);
     if (link) {
@@ -2066,12 +2240,12 @@ function initMessagerie() {
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendMessageBtn');
     const chatWith = document.getElementById('chatWith');
-    
+
     if (!contactsList || !chatMessages || !messageInput || !sendBtn || !chatWith) return;
-    
+
     // Charger les contacts
     loadContacts();
-    
+
     // Envoyer un message
     if (!sendBtn.dataset.boundSend) {
         sendBtn.addEventListener('click', () => {
@@ -2079,7 +2253,7 @@ function initMessagerie() {
         });
         sendBtn.dataset.boundSend = '1';
     }
-    
+
     if (!messageInput.dataset.boundSendKey) {
         messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -2089,7 +2263,7 @@ function initMessagerie() {
         });
         messageInput.dataset.boundSendKey = '1';
     }
-    
+
     // Rafraîchir les messages toutes les 5 secondes
     if (messagesRefreshInterval) clearInterval(messagesRefreshInterval);
     messagesRefreshInterval = setInterval(() => {
@@ -2107,13 +2281,13 @@ async function loadContacts() {
 
         const response = await fetch('/admin/api/contacts');
         if (!response.ok) throw new Error('Erreur chargement contacts');
-        
+
         const contacts = await response.json();
         displayContacts(contacts);
-        
+
         // Mettre à jour le badge de notification
         updateUnreadBadge(contacts);
-        
+
     } catch (error) {
         console.error('Erreur:', error);
         const container = document.getElementById('contactsList');
@@ -2125,22 +2299,22 @@ async function loadContacts() {
 
 function displayContacts(contacts) {
     const container = document.getElementById('contactsList');
-    
+
     if (!contacts || contacts.length === 0) {
         container.innerHTML = '<p class="empty-state">Aucun contact disponible</p>';
         return;
     }
-    
+
     let html = '<div class="contacts-container">';
-    
+
     contacts.forEach(contact => {
-        const isActive = currentChatContact && 
-                        currentChatContact.id === contact.id && 
-                        currentChatContact.type === contact.type;
-        
+        const isActive = currentChatContact &&
+            currentChatContact.id === contact.id &&
+            currentChatContact.type === contact.type;
+
         const unreadClass = contact.unread_count > 0 ? 'unread' : '';
         const onlineClass = contact.is_online ? 'online' : '';
-        
+
         // Formater la date du dernier message
         let lastMessageTime = '';
         if (contact.last_message_time) {
@@ -2149,20 +2323,20 @@ function displayContacts(contacts) {
             const diffMs = now - date;
             const diffMins = Math.floor(diffMs / 60000);
             const diffHours = Math.floor(diffMs / 3600000);
-            
+
             if (diffMins < 1) lastMessageTime = "À l'instant";
             else if (diffMins < 60) lastMessageTime = `Il y a ${diffMins} min`;
             else if (diffHours < 24) lastMessageTime = `Il y a ${diffHours}h`;
             else lastMessageTime = date.toLocaleDateString('fr-FR');
         }
-        
+
         // Avatar ou initiales
         const initials = contact.nom_complet.split(' ').map(n => n[0]).join('').toUpperCase();
         const avatarUrl = normalizeStaticUrl(contact.photo_profil_url);
         const avatarHtml = avatarUrl
             ? `<img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(contact.nom_complet)}">`
             : `<div class="contact-avatar-initials">${initials}</div>`;
-        
+
         html += `
             <div class="contact-item ${isActive ? 'active' : ''} ${onlineClass}" 
                  data-contact-type="${contact.type}"
@@ -2186,26 +2360,26 @@ function displayContacts(contacts) {
             </div>
         `;
     });
-    
+
     html += '</div>';
     container.innerHTML = html;
 }
 
-window.selectContact = async function(type, id, event) {
+window.selectContact = async function (type, id, event) {
     // Si l'événement est passé, éviter la propagation
     if (event) {
         event.preventDefault();
         event.stopPropagation();
     }
-    
+
     currentChatContact = { type, id };
     await loadMessages(type, id, true);
-    
+
     // Mettre à jour l'affichage
     document.querySelectorAll('.contact-item').forEach(item => {
         item.classList.remove('active');
     });
-    
+
     // Trouver et activer l'élément cliqué
     const clickedItem = document.querySelector(`.contact-item[data-contact-type="${type}"][data-contact-id="${id}"]`);
     if (clickedItem) {
@@ -2217,17 +2391,17 @@ async function loadMessages(type, id, scrollToBottom = true) {
     try {
         const response = await fetch(`/admin/api/messages/${type}/${id}`);
         if (!response.ok) throw new Error('Erreur chargement messages');
-        
+
         const data = await response.json();
         displayMessages(data.messages, data.contact);
-        
+
         if (scrollToBottom) {
             scrollToBottomMessages();
         }
-        
+
         // Mettre à jour le nombre de messages non lus
         await loadContacts();
-        
+
     } catch (error) {
         console.error('Erreur:', error);
         document.getElementById('chatMessages').innerHTML = `
@@ -2239,23 +2413,23 @@ async function loadMessages(type, id, scrollToBottom = true) {
 function displayMessages(messages, contact) {
     const container = document.getElementById('chatMessages');
     const chatWith = document.getElementById('chatWith');
-    
+
     if (!container || !chatWith) return;
-    
+
     // Mettre à jour l'en-tête
     chatWith.innerHTML = `
         <span>${escapeHtml(contact.nom_complet)}</span>
         <small>${escapeHtml(contact.specialite)}</small>
     `;
-    
+
     if (!messages || messages.length === 0) {
         container.innerHTML = '<p class="empty-state">Aucun message. Commencez la conversation !</p>';
         return;
     }
-    
+
     let html = '<div class="messages-container">';
     let currentDate = null;
-    
+
     messages.forEach(msg => {
         const msgDate = new Date(msg.date_envoi);
         const dateStr = msgDate.toLocaleDateString('fr-FR', {
@@ -2263,23 +2437,23 @@ function displayMessages(messages, contact) {
             month: '2-digit',
             year: 'numeric'
         });
-        
+
         // Ajouter un séparateur de date
         if (dateStr !== currentDate) {
             currentDate = dateStr;
             html += `<div class="message-date-separator">${dateStr}</div>`;
         }
-        
+
         const timeStr = msgDate.toLocaleTimeString('fr-FR', {
             hour: '2-digit',
             minute: '2-digit'
         });
-        
+
         const messageClass = msg.expediteur_type === 'admin' ? 'sent' : 'received';
-        const statusIcon = msg.statut === 'LU' 
-            ? '<i class="fas fa-check-double read"></i>' 
+        const statusIcon = msg.statut === 'LU'
+            ? '<i class="fas fa-check-double read"></i>'
             : '<i class="fas fa-check"></i>';
-        
+
         html += `
             <div class="message-wrapper ${messageClass}">
                 <div class="message-bubble">
@@ -2292,7 +2466,7 @@ function displayMessages(messages, contact) {
             </div>
         `;
     });
-    
+
     html += '</div>';
     container.innerHTML = html;
 }
@@ -2300,49 +2474,49 @@ function displayMessages(messages, contact) {
 async function sendMessage() {
     const input = document.getElementById('messageInput');
     const message = input.value.trim();
-    
+
     if (!message || !currentChatContact) {
         alert('Veuillez sélectionner un contact et écrire un message');
         return;
     }
-    
+
     // Désactiver l'input temporairement
     input.disabled = true;
     const sendBtn = document.getElementById('sendMessageBtn');
     sendBtn.disabled = true;
-    
+
     // Ajouter le message temporairement
     addTemporaryMessage(message);
     input.value = '';
-    
+
     try {
         const formData = new FormData();
         formData.append('contact_type', currentChatContact.type);
         formData.append('contact_id', currentChatContact.id);
         formData.append('contenu', message);
-        
+
         const response = await fetch('/admin/api/messages/send', {
             method: 'POST',
             body: formData
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.detail || 'Erreur envoi');
         }
-        
+
         const result = await response.json();
-        
-        
+
+
         updateLastMessage(result.message);
-        
+
         // Recharger les contacts pour mettre à jour le dernier message
         await loadContacts();
-        
+
     } catch (error) {
         console.error('Erreur:', error);
         alert('Erreur lors de l\'envoi du message');
-        
+
         // Supprimer le message temporaire en cas d'erreur
         removeLastTemporaryMessage();
     } finally {
@@ -2355,13 +2529,13 @@ async function sendMessage() {
 function addTemporaryMessage(content) {
     const container = document.getElementById('chatMessages');
     const messagesContainer = container.querySelector('.messages-container') || container;
-    
+
     const now = new Date();
     const timeStr = now.toLocaleTimeString('fr-FR', {
         hour: '2-digit',
         minute: '2-digit'
     });
-    
+
     const tempHtml = `
         <div class="message-wrapper sent temporary">
             <div class="message-bubble">
@@ -2373,7 +2547,7 @@ function addTemporaryMessage(content) {
             </div>
         </div>
     `;
-    
+
     messagesContainer.innerHTML += tempHtml;
     scrollToBottomMessages();
 }
@@ -2404,7 +2578,7 @@ function scrollToBottomMessages() {
 function updateUnreadBadge(contacts) {
     const totalUnread = contacts.reduce((sum, contact) => sum + (contact.unread_count || 0), 0);
     const badge = document.querySelector('.notification-count');
-    
+
     if (badge) {
         badge.textContent = totalUnread;
         badge.style.display = totalUnread > 0 ? 'flex' : 'none';
@@ -2413,23 +2587,86 @@ function updateUnreadBadge(contacts) {
 }
 
 function initAdminBroadcastNotifications() {
-    const form = document.getElementById('broadcastNotifForm');
-    if (!form || form.dataset.boundBroadcast === '1') return;
-    form.dataset.boundBroadcast = '1';
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const fd = new FormData(form);
-        try {
-            const result = await apiFetch('/admin/api/notifications/broadcast', { method: 'POST', body: fd });
-            alert(`Notification envoyée (${result.sent || 0} destinataires).`);
-            form.reset();
-            loadAdminNotificationHistory();
-            loadAdminNotificationSummary();
-        } catch (error) {
-            console.error(error);
-            alert('Erreur lors de l\'envoi de la notification.');
+    const notifSection = document.getElementById('notifications');
+    if (notifSection) {
+        notifSection.innerHTML = `
+            <div class="glass-card mb-4">
+                <div class="card-header-premium">
+                    <i class="fas fa-broadcast-tower"></i>
+                    <h2>Diffuser une notification</h2>
+                </div>
+                <form id="broadcastNotifForm" class="premium-form">
+                    <div class="form-grid-premium">
+                         <div class="form-group">
+                            <label for="notifTitre"><i class="fas fa-heading"></i> Titre *</label>
+                            <input type="text" id="notifTitre" name="titre" class="premium-input" required placeholder="Titre du message">
+                        </div>
+                        <div class="form-group">
+                            <label for="notifCible"><i class="fas fa-users"></i> Destinataires</label>
+                            <select id="notifCible" name="cible" class="premium-select">
+                                <option value="all">👥 Tous les utilisateurs</option>
+                                <option value="patients">🩺 Patients uniquement</option>
+                                <option value="medecins">👨‍⚕️ Médecins uniquement</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="notifContenu"><i class="fas fa-comment-alt"></i> Message *</label>
+                        <textarea id="notifContenu" name="contenu" class="premium-textarea" rows="3" required placeholder="Tapez votre message ici..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary premium-btn">
+                        <i class="fas fa-share-square"></i> Envoyer maintenant
+                    </button>
+                </form>
+            </div>
+            <div class="glass-card">
+                <div class="card-header-premium">
+                    <i class="fas fa-history"></i>
+                    <h2>Historique des diffusions</h2>
+                </div>
+                <div id="adminNotificationsHistory" class="table-container-premium">
+                    <div class="text-center p-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2">Chargement...</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const form = document.getElementById('broadcastNotifForm');
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const fd = new FormData(form);
+                try {
+                    const btn = form.querySelector('button[type="submit"]');
+                    const originalText = btn.innerHTML;
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Envoi...';
+
+                    const result = await apiFetch('/admin/api/notifications/broadcast', { method: 'POST', body: fd });
+                    alert(`✅ Notification diffusée avec succès (${result.total_notifs || 0} envoyées).`);
+                    form.reset();
+                    loadAdminNotificationHistory();
+                    loadAdminNotificationSummary();
+                } catch (error) {
+                    console.error(error);
+                    alert('❌ Erreur lors de l\'envoi de la notification.');
+                } finally {
+                    const btn = form.querySelector('button[type="submit"]');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-share-square"></i> Envoyer maintenant';
+                }
+            });
         }
-    });
+    }
+
+    const notifLink = document.querySelector('[data-section="notifications"]');
+    if (notifLink) {
+        notifLink.addEventListener('click', () => {
+            setTimeout(loadAdminNotificationHistory, 100);
+        });
+    }
 }
 
 async function loadAdminNotificationHistory() {
@@ -2442,14 +2679,28 @@ async function loadAdminNotificationHistory() {
             container.innerHTML = '<p class="text-muted">Aucune notification envoyée.</p>';
             return;
         }
-        container.innerHTML = rows.map(r => `
-            <div style="padding:10px;border-bottom:1px solid #eef2f7;">
-                <strong>${escapeHtml(r.titre || '')}</strong>
-                <span class="badge bg-secondary" style="margin-left:8px;">${escapeHtml(r.cible || '')}</span>
-                <div style="font-size:12px;color:#64748b;">${r.date_creation ? new Date(r.date_creation).toLocaleString('fr-FR') : ''}</div>
-                <div>${escapeHtml(r.contenu || '')}</div>
-            </div>
-        `).join('');
+        container.innerHTML = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Cible</th>
+                        <th>Titre</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows.map(r => `
+                        <tr>
+                            <td style="white-space:nowrap; font-size:12px;">${r.date_creation ? new Date(r.date_creation).toLocaleString('fr-FR') : '-'}</td>
+                            <td><span class="badge ${r.cible === 'all' ? 'bg-primary' : (r.cible === 'patients' ? 'bg-success' : 'bg-info')}">${escapeHtml(r.cible || '')}</span></td>
+                            <td><strong>${escapeHtml(r.titre || '')}</strong></td>
+                            <td style="max-width:300px; font-size:13px;">${escapeHtml(r.contenu || '')}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
     } catch (error) {
         console.error(error);
         container.innerHTML = '<p class="text-danger">Erreur de chargement.</p>';
@@ -2523,19 +2774,19 @@ async function loadPendingCount() {
         const response = await fetch('/admin/api/inscriptions/statistiques');
         if (!response.ok) throw new Error('Erreur chargement');
         const stats = await response.json();
-        
+
         // Mettre à jour le badge
         const badge = document.getElementById('badge-attente');
         if (badge) {
             badge.textContent = stats.pending_total || 0;
         }
-        
+
         // Mettre à jour la carte du tableau de bord
         const pendingCard = document.getElementById('cardPending');
         if (pendingCard) {
             pendingCard.textContent = stats.pending_total || 0;
         }
-        
+
         return stats;
     } catch (error) {
         console.error('Erreur chargement inscriptions en attente:', error);
@@ -2573,10 +2824,10 @@ const FIXED_HOLIDAYS = [
 // Fonction principale pour afficher le calendrier
 function showCalendar(year = null) {
     if (year) currentYear = year;
-    
+
     const mainContent = document.querySelector('.content-area');
     if (!mainContent) return;
-    
+
     // Vérifier si la section calendrier existe, sinon la créer
     let calendarSection = document.getElementById('calendrier');
     if (!calendarSection) {
@@ -2585,11 +2836,11 @@ function showCalendar(year = null) {
         calendarSection.className = 'section';
         mainContent.appendChild(calendarSection);
     }
-    
+
     // Afficher la section
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     calendarSection.classList.add('active');
-    
+
     // Construire le HTML du calendrier 
     calendarSection.innerHTML = `
         <div class="calendar-container" style="padding: 20px;">
@@ -2675,7 +2926,7 @@ function showCalendar(year = null) {
             </div>
         </div>
     `;
-    
+
     // Charger les jours fériés et mettre à jour les statistiques
     loadHolidays(currentYear).then(() => {
         // Attendre que le DOM soit complètement mis à jour
@@ -2693,17 +2944,17 @@ function generateCalendarHTML(year) {
         'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
         'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
     ];
-    
+
     const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-    
+
     let html = '';
-    
+
     for (let month = 0; month < 12; month++) {
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
         const startOffset = (firstDay.getDay() + 6) % 7; // Lundi = 0
         const daysInMonth = lastDay.getDate();
-        
+
         html += `
             <div class="calendar-month" style="background: white; border-radius: 12px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
                 <h3 class="month-title" style="margin: 0 0 15px 0; color: #0D8ABC; font-size: 18px; text-align: center;">${months[month]}</h3>
@@ -2713,19 +2964,19 @@ function generateCalendarHTML(year) {
                     </div>
                     <div class="days-grid" id="month-${year}-${month}" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;">
         `;
-        
+
         // Cellules vides avant le premier jour
         for (let i = 0; i < startOffset; i++) {
             html += `<div class="day-cell empty" style="aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 4px; border-radius: 6px; background: transparent; cursor: default; position: relative; min-height: 45px;"></div>`;
         }
-        
+
         // Jours du mois
         for (let day = 1; day <= daysInMonth; day++) {
             const date = new Date(year, month, day);
             const dayOfWeek = date.getDay();
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             const isToday = isSameDay(date, new Date());
-            
+
             html += `
                 <div class="day-cell ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}" 
                      data-date="${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}"
@@ -2737,14 +2988,14 @@ function generateCalendarHTML(year) {
                 </div>
             `;
         }
-        
+
         html += `
                     </div>
                 </div>
             </div>
         `;
     }
-    
+
     return html;
 }
 
@@ -2760,7 +3011,7 @@ async function loadHolidays(year) {
     } catch (error) {
         console.log('API jours fériés non disponible, utilisation des données locales');
     }
-    
+
     // Fallback: générer les jours fériés localement
     holidaysCache = generateLocalHolidays(year);
 }
@@ -2768,7 +3019,7 @@ async function loadHolidays(year) {
 // Générer les jours fériés localement
 function generateLocalHolidays(year) {
     const holidays = [];
-    
+
     // Ajouter les jours fériés fixes
     FIXED_HOLIDAYS.forEach(holiday => {
         holidays.push({
@@ -2777,23 +3028,23 @@ function generateLocalHolidays(year) {
             type: 'fixed'
         });
     });
-    
+
     // Calculer Pâques
     const easter = calculateEaster(year);
     if (easter) {
         const easterMonday = new Date(easter);
         easterMonday.setDate(easterMonday.getDate() + 1);
         holidays.push({ date: easterMonday, name: "Lundi de Pâques", type: 'movable' });
-        
+
         const ascension = new Date(easter);
         ascension.setDate(ascension.getDate() + 39);
         holidays.push({ date: ascension, name: "Ascension", type: 'movable' });
-        
+
         const pentecost = new Date(easter);
         pentecost.setDate(pentecost.getDate() + 50);
         holidays.push({ date: pentecost, name: "Pentecôte", type: 'movable' });
     }
-    
+
     return holidays;
 }
 
@@ -2813,27 +3064,27 @@ function calculateEaster(year) {
     const m = Math.floor((a + 11 * h + 22 * l) / 451);
     const month = Math.floor((h + l - 7 * m + 114) / 31);
     const day = ((h + l - 7 * m + 114) % 31) + 1;
-    
+
     return new Date(year, month - 1, day);
 }
 
 // Marquer les jours fériés sur le calendrier
 function markHolidaysOnCalendar(year, holidays) {
     if (!holidays || holidays.length === 0) return;
-    
+
     holidays.forEach(holiday => {
         const date = holiday.date;
         if (date.getFullYear() !== year) return;
-        
+
         const month = date.getMonth();
         const day = date.getDate();
-        
+
         setTimeout(() => {
             const dayCell = document.querySelector(`.day-cell[data-month="${month}"][data-day="${day}"]`);
             if (dayCell) {
                 dayCell.classList.add('holiday');
                 dayCell.style.background = '#fee2e2';
-                
+
                 const eventsDiv = document.getElementById(`events-${year}-${month}-${day}`);
                 if (eventsDiv) {
                     eventsDiv.innerHTML = `
@@ -2851,24 +3102,24 @@ function markHolidaysOnCalendar(year, holidays) {
 function updateCalendarStats(year) {
     const holidays = holidaysCache || [];
     const holidaysInYear = holidays.filter(h => h.date.getFullYear() === year).length;
-    
+
     let weekendsCount = 0;
     let workdaysCount = 0;
-    
+
     const startDate = new Date(year, 0, 1);
     const endDate = new Date(year, 11, 31);
-    
+
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
         const dayOfWeek = d.getDay();
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        
+
         if (isWeekend) {
             weekendsCount++;
         } else {
             workdaysCount++;
         }
     }
-    
+
     // Soustraire les jours fériés qui tombent en semaine
     holidays.forEach(holiday => {
         if (holiday.date.getFullYear() !== year) return;
@@ -2877,11 +3128,11 @@ function updateCalendarStats(year) {
             workdaysCount--;
         }
     });
-    
+
     const holidaysElement = document.getElementById('holidaysCount');
     const weekendsElement = document.getElementById('weekendsCount');
     const workdaysElement = document.getElementById('workdaysCount');
-    
+
     if (holidaysElement) holidaysElement.textContent = holidaysInYear;
     if (weekendsElement) weekendsElement.textContent = weekendsCount;
     if (workdaysElement) workdaysElement.textContent = workdaysCount;
@@ -2891,21 +3142,21 @@ function updateCalendarStats(year) {
 function displayHolidaysList(year) {
     const holidays = holidaysCache?.filter(h => h.date.getFullYear() === year) || [];
     holidays.sort((a, b) => a.date - b.date);
-    
+
     const grid = document.getElementById('holidaysGrid');
     if (!grid) return;
-    
+
     if (holidays.length === 0) {
         grid.innerHTML = '<p class="empty-state" style="color: #6b7280; text-align: center;">Aucun jour férié trouvé</p>';
         return;
     }
-    
+
     let html = '';
     holidays.forEach(holiday => {
         const date = holiday.date;
         const dayOfWeek = date.toLocaleDateString('fr-FR', { weekday: 'long' });
         const formattedDate = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
-        
+
         html += `
             <div class="holiday-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #ef4444;">
                 <div class="holiday-date" style="display: flex; flex-direction: column;">
@@ -2921,7 +3172,7 @@ function displayHolidaysList(year) {
             </div>
         `;
     });
-    
+
     grid.innerHTML = html;
 }
 
@@ -2937,14 +3188,14 @@ function filterCalendar(filter) {
     event.target.style.background = '#0D8ABC';
     event.target.style.color = 'white';
     event.target.style.borderColor = '#0D8ABC';
-    
+
     const dayCells = document.querySelectorAll('.day-cell:not(.empty)');
-    
+
     dayCells.forEach(cell => {
         const isHoliday = cell.classList.contains('holiday');
         const isWeekend = cell.classList.contains('weekend');
-        
-        switch(filter) {
+
+        switch (filter) {
             case 'all':
                 cell.style.display = '';
                 break;
@@ -2970,8 +3221,8 @@ function changeYear(delta) {
 // Vérifier si deux dates sont le même jour
 function isSameDay(date1, date2) {
     return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
+        date1.getMonth() === date2.getMonth() &&
+        date1.getDate() === date2.getDate();
 }
 
 
@@ -2980,6 +3231,7 @@ function isSameDay(date1, date2) {
 // ============================================
 
 let partenairesList = [];
+let laboratoiresList = [];
 
 // Initialiser la section partenaires
 function initPartenaires() {
@@ -2987,12 +3239,17 @@ function initPartenaires() {
     if (partenairesLink) {
         partenairesLink.addEventListener('click', loadPartenaires);
     }
+
+    const laboratoiresLink = document.querySelector('[data-section="laboratoires"]');
+    if (laboratoiresLink) {
+        laboratoiresLink.addEventListener('click', loadLaboratoires);
+    }
 }
 
 // Charger la liste des partenaires
 async function loadPartenaires() {
     console.log("📋 Chargement des partenaires...");
-    
+
     // Attendre que le DOM soit complètement chargé
     await new Promise(resolve => {
         if (document.readyState === 'complete') {
@@ -3001,30 +3258,30 @@ async function loadPartenaires() {
             window.addEventListener('load', resolve, { once: true });
         }
     });
-    
+
     // 1. Récupérer le conteneur principal
     const mainContent = document.getElementById('mainContent');
     console.log("mainContent trouvé:", mainContent);
-    
+
     if (!mainContent) {
         console.error("❌ mainContent non trouvé - recherche d'alternative...");
-        
+
         // Chercher d'autres conteneurs possibles
-        const alternative = document.querySelector('.content-area') || 
-                           document.querySelector('main') ||
-                           document.querySelector('.main-content');
-        
+        const alternative = document.querySelector('.content-area') ||
+            document.querySelector('main') ||
+            document.querySelector('.main-content');
+
         if (alternative) {
             console.log("✅ Conteneur alternatif trouvé:", alternative);
             // Utiliser le conteneur alternatif
             loadPartenairesInContainer(alternative);
             return;
         }
-        
+
         console.error("❌ Aucun conteneur trouvé");
         return;
     }
-    
+
     loadPartenairesInContainer(mainContent);
 }
 
@@ -3037,11 +3294,11 @@ function loadPartenairesInContainer(container) {
         partenairesSection.className = 'section';
         container.appendChild(partenairesSection);
     }
-    
+
     // 3. Activer la section
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     partenairesSection.classList.add('active');
-    
+
     // 4. Afficher le chargement
     partenairesSection.innerHTML = `
         <div class="section-header">
@@ -3057,7 +3314,7 @@ function loadPartenairesInContainer(container) {
             <p class="mt-2">Chargement des partenaires...</p>
         </div>
     `;
-    
+
     // 5. Charger les données
     fetchPartenaires(partenairesSection);
 }
@@ -3066,11 +3323,11 @@ async function fetchPartenaires(partenairesSection) {
     try {
         const response = await fetch('/admin/api/partenaires');
         if (!response.ok) throw new Error('Erreur chargement');
-        
+
         const partenaires = await response.json();
         partenairesList = partenaires;
         displayPartenaires(partenaires);
-        
+
     } catch (error) {
         console.error('Erreur:', error);
         partenairesSection.innerHTML = `
@@ -3092,7 +3349,7 @@ async function fetchPartenaires(partenairesSection) {
 function displayPartenaires(partenaires) {
     const partenairesSection = document.getElementById('partenaires');
     if (!partenairesSection) return;
-    
+
     let html = `
         <div class="section-header">
             <h2><i class="fas fa-handshake"></i> Partenaires (${partenaires.length})</h2>
@@ -3101,7 +3358,7 @@ function displayPartenaires(partenaires) {
             </button>
         </div>
     `;
-    
+
     if (partenaires.length === 0) {
         html += `
             <div class="empty-state">
@@ -3129,9 +3386,9 @@ function displayPartenaires(partenaires) {
                     </thead>
                     <tbody>
         `;
-        
+
         partenaires.forEach(p => {
-           html += `
+            html += `
         <tr>
             <td>
                 <img src="${p.logo_url ? p.logo_url.replace('app/', '/') : 'https://via.placeholder.com/50x50?text=Logo'}" 
@@ -3155,14 +3412,14 @@ function displayPartenaires(partenaires) {
         </tr>
        `;
         });
-        
+
         html += `
                     </tbody>
                 </table>
             </div>
         `;
     }
-    
+
     partenairesSection.innerHTML = html;
 }
 
@@ -3183,10 +3440,10 @@ function editPartenaire(id) {
 function showPartenaireForm(partenaire = null) {
     const partenairesSection = document.getElementById('partenaires');
     if (!partenairesSection) return;
-    
+
     const isEdit = partenaire !== null;
     const title = isEdit ? 'Modifier le partenaire' : 'Ajouter un partenaire';
-    
+
     partenairesSection.innerHTML = `
         <div class="section-header">
             <h2><i class="fas fa-handshake"></i> ${title}</h2>
@@ -3239,37 +3496,37 @@ function showPartenaireForm(partenaire = null) {
             </div>
         </div>
     `;
-    
+
     // Gérer la soumission du formulaire
     document.getElementById('partenaireForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const formData = new FormData(e.target);
         const id = document.getElementById('partenaireId').value;
-        
+
         try {
             let url = '/admin/api/partenaires/ajouter';
             let method = 'POST';
-            
+
             if (id) {
                 url = `/admin/api/partenaires/${id}`;
                 method = 'PUT';
             }
-            
+
             const response = await fetch(url, {
                 method: method,
                 body: formData
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.detail || 'Erreur lors de l\'enregistrement');
             }
-            
+
             const result = await response.json();
             alert(result.message || 'Opération réussie !');
             loadPartenaires(); // Recharger la liste
-            
+
         } catch (error) {
             console.error('Erreur:', error);
             alert('Erreur: ' + error.message);
@@ -3283,23 +3540,210 @@ async function deletePartenaire(id) {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce partenaire ?')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`/admin/api/partenaires/${id}`, {
             method: 'DELETE'
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.detail || 'Erreur lors de la suppression');
         }
-        
+
         const result = await response.json();
         alert(result.message || 'Partenaire supprimé !');
         loadPartenaires(); // Recharger la liste
-        
+
     } catch (error) {
         console.error('Erreur:', error);
         alert('Erreur: ' + error.message);
+    }
+}
+
+// ============================================
+// GESTION DES LABORATOIRES (sous-ensemble des partenaires)
+// ============================================
+
+function loadLaboratoires() {
+    const section = document.getElementById('laboratoires');
+    if (!section) {
+        console.warn('Section laboratoires introuvable');
+        return;
+    }
+    loadLaboratoiresInContainer(section);
+}
+
+function loadLaboratoiresInContainer(container) {
+    container.innerHTML = `
+        <div class="section-header">
+            <h2><i class="fas fa-flask"></i> Laboratoires</h2>
+            <button class="btn btn-primary" onclick="showLaboratoireForm()">
+                <i class="fas fa-plus"></i> Ajouter un laboratoire
+            </button>
+        </div>
+        <div id="laboratoires" class="section">
+            <div class="loader">Chargement...</div>
+        </div>
+    `;
+    fetchLaboratoires(container);
+}
+
+async function fetchLaboratoires(target) {
+    try {
+        const res = await fetch('/admin/api/partenaires');
+        const data = await res.json();
+        laboratoiresList = (data || []).filter(p => (p.type_partenaire || '').toLowerCase() === 'laboratoire');
+        displayLaboratoires(target, laboratoiresList);
+    } catch (e) {
+        console.error('Erreur chargement laboratoires', e);
+        target.innerHTML = `<p class="empty-state">Erreur de chargement</p>`;
+    }
+}
+
+function displayLaboratoires(target, labs) {
+    if (!target) return;
+    if (!labs || labs.length === 0) {
+        target.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-flask"></i>
+                <p>Aucun laboratoire partenaire.</p>
+                <button class="btn btn-primary" onclick="showLaboratoireForm()">
+                    <i class="fas fa-plus"></i> Ajouter un laboratoire
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    let rows = labs.map(p => `
+        <tr>
+            <td>${escapeHtml(p.nom || '')}</td>
+            <td>${escapeHtml(p.type_partenaire || '')}</td>
+            <td>${escapeHtml(p.adresse || '')}</td>
+            <td>${escapeHtml(p.specialisation || '')}</td>
+            <td>${p.logo_url ? `<img src="${p.logo_url}" style="height:40px;">` : '-'}</td>
+            <td>
+                <button class="btn-action edit" onclick="editLaboratoire(${p.id})" title="Modifier"><i class="fas fa-edit"></i></button>
+                <button class="btn-action delete" onclick="deleteLaboratoire(${p.id})" title="Supprimer"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+
+    target.innerHTML = `
+        <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;">Laboratoires (${labs.length})</h3>
+                <button class="btn btn-primary" onclick="showLaboratoireForm()"><i class="fas fa-plus"></i> Ajouter</button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Type</th>
+                            <th>Adresse</th>
+                            <th>Spécialisation</th>
+                            <th>Logo</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function showLaboratoireForm(lab = null) {
+    const container = document.getElementById('laboratoires');
+    if (!container) return;
+
+    const isEdit = !!lab;
+    container.innerHTML = `
+        <div class="section-header">
+            <h2><i class="fas fa-flask"></i> ${isEdit ? 'Modifier le laboratoire' : 'Ajouter un laboratoire'}</h2>
+            <button class="btn btn-secondary" onclick="loadLaboratoires()">
+                <i class="fas fa-arrow-left"></i> Retour
+            </button>
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <form id="laboratoireForm" enctype="multipart/form-data">
+                    <input type="hidden" id="labId" value="${isEdit ? lab.id : ''}">
+                    <input type="hidden" id="type_partenaire" name="type_partenaire" value="Laboratoire">
+                    <div class="form-group mb-3">
+                        <label for="lab_nom" class="form-label">Nom du laboratoire *</label>
+                        <input type="text" class="form-control" id="lab_nom" name="nom" value="${isEdit ? escapeHtml(lab.nom) : ''}" required>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label for="lab_adresse" class="form-label">Adresse</label>
+                        <textarea class="form-control" id="lab_adresse" name="adresse" rows="2" placeholder="Adresse du laboratoire">${isEdit ? escapeHtml(lab.adresse || '') : ''}</textarea>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label for="lab_logo" class="form-label">Logo</label>
+                        <input type="file" class="form-control" id="lab_logo" name="logo" accept="image/*">
+                        <small class="text-muted">Formats: JPG, PNG, GIF</small>
+                        ${isEdit && lab.logo_url ? `<div class="mt-2"><img src="${lab.logo_url}" style="max-height:80px;"></div>` : ''}
+                    </div>
+                    <div class="form-group mb-3">
+                        <label for="lab_specialisation" class="form-label">Spécialisation</label>
+                        <input type="text" class="form-control" id="lab_specialisation" name="specialisation" value="${isEdit ? escapeHtml(lab.specialisation || '') : ''}" placeholder="Ex: Biologie, Imagerie, Anatomopathologie">
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> ${isEdit ? 'Modifier' : 'Ajouter'}</button>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('laboratoireForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        formData.set('type_partenaire', 'Laboratoire');
+        formData.append('adresse', document.getElementById('lab_adresse')?.value || '');
+        formData.append('specialisation', document.getElementById('lab_specialisation')?.value || '');
+        const id = document.getElementById('labId').value;
+        let url = '/admin/api/partenaires/ajouter';
+        let method = 'POST';
+        if (id) {
+            url = `/admin/api/partenaires/${id}`;
+            method = 'PUT';
+        }
+        try {
+            const res = await fetch(url, { method, body: formData });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.detail || 'Erreur lors de la sauvegarde');
+            }
+            alert(isEdit ? 'Laboratoire modifié' : 'Laboratoire ajouté');
+            loadLaboratoires();
+        } catch (err) {
+            console.error(err);
+            alert(err.message);
+        }
+    });
+}
+
+function editLaboratoire(id) {
+    const lab = laboratoiresList.find(l => l.id === id);
+    if (lab) showLaboratoireForm(lab);
+}
+
+async function deleteLaboratoire(id) {
+    if (!confirm('Supprimer ce laboratoire ?')) return;
+    try {
+        const res = await fetch(`/admin/api/partenaires/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Erreur de suppression');
+        }
+        alert('Laboratoire supprimé');
+        loadLaboratoires();
+    } catch (err) {
+        console.error(err);
+        alert(err.message);
     }
 }
